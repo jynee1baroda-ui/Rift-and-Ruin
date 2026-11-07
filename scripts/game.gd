@@ -479,6 +479,8 @@ func _generate_floor() -> void:
 		_spawn_merchant()
 	else:
 		_spawn_packs()
+	if not merchant_floor and layer % 5 == 0:
+		_spawn_merchant()
 	_spawn_embers()
 	hud.set_map_cells(walkable, bridge_cells, GRID)
 	hud.set_modifiers(active_mods)
@@ -2017,11 +2019,11 @@ func _apply_boon(key: String, record := true) -> String:
 
 
 func _is_merchant_layer() -> bool:
-	return layer % 5 == 0
+	return layer % 5 == 0 and layer % 6 != 0
 
 
 func _is_boss_layer() -> bool:
-	return layer % 6 == 0 and not _is_merchant_layer()
+	return layer % 6 == 0
 
 
 func _first_glb(dir_path: String) -> String:

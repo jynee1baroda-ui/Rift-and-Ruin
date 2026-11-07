@@ -42,6 +42,7 @@ An isometric, click-to-move action RPG in a volcanic wasteland split by lava rif
 ## Coin and the Ashen Broker
 - Every kill drops a coin stack that flies to the player (coins are saved as they are picked up). Elites pay x3, bosses x9; payout scales with the layer.
 - Every 5th layer is a merchant floor: no enemies, no hazards. The Ashen Broker stands on a lit dais with his stall, braziers and a label; walk up and press E (or click him) to open the shop, and step into the gate to descend.
+- Layer 30 (and every 60th after it) is a boss floor that also carries the broker near the entrance, so a warden and a trader share the milestone.
 - The shop sells 3 relics (priced by rarity and layer), 2 random boons and a full vitae flask. Bought relics open the normal slot-bind window; boons apply at once.
 - The merchant floor plays the ambient metal bazaar track and shows NO HOSTILES - THE BROKER WAITS.
 
