@@ -5,6 +5,7 @@ signal equip_requested(item: Dictionary, slot: int)
 signal unequip_requested(slot: int)
 signal discard_requested
 signal start_pressed
+signal continue_pressed
 signal ui_click
 signal ability_pressed(index: int)
 signal restart_pressed
@@ -12,6 +13,10 @@ signal settings_changed
 signal boon_chosen(key: String)
 signal shop_buy(index: int)
 signal shop_close
+signal rift_map_requested
+signal duel_pressed
+signal duel_again_pressed
+signal home_pressed
 
 const INK := Color(0.035, 0.025, 0.045, 0.92)
 const AMBER := Color(1.0, 0.72, 0.28)
@@ -23,6 +28,7 @@ const DISPLAY_FONT := "res://fonts/cinzel.ttf"
 const ICON_NOVA := "res://art/generated/icon_nova/img-f4afbd64-b344-4c4f-a17c-5b062341cf23-1794037296460-0_1794037296461_2fben6it.png"
 const ICON_LANCE := "res://art/generated/icon_lance/img-f4afbd64-b344-4c4f-a17c-5b062341cf23-1794037334226-0_1794037334226_0jajynkv.png"
 const ICON_SIPHON := "res://art/generated/icon_siphon/img-f4afbd64-b344-4c4f-a17c-5b062341cf23-1794037347430-0_1794037347430_d38c0j6p.png"
+const ICON_RIFTSTEP_DIR := "res://art/generated/icon_riftstep"
 
 var root: Control
 var body: Control
@@ -101,6 +107,34 @@ var low_health := 0.0
 var display_font: FontFile
 var title_font: FontVariation
 var last_pause_ms := 0
+var loading_panel: Control
+var loading_bar: ProgressBar
+var rift_map_panel: PanelContainer
+var rift_map_body: VBoxContainer
+var rift_map_footer: Label
+var save_chip: PanelContainer
+var save_chip_last_ms := 0
+var title_shown_ms := 0
+var title_mouse_moved := false
+var title_continue_btn: Button
+var title_begin_btn: Button
+var title_lore_label: Label
+var title_lore_title: Label
+var hall_index := 0
+var duel_panel: PanelContainer
+var duel_title: Label
+var duel_sub: Label
+var duel_stats: Label
+var settings_btn: Button
+var duel_shown_ms := 0
+var whisper_label: Label
+
+const HALL_LORE := [
+	"THE BASTION — raised by deserters who refused to kneel to the rift's first warden. Its braziers have not gone out in a hundred years.",
+	"THE HUSHED PROPHET — a saint who traded his voice for prophecy. Now he speaks only in volleys of stolen souls.",
+	"THE BROOD MOTHER — the rift's answer to the sorceress. She births her army from the stone and calls it love.",
+	"THE ASHEN BROKER — he sells relics he should not have. Nobody asks where they came from, and he never tells the same story twice.",
+]
 
 
 class RiftMap extends Control:
@@ -191,6 +225,24 @@ class RelicGem extends Control:
 		draw_polyline(pts, gem_color.lightened(0.45), 1.0)
 
 
+class FrameCorners extends Control:
+	var line_color := Color(0.85, 0.62, 0.26, 0.3)
+	var inset := 16.0
+	var arm := 30.0
+
+	func _draw() -> void:
+		var w := size.x
+		var h := size.y
+		var paths := [
+			PackedVector2Array([Vector2(inset, inset + arm), Vector2(inset, inset), Vector2(inset + arm, inset)]),
+			PackedVector2Array([Vector2(w - inset - arm, inset), Vector2(w - inset, inset), Vector2(w - inset, inset + arm)]),
+			PackedVector2Array([Vector2(inset, h - inset - arm), Vector2(inset, h - inset), Vector2(inset + arm, h - inset)]),
+			PackedVector2Array([Vector2(w - inset - arm, h - inset), Vector2(w - inset, h - inset), Vector2(w - inset, h - inset - arm)]),
+		]
+		for path in paths:
+			draw_polyline(path, line_color, 1.5, true)
+
+
 func _ready() -> void:
 	layer = 10
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -208,6 +260,16 @@ func _load_fonts() -> void:
 		title_font = FontVariation.new()
 		title_font.base_font = display_font
 		title_font.variation_embolden = 0.4
+
+
+func _first_png(dir_path: String) -> String:
+	var dir := DirAccess.open(dir_path)
+	if dir == null:
+		return ""
+	for file in dir.get_files():
+		if String(file).get_extension().to_lower() == "png":
+			return dir_path.path_join(file)
+	return ""
 
 
 func _stylebox(color: Color, border: Color, width := 1, radius := 3) -> StyleBoxFlat:
@@ -263,6 +325,7 @@ func _build() -> void:
 	_build_toasts()
 	_build_relic_window()
 	_build_death()
+	_build_duel_result()
 	_build_title()
 	_build_pause_button()
 	_build_pause()
@@ -272,7 +335,297 @@ func _build() -> void:
 	_build_prompt()
 	_build_shop()
 	_build_fade()
+	_build_save_chip()
+	_build_rift_map()
+	_build_loading()
 	_apply_ui_settings()
+	_kill_button_focus()
+
+
+func _kill_button_focus() -> void:
+	if root == null:
+		return
+	for node in root.find_children("*", "Button", true, false):
+		var btn := node as Button
+		if btn != null:
+			btn.focus_mode = Control.FOCUS_NONE
+
+
+func _build_save_chip() -> void:
+	save_chip = PanelContainer.new()
+	save_chip.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	save_chip.offset_left = -196.0
+	save_chip.offset_right = -24.0
+	save_chip.offset_top = 64.0
+	save_chip.offset_bottom = 94.0
+	save_chip.add_theme_stylebox_override("panel", _stylebox(Color(0.04, 0.025, 0.03, 0.9), Color(0.45, 0.32, 0.14, 0.9), 1, 2))
+	save_chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	save_chip.modulate.a = 0.0
+	root.add_child(save_chip)
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 8)
+	save_chip.add_child(row)
+	var dot := ColorRect.new()
+	dot.color = Color(0.85, 0.62, 0.24, 1.0)
+	dot.custom_minimum_size = Vector2(7, 7)
+	dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(dot)
+	var text := _label("RIFT SAVED", 11, GOLD, false)
+	row.add_child(text)
+
+
+func show_saved() -> void:
+	if save_chip == null:
+		return
+	var now := Time.get_ticks_msec()
+	if now - save_chip_last_ms < 1400:
+		return
+	save_chip_last_ms = now
+	save_chip.modulate.a = 0.0
+	var tween := create_tween()
+	tween.tween_property(save_chip, "modulate:a", 1.0, 0.18)
+	tween.tween_interval(1.1)
+	tween.tween_property(save_chip, "modulate:a", 0.0, 0.5)
+
+
+func _build_loading() -> void:
+	loading_panel = Control.new()
+	loading_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	loading_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	loading_panel.visible = false
+	root.add_child(loading_panel)
+	var bg := ColorRect.new()
+	bg.color = Color(0.014, 0.007, 0.014, 1.0)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	loading_panel.add_child(bg)
+	var glow := TextureRect.new()
+	var grad := Gradient.new()
+	grad.offsets = PackedFloat32Array([0.0, 1.0])
+	grad.colors = PackedColorArray([Color(1.0, 0.45, 0.1, 0.16), Color(1.0, 0.3, 0.05, 0.0)])
+	var gtex := GradientTexture2D.new()
+	gtex.gradient = grad
+	gtex.fill = GradientTexture2D.FILL_RADIAL
+	gtex.fill_from = Vector2(0.5, 0.5)
+	gtex.fill_to = Vector2(1.0, 0.5)
+	gtex.width = 512
+	gtex.height = 512
+	glow.texture = gtex
+	glow.set_anchors_preset(Control.PRESET_CENTER)
+	glow.offset_left = -320.0
+	glow.offset_right = 320.0
+	glow.offset_top = -320.0
+	glow.offset_bottom = 320.0
+	glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	loading_panel.add_child(glow)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	loading_panel.add_child(center)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 8)
+	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	center.add_child(box)
+	var mark := _label("RIFT & RUIN", 54, AMBER)
+	mark.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(mark)
+	var sub := _label("THE BLOOD SORCERESS DESCENDS", 12, CRIMSON)
+	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(sub)
+	var gap := Control.new()
+	gap.custom_minimum_size = Vector2(0, 16)
+	box.add_child(gap)
+	var bar_holder := CenterContainer.new()
+	box.add_child(bar_holder)
+	loading_bar = ProgressBar.new()
+	loading_bar.custom_minimum_size = Vector2(360, 4)
+	loading_bar.show_percentage = false
+	loading_bar.max_value = 100.0
+	loading_bar.value = 0.0
+	var bg_style := StyleBoxFlat.new()
+	bg_style.bg_color = Color(0.09, 0.04, 0.03, 0.9)
+	bg_style.set_corner_radius_all(2)
+	var fill_grad := Gradient.new()
+	fill_grad.set_color(0, Color(0.75, 0.18, 0.06, 1.0))
+	fill_grad.set_color(1, Color(1.0, 0.72, 0.28, 1.0))
+	var fill_tex := GradientTexture2D.new()
+	fill_tex.gradient = fill_grad
+	fill_tex.fill_from = Vector2(0.0, 0.5)
+	fill_tex.fill_to = Vector2(1.0, 0.5)
+	fill_tex.width = 128
+	fill_tex.height = 4
+	var fill_style := StyleBoxTexture.new()
+	fill_style.texture = fill_tex
+	loading_bar.add_theme_stylebox_override("background", bg_style)
+	loading_bar.add_theme_stylebox_override("fill", fill_style)
+	bar_holder.add_child(loading_bar)
+	var hint := _label("FORGING THE RIFT", 11, MUTED)
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(hint)
+
+
+func show_loading() -> void:
+	if loading_panel == null:
+		return
+	loading_panel.visible = true
+	loading_panel.modulate.a = 1.0
+	loading_bar.value = 6.0
+	var tween := create_tween()
+	tween.tween_property(loading_bar, "value", 90.0, 0.7).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+
+
+func hide_loading() -> void:
+	if loading_panel == null or not loading_panel.visible:
+		return
+	loading_bar.value = 100.0
+	var tween := create_tween()
+	tween.tween_interval(0.12)
+	tween.tween_property(loading_panel, "modulate:a", 0.0, 0.4).set_trans(Tween.TRANS_SINE)
+	tween.tween_callback(func() -> void:
+		loading_panel.visible = false
+		loading_panel.modulate.a = 1.0
+	)
+	tween.tween_callback(func() -> void: loading_panel.visible = false)
+
+
+func _build_rift_map() -> void:
+	rift_map_panel = PanelContainer.new()
+	rift_map_panel.set_anchors_preset(Control.PRESET_CENTER)
+	rift_map_panel.anchor_left = 0.5
+	rift_map_panel.anchor_right = 0.5
+	rift_map_panel.anchor_top = 0.5
+	rift_map_panel.anchor_bottom = 0.5
+	rift_map_panel.offset_left = -382.0
+	rift_map_panel.offset_right = 382.0
+	rift_map_panel.offset_top = -170.0
+	rift_map_panel.offset_bottom = 170.0
+	rift_map_panel.add_theme_stylebox_override("panel", _stylebox(Color(0.03, 0.016, 0.035, 0.97), Color(0.52, 0.3, 0.14, 1.0), 2, 5))
+	rift_map_panel.visible = false
+	rift_map_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	root.add_child(rift_map_panel)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 6)
+	rift_map_panel.add_child(box)
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 10)
+	box.add_child(head)
+	var title := _label("THE RIFT LADDER", 26, AMBER)
+	head.add_child(title)
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(spacer)
+	var close := Button.new()
+	close.text = "CLOSE  M"
+	close.custom_minimum_size = Vector2(104, 30)
+	close.add_theme_font_size_override("font_size", 11)
+	close.add_theme_color_override("font_color", MUTED)
+	close.add_theme_color_override("font_hover_color", AMBER)
+	close.add_theme_stylebox_override("normal", _stylebox(Color(0.05, 0.03, 0.04, 0.9), Color(0.24, 0.16, 0.12, 1.0), 1))
+	close.add_theme_stylebox_override("hover", _stylebox(Color(0.13, 0.06, 0.05, 0.95), Color(0.9, 0.55, 0.2, 1.0), 1))
+	close.pressed.connect(hide_rift_map)
+	head.add_child(close)
+	var sub := _label("A broker waits on every 5th layer.  A Rift Warden hunts every 6th.  There is no floor below the last one you survive.", 11, MUTED)
+	sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(sub)
+	box.add_child(HSeparator.new())
+	rift_map_body = VBoxContainer.new()
+	rift_map_body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	rift_map_body.add_theme_constant_override("separation", 2)
+	box.add_child(rift_map_body)
+	rift_map_footer = _label("", 11, GOLD)
+	rift_map_footer.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(rift_map_footer)
+
+
+func show_rift_map(entries: Array, current_layer: int, deepest: int) -> void:
+	if rift_map_panel == null:
+		return
+	for child in rift_map_body.get_children():
+		rift_map_body.remove_child(child)
+		child.queue_free()
+	var columns := HBoxContainer.new()
+	columns.add_theme_constant_override("separation", 26)
+	rift_map_body.add_child(columns)
+	var left := VBoxContainer.new()
+	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	left.add_theme_constant_override("separation", 2)
+	columns.add_child(left)
+	var right := VBoxContainer.new()
+	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	right.add_theme_constant_override("separation", 2)
+	columns.add_child(right)
+	var half := int(ceil(float(entries.size()) / 2.0))
+	for i in entries.size():
+		var entry: Dictionary = entries[i]
+		var row := _rift_map_row(entry, current_layer, deepest)
+		if i < half:
+			left.add_child(row)
+		else:
+			right.add_child(row)
+	var legend := _label("THIS LAYER in gold   ·   CLEARED in violet   ·   AHEAD dim", 10, MUTED)
+	rift_map_body.add_child(legend)
+	if rift_map_footer != null:
+		rift_map_footer.text = "CURRENT LAYER %d   ·   LEVEL %d   ·   COIN %d   ·   DEEPEST %d" % [current_layer, run_level, run_coins, maxi(deepest, current_layer)]
+	rift_map_panel.visible = true
+	rift_map_panel.modulate.a = 0.0
+	var tween := create_tween()
+	tween.tween_property(rift_map_panel, "modulate:a", 1.0, 0.18)
+
+
+func _rift_map_row(entry: Dictionary, current_layer: int, deepest: int) -> Control:
+	var layer_num := int(entry.get("layer", 1))
+	var is_merchant := bool(entry.get("merchant", false))
+	var is_boss := bool(entry.get("boss", false))
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	row.custom_minimum_size = Vector2(0, 26)
+	var marker := ColorRect.new()
+	marker.custom_minimum_size = Vector2(6, 18)
+	marker.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var color := Color(0.3, 0.26, 0.3)
+	if layer_num == current_layer:
+		color = GOLD
+	elif layer_num <= deepest:
+		color = Color(0.62, 0.4, 0.95)
+	marker.color = color
+	row.add_child(marker)
+	var number := _label("%02d" % layer_num, 12, color, false)
+	number.custom_minimum_size = Vector2(24, 0)
+	row.add_child(number)
+	var name_color := BONE if layer_num <= deepest or layer_num == current_layer else Color(0.42, 0.38, 0.42)
+	var name_label := _label(String(entry.get("name", "RIFT")), 12, name_color, false)
+	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(name_label)
+	var tag_text := ""
+	var tag_color := MUTED
+	if is_merchant:
+		tag_text = "BROKER"
+		tag_color = GOLD
+	elif is_boss:
+		tag_text = "WARDEN"
+		tag_color = Color(1.0, 0.45, 0.3)
+	if tag_text != "":
+		var tag := _label(tag_text, 10, tag_color, false)
+		row.add_child(tag)
+	return row
+
+
+func hide_rift_map() -> void:
+	if rift_map_panel == null or not rift_map_panel.visible:
+		return
+	rift_map_panel.visible = false
+	get_tree().paused = false
+
+
+func toggle_rift_map() -> void:
+	if rift_map_panel == null:
+		return
+	if rift_map_panel.visible:
+		hide_rift_map()
+		return
+	get_tree().paused = true
+	rift_map_requested.emit()
 
 
 func _build_minimap() -> void:
@@ -339,6 +692,16 @@ func show_body() -> void:
 	body.visible = true
 	var tween := create_tween()
 	tween.tween_property(body, "modulate:a", 1.0, 0.55).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+
+
+func hide_body() -> void:
+	if body == null:
+		return
+	if not body.visible:
+		return
+	var tween := create_tween()
+	tween.tween_property(body, "modulate:a", 0.0, 0.3)
+	tween.tween_callback(func() -> void: body.visible = false)
 
 
 func _build_backdrop() -> void:
@@ -524,7 +887,7 @@ func _build_health() -> void:
 	box.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	box.offset_left = 30.0
 	box.offset_bottom = -104.0
-	box.offset_top = -218.0
+	box.offset_top = -236.0
 	box.offset_right = 330.0
 	box.add_theme_constant_override("separation", 3)
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -613,8 +976,8 @@ func _build_abilities() -> void:
 	box.anchor_right = 0.5
 	box.offset_bottom = -22.0
 	box.offset_top = -128.0
-	box.offset_left = -272.0
-	box.offset_right = 272.0
+	box.offset_left = -304.0
+	box.offset_right = 304.0
 	box.alignment = BoxContainer.ALIGNMENT_END
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	body.add_child(box)
@@ -627,8 +990,8 @@ func _build_abilities() -> void:
 	for ability_index in Player.ABILITIES.size():
 		var ability: Dictionary = Player.ABILITIES[ability_index]
 		var panel := Panel.new()
-		panel.custom_minimum_size = Vector2(142, 62)
-		panel.add_theme_stylebox_override("panel", _stylebox(INK, Color(0.3, 0.16, 0.12, 1.0), 1))
+		panel.custom_minimum_size = Vector2(148, 70)
+		panel.add_theme_stylebox_override("panel", _stylebox(Color(0.045, 0.028, 0.05, 0.94), Color(0.34, 0.2, 0.14, 1.0), 1, 2))
 		panel.mouse_filter = Control.MOUSE_FILTER_STOP
 		panel.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		var slot_index := slots.size()
@@ -647,34 +1010,39 @@ func _build_abilities() -> void:
 		panel.add_child(key_label)
 		var icon_path := String(icon_paths[ability_index])
 		if ResourceLoader.exists(icon_path):
-			var icon_box := Control.new()
-			icon_box.position = Vector2(8, 21)
-			icon_box.size = Vector2(36, 36)
-			icon_box.custom_minimum_size = Vector2(36, 36)
+			var icon_box := Panel.new()
+			icon_box.position = Vector2(8, 18)
+			icon_box.size = Vector2(46, 46)
+			icon_box.custom_minimum_size = Vector2(46, 46)
 			icon_box.clip_contents = true
+			icon_box.add_theme_stylebox_override("panel", _stylebox(Color(0.015, 0.01, 0.02, 0.95), Color(0.58, 0.38, 0.17, 0.95), 1, 2))
 			icon_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			panel.add_child(icon_box)
 			var icon := TextureRect.new()
 			icon.texture = load(icon_path)
 			icon.set_anchors_preset(Control.PRESET_FULL_RECT)
+			icon.offset_left = 2.0
+			icon.offset_top = 2.0
+			icon.offset_right = -2.0
+			icon.offset_bottom = -2.0
 			icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 			icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 			icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			icon_box.add_child(icon)
-		var name_label := _label(String(ability.glyph), 15, BONE)
-		name_label.position = Vector2(50, 8)
+		var name_label := _label(String(ability.glyph), 16, BONE)
+		name_label.position = Vector2(60, 8)
 		panel.add_child(name_label)
 		var cost := float(ability.cost)
 		var cost_label := _label("FREE" if cost <= 0.0 else "%d VITAE" % int(cost), 11, CRIMSON)
-		cost_label.position = Vector2(50, 28)
+		cost_label.position = Vector2(60, 30)
 		panel.add_child(cost_label)
 		var cd_label := _label("", 20, GOLD)
 		cd_label.anchor_left = 1.0
 		cd_label.anchor_right = 1.0
 		cd_label.anchor_top = 0.5
 		cd_label.anchor_bottom = 0.5
-		cd_label.offset_left = -56.0
-		cd_label.offset_right = -8.0
+		cd_label.offset_left = -50.0
+		cd_label.offset_right = -6.0
 		cd_label.offset_top = 6.0
 		cd_label.offset_bottom = 30.0
 		cd_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
@@ -690,8 +1058,8 @@ func _build_abilities() -> void:
 		panel.add_child(overlay)
 		slots.append({"panel": panel, "overlay": overlay, "cd": cd_label, "name": name_label, "cost": cost_label, "was_cd": false})
 	var dash := Panel.new()
-	dash.custom_minimum_size = Vector2(96, 62)
-	dash.add_theme_stylebox_override("panel", _stylebox(INK, Color(0.24, 0.2, 0.3, 1.0), 1))
+	dash.custom_minimum_size = Vector2(124, 70)
+	dash.add_theme_stylebox_override("panel", _stylebox(Color(0.045, 0.028, 0.06, 0.94), Color(0.3, 0.24, 0.4, 1.0), 1, 2))
 	dash.mouse_filter = Control.MOUSE_FILTER_STOP
 	dash.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	dash.gui_input.connect(_on_slot_input.bind(3))
@@ -704,21 +1072,42 @@ func _build_abilities() -> void:
 	dash_accent.offset_bottom = 2.0
 	dash_accent.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	dash.add_child(dash_accent)
-	var dash_key := _label("SPACE", 13, AMBER)
-	dash_key.position = Vector2(8, 3)
+	var dash_key := _label("SPACE", 11, AMBER)
+	dash_key.position = Vector2(6, 5)
 	dash.add_child(dash_key)
-	var dash_name := _label("RIFTSTEP", 15, BONE)
-	dash_name.position = Vector2(8, 20)
+	var dash_icon_path := _first_png(ICON_RIFTSTEP_DIR)
+	if dash_icon_path != "":
+		var dash_box := Panel.new()
+		dash_box.position = Vector2(6, 24)
+		dash_box.size = Vector2(40, 40)
+		dash_box.custom_minimum_size = Vector2(40, 40)
+		dash_box.clip_contents = true
+		dash_box.add_theme_stylebox_override("panel", _stylebox(Color(0.015, 0.01, 0.02, 0.95), Color(0.5, 0.4, 0.62, 0.95), 1, 2))
+		dash_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		dash.add_child(dash_box)
+		var dash_icon := TextureRect.new()
+		dash_icon.texture = load(dash_icon_path)
+		dash_icon.set_anchors_preset(Control.PRESET_FULL_RECT)
+		dash_icon.offset_left = 2.0
+		dash_icon.offset_top = 2.0
+		dash_icon.offset_right = -2.0
+		dash_icon.offset_bottom = -2.0
+		dash_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		dash_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		dash_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		dash_box.add_child(dash_icon)
+	var dash_name := _label("RIFTSTEP", 13, BONE)
+	dash_name.position = Vector2(50, 18)
 	dash.add_child(dash_name)
 	var dash_cd := _label("", 20, GOLD)
 	dash_cd.anchor_left = 1.0
 	dash_cd.anchor_right = 1.0
 	dash_cd.anchor_top = 0.5
 	dash_cd.anchor_bottom = 0.5
-	dash_cd.offset_left = -50.0
-	dash_cd.offset_right = -8.0
-	dash_cd.offset_top = 6.0
-	dash_cd.offset_bottom = 30.0
+	dash_cd.offset_left = -46.0
+	dash_cd.offset_right = -6.0
+	dash_cd.offset_top = 2.0
+	dash_cd.offset_bottom = 24.0
 	dash_cd.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	dash.add_child(dash_cd)
 	slots.append({"panel": dash, "overlay": null, "cd": dash_cd, "name": dash_name, "cost": null, "was_cd": false})
@@ -787,6 +1176,29 @@ func _build_toasts() -> void:
 	toast_box.alignment = BoxContainer.ALIGNMENT_CENTER
 	toast_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	body.add_child(toast_box)
+	whisper_label = _label("", 13, Color(0.72, 0.62, 0.6, 0.92), false)
+	whisper_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	whisper_label.anchor_left = 0.5
+	whisper_label.anchor_right = 0.5
+	whisper_label.offset_left = -380.0
+	whisper_label.offset_right = 380.0
+	whisper_label.offset_top = 248.0
+	whisper_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	whisper_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	whisper_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	whisper_label.modulate.a = 0.0
+	body.add_child(whisper_label)
+
+
+func whisper(text: String) -> void:
+	if whisper_label == null or text.is_empty():
+		return
+	whisper_label.text = text
+	whisper_label.modulate.a = 0.0
+	var tween := whisper_label.create_tween()
+	tween.tween_property(whisper_label, "modulate:a", 1.0, 0.6)
+	tween.tween_interval(4.4)
+	tween.tween_property(whisper_label, "modulate:a", 0.0, 1.2)
 
 
 func _build_relic_window() -> void:
@@ -912,69 +1324,216 @@ func _build_death() -> void:
 func _build_title() -> void:
 	title_panel = Control.new()
 	title_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
-	title_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	title_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	root.add_child(title_panel)
 	var shade := ColorRect.new()
-	shade.color = Color(0.01, 0.005, 0.015, 0.55)
+	shade.color = Color(0.01, 0.005, 0.015, 0.68)
 	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
 	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	title_panel.add_child(shade)
+	var card := PanelContainer.new()
+	card.set_anchors_preset(Control.PRESET_CENTER)
+	card.anchor_left = 0.5
+	card.anchor_right = 0.5
+	card.anchor_top = 0.5
+	card.anchor_bottom = 0.5
+	card.offset_left = -368.0
+	card.offset_right = 368.0
+	card.offset_top = -214.0
+	card.offset_bottom = 214.0
+	card.add_theme_stylebox_override("panel", _stylebox(Color(0.028, 0.014, 0.03, 0.95), Color(0.5, 0.32, 0.14, 1.0), 2, 5))
+	card.mouse_filter = Control.MOUSE_FILTER_STOP
+	title_panel.add_child(card)
 	var box := VBoxContainer.new()
-	box.set_anchors_preset(Control.PRESET_CENTER)
-	box.anchor_left = 0.5
-	box.anchor_right = 0.5
-	box.anchor_top = 0.5
-	box.anchor_bottom = 0.5
-	box.offset_left = -380.0
-	box.offset_right = 380.0
-	box.offset_top = -215.0
-	box.offset_bottom = 215.0
+	box.add_theme_constant_override("separation", 6)
 	box.alignment = BoxContainer.ALIGNMENT_CENTER
-	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	title_panel.add_child(box)
-	title_label = _label("RIFT & RUIN", 72, AMBER)
+	card.add_child(box)
+	title_label = _label("RIFT & RUIN", 62, AMBER)
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(title_label)
-	var sub := _label("THE BLOOD SORCERESS", 20, CRIMSON)
+	var sub := _label("THE BLOOD SORCERESS", 17, CRIMSON)
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(sub)
-	record_label = _label("DEEPEST RIFT  ·  LAYER 1", 14, MUTED)
+	record_label = _label("DEEPEST RIFT  ·  LAYER 1", 12, MUTED)
 	record_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(record_label)
-	var spacer := Control.new()
-	spacer.custom_minimum_size = Vector2(0, 14)
-	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	box.add_child(spacer)
-	var lines := [
-		"WASD to move. Click a demon to lance it.",
-		"1  BLOOD NOVA      detonate your life force",
-		"2  CRIMSON LANCE   pierce the pack",
-		"3  SANGUINE SIPHON drink their wounds closed",
-		"SPACE  RIFTSTEP    slide over lava",
-		"TAB  relic loadout   ·   click a glowing drop to claim it",
-		"COIN drops from kills  -  the Ashen Broker trades every 5th layer",
-		"A RIFT WARDEN hunts every 6th layer",
-		"SET (top right)  -  audio, video, gameplay and interface options",
-		"Clear every pack, step into the rift, go deeper.",
-	]
-	for line in lines:
-		var l := _label(line, 15, BONE)
-		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		box.add_child(l)
-	var spacer2 := Control.new()
-	spacer2.custom_minimum_size = Vector2(0, 18)
-	box.add_child(spacer2)
-	if RunSave.has_save():
-		var saved := RunSave.read()
-		var continue_label := _label("PRESS C  -  CONTINUE LAYER %d" % int(saved.get("layer", 1)), 20, GOLD)
-		continue_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		box.add_child(continue_label)
-	var begin := _label("CLICK ANYWHERE TO BEGIN A NEW RIFT", 22, AMBER)
-	begin.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	box.add_child(begin)
+	var rule := HSeparator.new()
+	rule.custom_minimum_size = Vector2(0, 12)
+	box.add_child(rule)
+	var buttons := HBoxContainer.new()
+	buttons.alignment = BoxContainer.ALIGNMENT_CENTER
+	buttons.add_theme_constant_override("separation", 12)
+	box.add_child(buttons)
+	var continue_btn := Button.new()
+	title_continue_btn = continue_btn
+	continue_btn.text = "CONTINUE\nLAYER %d  ·  LEVEL %d  ·  %d COIN" % [
+		int(RunSave.read().get("layer", 1)), int(RunSave.read().get("level", 1)), int(RunSave.read().get("coins", 0))]
+	continue_btn.visible = RunSave.has_save()
+	continue_btn.custom_minimum_size = Vector2(292, 58)
+	continue_btn.add_theme_font_size_override("font_size", 15)
+	continue_btn.add_theme_color_override("font_color", GOLD)
+	continue_btn.add_theme_color_override("font_hover_color", Color(1.0, 0.95, 0.75))
+	continue_btn.add_theme_stylebox_override("normal", _stylebox(Color(0.12, 0.05, 0.05, 0.96), Color(0.75, 0.5, 0.18, 1.0), 1, 3))
+	continue_btn.add_theme_stylebox_override("hover", _stylebox(Color(0.22, 0.09, 0.07, 0.99), Color(1.0, 0.7, 0.28, 1.0), 1, 3))
+	continue_btn.mouse_entered.connect(func() -> void: _set_lore("continue"))
+	continue_btn.pressed.connect(func() -> void:
+		if not _title_input_ok():
+			return
+		continue_pressed.emit()
+	)
+	buttons.add_child(continue_btn)
+	var begin_btn := Button.new()
+	title_begin_btn = begin_btn
+	begin_btn.text = "NEW RIFT" if RunSave.has_save() else "ENTER THE RIFT"
+	begin_btn.custom_minimum_size = Vector2(292, 58)
+	begin_btn.add_theme_font_size_override("font_size", 17)
+	begin_btn.add_theme_color_override("font_color", AMBER)
+	begin_btn.add_theme_color_override("font_hover_color", Color(1.0, 0.95, 0.78))
+	begin_btn.add_theme_stylebox_override("normal", _stylebox(Color(0.14, 0.06, 0.05, 0.96), Color(0.55, 0.3, 0.12, 1.0), 1, 3))
+	begin_btn.add_theme_stylebox_override("hover", _stylebox(Color(0.24, 0.1, 0.07, 0.99), Color(1.0, 0.66, 0.24, 1.0), 1, 3))
+	begin_btn.mouse_entered.connect(func() -> void: _set_lore("new"))
+	begin_btn.pressed.connect(func() -> void:
+		if not _title_input_ok():
+			return
+		start_pressed.emit()
+	)
+	buttons.add_child(begin_btn)
+	var menu2 := HBoxContainer.new()
+	menu2.alignment = BoxContainer.ALIGNMENT_CENTER
+	menu2.add_theme_constant_override("separation", 10)
+	box.add_child(menu2)
+	var duel_btn := Button.new()
+	duel_btn.text = "DUEL THE MIRROR"
+	duel_btn.custom_minimum_size = Vector2(186, 34)
+	duel_btn.add_theme_font_size_override("font_size", 13)
+	duel_btn.add_theme_color_override("font_color", Color(0.85, 0.55, 1.0))
+	duel_btn.add_theme_color_override("font_hover_color", Color(1.0, 0.85, 1.0))
+	duel_btn.add_theme_stylebox_override("normal", _stylebox(Color(0.08, 0.04, 0.1, 0.96), Color(0.45, 0.3, 0.6, 1.0), 1, 3))
+	duel_btn.add_theme_stylebox_override("hover", _stylebox(Color(0.15, 0.07, 0.18, 0.99), Color(0.8, 0.55, 1.0, 1.0), 1, 3))
+	duel_btn.mouse_entered.connect(func() -> void: _set_lore("duel"))
+	duel_btn.pressed.connect(func() -> void:
+		if not _title_input_ok():
+			return
+		duel_pressed.emit()
+	)
+	menu2.add_child(duel_btn)
+	var hall_btn := Button.new()
+	hall_btn.text = "HALL OF WARDENS"
+	hall_btn.custom_minimum_size = Vector2(186, 34)
+	hall_btn.add_theme_font_size_override("font_size", 13)
+	hall_btn.add_theme_color_override("font_color", MUTED)
+	hall_btn.add_theme_color_override("font_hover_color", AMBER)
+	hall_btn.add_theme_stylebox_override("normal", _stylebox(Color(0.05, 0.035, 0.05, 0.96), Color(0.3, 0.22, 0.16, 1.0), 1, 3))
+	hall_btn.add_theme_stylebox_override("hover", _stylebox(Color(0.12, 0.06, 0.05, 0.99), Color(0.75, 0.5, 0.2, 1.0), 1, 3))
+	hall_btn.mouse_entered.connect(func() -> void: _set_lore("hall"))
+	hall_btn.pressed.connect(func() -> void:
+		if not _title_input_ok():
+			return
+		_cycle_hall()
+	)
+	menu2.add_child(hall_btn)
+	var options_btn := Button.new()
+	options_btn.text = "OPTIONS"
+	options_btn.custom_minimum_size = Vector2(120, 34)
+	options_btn.add_theme_font_size_override("font_size", 13)
+	options_btn.add_theme_color_override("font_color", MUTED)
+	options_btn.add_theme_color_override("font_hover_color", AMBER)
+	options_btn.add_theme_stylebox_override("normal", _stylebox(Color(0.05, 0.035, 0.05, 0.96), Color(0.3, 0.22, 0.16, 1.0), 1, 3))
+	options_btn.add_theme_stylebox_override("hover", _stylebox(Color(0.12, 0.06, 0.05, 0.99), Color(0.75, 0.5, 0.2, 1.0), 1, 3))
+	options_btn.mouse_entered.connect(func() -> void: _set_lore("options"))
+	options_btn.pressed.connect(func() -> void:
+		if not _title_input_ok():
+			return
+		open_settings()
+	)
+	menu2.add_child(options_btn)
+	var lore_panel := PanelContainer.new()
+	lore_panel.custom_minimum_size = Vector2(0, 62)
+	lore_panel.add_theme_stylebox_override("panel", _stylebox(Color(0.05, 0.025, 0.04, 0.9), Color(0.32, 0.22, 0.14, 1.0), 1, 2))
+	box.add_child(lore_panel)
+	var lore_box := VBoxContainer.new()
+	lore_box.add_theme_constant_override("separation", 2)
+	lore_panel.add_child(lore_box)
+	title_lore_title = _label("THE ASHEN BASTION", 10, GOLD, false)
+	lore_box.add_child(title_lore_title)
+	title_lore_label = _label("", 11, BONE, false)
+	title_lore_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lore_box.add_child(title_lore_label)
+	var hint := _label("CLICK TO MOVE  ·  CLICK A FOE TO ATTACK  ·  SHIFT+CLICK STAND AND CAST  ·  TAB RELICS  ·  M RIFT MAP  ·  ESC PAUSE", 10, Color(0.5, 0.45, 0.46))
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(hint)
+	var footer := _label("A DARK FANTASY ACTION RPG  ·  THE RIFT NEVER ENDS", 9, Color(0.42, 0.37, 0.4))
+	footer.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(footer)
 	title_panel.modulate.a = 0.0
+	title_shown_ms = Time.get_ticks_msec()
+	_set_lore("hall")
 	var fade := create_tween()
 	fade.tween_property(title_panel, "modulate:a", 1.0, 0.7)
+
+
+func _title_input_ok() -> bool:
+	return title_mouse_moved and Time.get_ticks_msec() - title_shown_ms > 600
+
+
+func _set_lore(key: String) -> void:
+	if title_lore_label == null:
+		return
+	var heading := "THE ASHEN BASTION"
+	var body := "The Bastion clings to the rim of a wound in the world. Below it the rift breathes, and every layer remembers the last hand that broke it."
+	match key:
+		"continue":
+			var saved := RunSave.read()
+			heading = "CONTINUE THE DESCENT"
+			body = "The rift remembers your shape. Layer %d waits below, and it has already learned how you move." % int(saved.get("layer", 1))
+		"new":
+			heading = "A NEW SORCERESS"
+			body = "Her blood is the only fuel the rift respects. She does not go down to win. She goes down to find out how far she can make it."
+		"duel":
+			heading = "THE MIRROR RING"
+			body = "A rival sorceress with your own blood and your own spells. No relics, no coin, no mercy: only proof that your hands are the sharper ones."
+		"hall":
+			heading = "HALL OF WARDENS  ·  CLICK TO TURN THE PAGE"
+			body = String(HALL_LORE[hall_index % HALL_LORE.size()])
+		"options":
+			heading = "OPTIONS"
+			body = "Sound, screen, controls and the shape of the HUD. Every rift save carries its own settings."
+	title_lore_title.text = heading
+	title_lore_label.text = body
+
+
+func _cycle_hall() -> void:
+	_set_lore("hall")
+	hall_index = (hall_index + 1) % HALL_LORE.size()
+
+
+func refresh_title() -> void:
+	var has_save := RunSave.has_save()
+	if title_continue_btn != null:
+		title_continue_btn.visible = has_save
+		if has_save:
+			var saved := RunSave.read()
+			title_continue_btn.text = "CONTINUE\nLAYER %d  ·  LEVEL %d  ·  %d COIN" % [
+				int(saved.get("layer", 1)), int(saved.get("level", 1)), int(saved.get("coins", 0))]
+	if title_begin_btn != null:
+		title_begin_btn.text = "NEW RIFT" if has_save else "ENTER THE RIFT"
+	if record_label != null:
+		record_label.text = "DEEPEST RIFT  ·  LAYER %d" % record_layer
+
+
+func show_title_again() -> void:
+	if title_panel == null:
+		return
+	title_panel.visible = true
+	title_panel.modulate.a = 0.0
+	if settings_btn != null:
+		settings_btn.visible = false
+	title_shown_ms = Time.get_ticks_msec()
+	title_mouse_moved = false
+	_set_lore("hall")
+	refresh_title()
+	var tween := create_tween()
+	tween.tween_property(title_panel, "modulate:a", 1.0, 0.5)
 
 
 func _build_pause() -> void:
@@ -1105,6 +1664,7 @@ func _build_pause_button() -> void:
 
 func _build_settings_button() -> void:
 	var btn := Button.new()
+	settings_btn = btn
 	btn.text = "SET"
 	btn.tooltip_text = "Settings"
 	btn.set_anchors_preset(Control.PRESET_TOP_RIGHT)
@@ -1120,6 +1680,7 @@ func _build_settings_button() -> void:
 	btn.add_theme_stylebox_override("normal", _stylebox(Color(0.05, 0.02, 0.04, 0.72), Color(0.42, 0.27, 0.12, 0.9), 1))
 	btn.add_theme_stylebox_override("hover", _stylebox(Color(0.13, 0.06, 0.05, 0.92), Color(0.95, 0.62, 0.24, 1.0), 1))
 	btn.pressed.connect(open_settings)
+	btn.visible = false
 	root.add_child(btn)
 
 
@@ -1262,6 +1823,7 @@ func show_boons(list: Array) -> void:
 	var tween := create_tween()
 	tween.tween_property(boon_panel, "modulate:a", 1.0, 0.22)
 	ui_click.emit()
+	_kill_button_focus()
 
 
 func _choose_boon(key: String) -> void:
@@ -1437,6 +1999,7 @@ func update_shop(offers: Array, coin_count: int) -> void:
 		buy.add_theme_stylebox_override("pressed", _stylebox(Color(0.3, 0.1, 0.08, 1.0), Color(1.0, 0.7, 0.3, 1.0), 1))
 		buy.pressed.connect(func() -> void: shop_buy.emit(i))
 		line.add_child(buy)
+	_kill_button_focus()
 
 
 func close_shop() -> void:
@@ -1607,6 +2170,7 @@ func _build_settings_body() -> void:
 		panel_height = clampf(panel_height, 300.0, 560.0)
 		settings_window.offset_top = -panel_height * 0.5
 		settings_window.offset_bottom = panel_height * 0.5
+	_kill_button_focus()
 
 
 func reset_settings() -> void:
@@ -1671,7 +2235,20 @@ func _input(event: InputEvent) -> void:
 				_choose_boon(String(boon_keys[index]))
 				get_viewport().set_input_as_handled()
 		return
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_M:
+		if rift_map_panel != null and rift_map_panel.visible:
+			hide_rift_map()
+		elif not settings_open and not relic_window.visible and not death_panel.visible:
+			toggle_rift_map()
+		get_viewport().set_input_as_handled()
+		return
 	if event is InputEventKey and event.pressed and not event.echo and (event.keycode == KEY_ESCAPE or event.keycode == KEY_P):
+		if rift_map_panel != null and rift_map_panel.visible:
+			hide_rift_map()
+			get_viewport().set_input_as_handled()
+			return
+		if not body.visible:
+			return
 		if settings_open:
 			close_settings()
 		elif relic_window.visible:
@@ -1682,7 +2259,7 @@ func _input(event: InputEvent) -> void:
 
 
 func toggle_pause() -> void:
-	if death_panel.visible:
+	if death_panel.visible or not body.visible:
 		return
 	var now := Time.get_ticks_msec()
 	if now - last_pause_ms < 80:
@@ -2020,6 +2597,7 @@ func _refresh_relic_window() -> void:
 		_build_synergy_body()
 	else:
 		_build_relic_body()
+	_kill_button_focus()
 
 
 func _build_relic_body() -> void:
@@ -2172,12 +2750,98 @@ func hide_death() -> void:
 	death_panel.visible = false
 
 
+func _build_duel_result() -> void:
+	duel_panel = PanelContainer.new()
+	duel_panel.set_anchors_preset(Control.PRESET_CENTER)
+	duel_panel.anchor_left = 0.5
+	duel_panel.anchor_right = 0.5
+	duel_panel.anchor_top = 0.5
+	duel_panel.anchor_bottom = 0.5
+	duel_panel.offset_left = -320.0
+	duel_panel.offset_right = 320.0
+	duel_panel.offset_top = -186.0
+	duel_panel.offset_bottom = 186.0
+	duel_panel.add_theme_stylebox_override("panel", _stylebox(Color(0.03, 0.01, 0.045, 0.96), Color(0.55, 0.32, 0.72, 1.0), 2, 5))
+	duel_panel.visible = false
+	root.add_child(duel_panel)
+	var box := VBoxContainer.new()
+	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_theme_constant_override("separation", 12)
+	duel_panel.add_child(box)
+	duel_title = _label("", 40, GOLD)
+	duel_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(duel_title)
+	duel_sub = _label("", 16, MUTED)
+	duel_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(duel_sub)
+	duel_stats = _label("", 15, BONE)
+	duel_stats.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(duel_stats)
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 14)
+	box.add_child(row)
+	var again := Button.new()
+	again.text = "DUEL AGAIN"
+	again.custom_minimum_size = Vector2(200, 46)
+	again.add_theme_font_size_override("font_size", 17)
+	again.add_theme_color_override("font_color", GOLD)
+	again.add_theme_color_override("font_hover_color", Color(1.0, 0.96, 0.8))
+	again.add_theme_stylebox_override("normal", _stylebox(Color(0.13, 0.05, 0.16, 0.96), Color(0.6, 0.36, 0.8, 1.0), 1, 3))
+	again.add_theme_stylebox_override("hover", _stylebox(Color(0.22, 0.09, 0.26, 0.99), Color(0.9, 0.6, 1.0, 1.0), 1, 3))
+	again.pressed.connect(func() -> void:
+		if Time.get_ticks_msec() - duel_shown_ms < 800:
+			return
+		ui_click.emit()
+		duel_again_pressed.emit()
+	)
+	row.add_child(again)
+	var home := Button.new()
+	home.text = "RETURN TO BASTION"
+	home.custom_minimum_size = Vector2(220, 46)
+	home.add_theme_font_size_override("font_size", 15)
+	home.add_theme_color_override("font_color", MUTED)
+	home.add_theme_color_override("font_hover_color", AMBER)
+	home.add_theme_stylebox_override("normal", _stylebox(Color(0.05, 0.035, 0.05, 0.96), Color(0.3, 0.22, 0.16, 1.0), 1, 3))
+	home.add_theme_stylebox_override("hover", _stylebox(Color(0.12, 0.06, 0.05, 0.99), Color(0.75, 0.5, 0.2, 1.0), 1, 3))
+	home.pressed.connect(func() -> void:
+		if Time.get_ticks_msec() - duel_shown_ms < 800:
+			return
+		ui_click.emit()
+		home_pressed.emit()
+	)
+	row.add_child(home)
+	_kill_button_focus()
+
+
+func show_duel_result(won: bool, casts: int) -> void:
+	get_tree().paused = false
+	pause_shade.visible = false
+	pause_panel.visible = false
+	duel_panel.visible = true
+	duel_panel.modulate.a = 0.0
+	duel_shown_ms = Time.get_ticks_msec()
+	duel_title.text = "THE MIRROR SHATTERS" if won else "THE MIRROR PREVAILS"
+	duel_title.add_theme_color_override("font_color", GOLD if won else Color(0.85, 0.45, 1.0))
+	duel_sub.text = "Your blood was the sharper blade." if won else "She wore your face, and she was faster."
+	duel_stats.text = "%d spells cast  -  no relics, no coin\nOnly hands, and the face you were born with." % casts
+	var tween := create_tween()
+	tween.tween_property(duel_panel, "modulate:a", 1.0, 0.35)
+
+
+func hide_duel_result() -> void:
+	if duel_panel != null:
+		duel_panel.visible = false
+
+
 func hide_title() -> void:
 	if not title_panel.visible:
 		return
 	var tween := title_panel.create_tween()
 	tween.tween_property(title_panel, "modulate:a", 0.0, 0.5)
 	tween.tween_callback(func() -> void: title_panel.visible = false)
+	if settings_btn != null:
+		settings_btn.visible = true
 
 
 func _process(delta: float) -> void:

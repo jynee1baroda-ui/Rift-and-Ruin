@@ -38,6 +38,14 @@ var hp_root: Node3D
 var hp_fill: MeshInstance3D
 var hp_width := 1.1
 var ring: MeshInstance3D
+var attack_gate: Callable
+var attack_release: Callable
+var holds_token := false
+var special_fn: Callable
+var special_timer := 7.0
+var special_windup := 0.0
+var special_pending := false
+var enraged := false
 
 
 func _ready() -> void:
@@ -56,7 +64,7 @@ func _ready() -> void:
 	add_child(model_root)
 
 
-func setup(kind: Dictionary, model_scene: PackedScene, player: Player, path_callable: Callable, bolt_callable: Callable) -> void:
+func setup(kind: Dictionary, model_scene: PackedScene, player: Player, path_callable: Callable, bolt_callable: Callable, special_callable := Callable(), gate := Callable(), release := Callable()) -> void:
 	kind_key = String(kind.get("key", "wolf"))
 	display_name = String(kind.get("name", "Rift Fiend"))
 	max_health = float(kind.get("health", 50.0))
@@ -66,12 +74,17 @@ func setup(kind: Dictionary, model_scene: PackedScene, player: Player, path_call
 	attack_range = float(kind.get("range", 1.9))
 	attack_interval = float(kind.get("interval", 1.5))
 	windup_time = float(kind.get("windup", 0.45))
+	aggro_range = float(kind.get("aggro", 9.5))
 	ranged = bool(kind.get("ranged", false))
 	elite = bool(kind.get("elite", false))
 	boss = bool(kind.get("boss", false))
 	target = player
 	path_fn = path_callable
 	bolt_fn = bolt_callable
+	special_fn = special_callable
+	attack_gate = gate
+	attack_release = release
+	special_timer = randf_range(5.0, 7.0)
 	var model_scale := float(kind.get("scale", 1.0))
 	if model_scene != null:
 		var inst := model_scene.instantiate()
@@ -190,6 +203,25 @@ func _physics_process(delta: float) -> void:
 		facing = lerp_angle(facing, wanted, minf(1.0, delta * 9.0))
 		model_root.rotation.y = facing
 
+	if boss and special_fn.is_valid():
+		if special_pending:
+			special_windup -= delta
+			velocity.x = move_toward(velocity.x, 0.0, 40.0 * delta)
+			velocity.z = move_toward(velocity.z, 0.0, 40.0 * delta)
+			move_and_slide()
+			if special_windup <= 0.0:
+				special_pending = false
+				special_fn.call(self)
+				special_timer = 5.2 if enraged else 8.0
+			return
+		special_timer -= delta
+		if special_timer <= 0.0 and alerted and dist <= 17.0:
+			special_pending = true
+			special_windup = 0.85
+			play_anim(["cast", "attack", "scream"], 1.1)
+			FX.flash_mesh(model_root, Color(1.0, 0.55, 0.22), 0.5)
+			FX.ring(get_parent(), global_position, Color(1.0, 0.48, 0.16, 0.55), attack_range + 3.4, 0.85, 0.07)
+
 	if not alerted:
 		if dist <= aggro_range:
 			alerted = true
@@ -215,7 +247,7 @@ func _physics_process(delta: float) -> void:
 		velocity.z = move_toward(velocity.z, 0.0, 40.0 * delta)
 		move_and_slide()
 		play_anim(["idle"], 1.0)
-		if attack_timer <= 0.0:
+		if attack_timer <= 0.0 and not special_pending:
 			_begin_attack(dist)
 		return
 
@@ -253,6 +285,10 @@ func _advance(delta: float, to_target: Vector3) -> void:
 
 
 func _begin_attack(dist: float) -> void:
+	if attack_gate.is_valid() and not bool(attack_gate.call(self)):
+		attack_timer = 0.35
+		return
+	holds_token = true
 	attack_timer = attack_interval
 	windup = windup_time
 	play_anim(["attack", "cast", "hit"], 1.2)
@@ -262,10 +298,12 @@ func _begin_attack(dist: float) -> void:
 
 func _strike(dist: float) -> void:
 	if target == null or not target.alive:
+		_release_token()
 		return
 	if ranged:
 		if bolt_fn.is_valid():
 			bolt_fn.call(global_position + Vector3(0.0, 1.2, 0.0), target.global_position + Vector3(0.0, 0.8, 0.0), damage)
+		_release_token()
 		return
 	if dist <= attack_range * 1.4:
 		target.take_damage(damage)
@@ -273,6 +311,15 @@ func _strike(dist: float) -> void:
 		if boss:
 			FX.nova(get_parent(), global_position, Color(1.0, 0.5, 0.14, 0.9), 6.4)
 			FX.ring(get_parent(), global_position, Color(1.0, 0.72, 0.32, 0.85), attack_range + 2.8, 0.5, 0.09)
+	_release_token()
+
+
+func _release_token() -> void:
+	if not holds_token:
+		return
+	holds_token = false
+	if attack_release.is_valid():
+		attack_release.call(self)
 
 
 func take_damage(amount: float, crit := false) -> void:
@@ -284,6 +331,14 @@ func take_damage(amount: float, crit := false) -> void:
 	hp_root.visible = bool(GameSettings.get_value("enemy_health"))
 	_update_hp_bar()
 	FX.damage_number(get_parent(), global_position + Vector3(0.0, 1.9, 0.0), amount, crit, Color(1.0, 0.9, 0.5) if crit else Color(1.0, 0.78, 0.42))
+	if boss and not enraged and health <= max_health * 0.5:
+		enraged = true
+		speed *= 1.22
+		attack_interval = maxf(0.9, attack_interval * 0.75)
+		windup_time = maxf(0.35, windup_time * 0.8)
+		special_timer = 1.4
+		FX.nova(get_parent(), global_position, Color(1.0, 0.45, 0.12, 1.0), 7.0)
+		FX.flash_mesh(model_root, Color(1.0, 0.4, 0.2), 0.8)
 	if health <= 0.0:
 		_die()
 
@@ -300,6 +355,7 @@ func _die() -> void:
 	dead = true
 	collision_layer = 0
 	hp_root.visible = false
+	_release_token()
 	var death_color := Color(0.95, 0.22, 0.16, 0.95)
 	if boss:
 		death_color = Color(1.0, 0.62, 0.18, 1.0)

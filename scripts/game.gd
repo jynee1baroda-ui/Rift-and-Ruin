@@ -2,7 +2,9 @@
 
 const CELL := 4.0
 const GRID := 17
-const CAMERA_OFFSET := Vector3(0.0, 13.6, 10.6)
+const CAMERA_OFFSET := Vector3(0.0, 15.4, 9.2)
+const ENGAGE_RANGE := 11.0
+const MAX_MELEE_ATTACKERS := 2
 const RECORD_PATH := "user://rift_record.cfg"
 const HERO_DIR := "res://art/generated/blood_sorceress"
 const ROCK_PATH := "res://art/generated/basalt_rocks/3d_61c4c6fd5084468abe17b1bb_1794029018098.glb"
@@ -21,6 +23,7 @@ const KINDS := {
 	"brute": {"key": "brute", "name": "Hushed Brute", "file": "hushed-brute.glb", "health": 190.0, "damage": 22.0, "speed": 3.4, "range": 2.7, "interval": 2.4, "windup": 0.85, "scale": 1.0, "elite": true},
 	"prophet": {"key": "prophet", "name": "The Hushed Prophet", "file": "hushed-prophet.glb", "health": 460.0, "damage": 24.0, "speed": 3.1, "range": 3.2, "interval": 2.6, "windup": 0.9, "scale": 1.05, "boss": true},
 	"brood": {"key": "brood", "name": "The Brood Mother", "file": "brood-mother-boss.glb", "health": 520.0, "damage": 26.0, "speed": 3.3, "range": 3.6, "interval": 2.1, "windup": 0.75, "scale": 1.0, "boss": true},
+	"mirror": {"key": "mirror", "name": "THE MIRROR", "file": "", "health": 380.0, "damage": 11.0, "speed": 4.3, "range": 7.2, "interval": 1.9, "windup": 0.55, "scale": 1.0, "boss": true, "ranged": true, "aggro": 40.0},
 }
 
 const THEMES := [
@@ -93,6 +96,19 @@ const BOONS := [
 	{"key": "swift", "name": "CRIMSON STRIDE", "text": "+8% move speed", "color": Color(0.52, 0.82, 1.0)},
 ]
 
+const LAYER_LORE := {
+	"ASHEN CAUSEWAY": "They paved this road to reach the rift. The rift let them.",
+	"MOLTEN WARRENS": "Something breathes under the warrens, slow and patient, and it has been fed.",
+	"SUNKEN CATHEDRAL": "The choir still sings down there. Nobody has told them the saints are gone.",
+	"CINDER CHASM": "A chasm does not open. It is worn, the way a throat is worn by screaming.",
+	"THE ASHEN BAZAAR": "Coin is the only prayer here, and the Broker answers every one.",
+	"EMBER SPIRES": "Every spire is a pyre. Someone built them, and someone is still climbing.",
+	"GLASS FOUNDRY": "The glass was sand once. The sand was someone's city.",
+	"BONE ORCHARD": "The trees here grow fruit you should not eat, and people eat it anyway.",
+	"BLACK OBSIDIAN MAW": "The Maw does not eat. It simply opens, and things fall in.",
+	"THE LAST FURNACE": "This is where the rift was made. It is still running. It has never been turned off.",
+}
+
 @onready var camera: Camera3D = $Camera3D
 @onready var sun: DirectionalLight3D = $Sun
 @onready var world_env: WorldEnvironment = $WorldEnvironment
@@ -155,6 +171,16 @@ var music_mode := ""
 var merchant_tracks: Array = []
 var camera_zoom := 1.0
 var camera_focus := Vector3.ZERO
+var attack_target: Enemy
+var attackers: Array = []
+var move_marker: Node3D
+var move_marker_point := Vector3(9999.0, 0.0, 9999.0)
+var engage_timer := 0.0
+var boss_phase_name := ""
+var hazards_alive := 0
+var duel_mode := false
+var rival: Enemy
+var duel_casts := 0
 
 
 func _ready() -> void:
@@ -181,12 +207,20 @@ func _ready() -> void:
 	hud.ui_click.connect(_on_ui_click)
 	hud.ability_pressed.connect(_on_hud_ability_pressed)
 	hud.restart_pressed.connect(_restart_run)
+	hud.start_pressed.connect(begin_run)
+	hud.continue_pressed.connect(_continue_from_title)
 	hud.settings_changed.connect(_apply_settings)
 	hud.boon_chosen.connect(_on_boon_chosen)
 	hud.shop_buy.connect(_on_shop_buy)
 	hud.shop_close.connect(_on_shop_closed)
+	hud.rift_map_requested.connect(_open_rift_map)
+	hud.duel_pressed.connect(_start_duel)
+	hud.duel_again_pressed.connect(_start_duel)
+	hud.home_pressed.connect(_return_home)
 	_setup_audio()
 	_apply_settings()
+	hud.show_loading()
+	await get_tree().process_frame
 	_create_player()
 	_generate_floor()
 	camera.global_position = player.global_position + CAMERA_OFFSET
@@ -194,6 +228,7 @@ func _ready() -> void:
 	hud.set_layer_info(layer, enemies.size(), total_enemies, kills)
 	hud.set_relics(player.relics)
 	_load_record()
+	hud.hide_loading()
 
 
 func _create_player() -> void:
@@ -243,12 +278,15 @@ func _save_run() -> void:
 		"best": best_layer,
 		"settings": GameSettings.snapshot(),
 	})
+	if hud != null:
+		hud.show_saved()
 
 
 func continue_run() -> bool:
 	var data := RunSave.read()
 	if data.is_empty():
 		return false
+	duel_mode = false
 	var saved_settings = data.get("settings", {})
 	if typeof(saved_settings) == TYPE_DICTIONARY and not saved_settings.is_empty():
 		GameSettings.apply_snapshot(saved_settings)
@@ -453,6 +491,9 @@ func _apply_brightness() -> void:
 func _generate_floor() -> void:
 	_clear_floor()
 	hud.hide_boons()
+	if duel_mode:
+		_generate_duel_arena()
+		return
 	theme = THEMES[4] if _is_merchant_layer() else THEMES[(layer - 1) % THEMES.size()]
 	_roll_modifiers()
 	portal = null
@@ -463,7 +504,7 @@ func _generate_floor() -> void:
 	enemies.clear()
 	kills = 0
 	player.ensure_level(layer)
-	hazard_timer = 7.5 * (0.7 if has_mod("unstable") else 1.0)
+	hazard_timer = 11.0 * (0.7 if has_mod("unstable") else 1.0)
 	_apply_theme()
 	_make_layout()
 	_build_ground()
@@ -498,9 +539,132 @@ func _generate_floor() -> void:
 		hud.set_layer_info(layer, enemies.size(), total_enemies, kills)
 		hud.set_theme_name(String(theme.get("name", "RIFT")))
 		hud.set_status("PACKS AWAKE")
+		hud.whisper(String(LAYER_LORE.get(String(theme.get("name", "")), "")))
 		play_music(_is_boss_layer())
 	map_timer = 0.0
 	_save_run()
+
+
+func _generate_duel_arena() -> void:
+	theme = THEMES[8]
+	active_mods.clear()
+	portal = null
+	portal_area = null
+	portal_disc = null
+	portal_active = false
+	boss_enemy = null
+	enemies.clear()
+	rival = null
+	kills = 0
+	hazard_timer = 9999.0
+	level_label_refresh()
+	_apply_theme()
+	_make_layout()
+	_build_ground()
+	_build_decor()
+	player.global_position = _cell_to_world(start_cell) + Vector3(0.0, 0.15, 0.0)
+	player.velocity = Vector3.ZERO
+	player.stop()
+	camera_focus = player.global_position
+	camera.global_position = _camera_desired()
+	camera.look_at(camera_focus + Vector3(0.0, 1.0, 0.0), Vector3.UP)
+	_spawn_embers()
+	_spawn_rival()
+	hud.set_map_cells(walkable, bridge_cells, GRID)
+	hud.set_modifiers([])
+	hud.set_health(player.health, player.max_health)
+	hud.set_relics(player.relics)
+	hud.set_coins(coins)
+	hud.set_theme_name("THE MIRROR RING")
+	hud.set_layer_info(layer, 1, 1, kills)
+	hud.set_status("DUEL  -  FIRST BLOOD")
+	hud.set_boss("THE MIRROR", 1.0, true)
+	hud.whisper("She has your face. Do not let her keep it.")
+	play_music(true)
+	map_timer = 0.0
+
+
+func level_label_refresh() -> void:
+	if player == null:
+		return
+	hud.set_level(player.level, player.xp, player.xp_to_next())
+
+
+func _spawn_rival() -> void:
+	var far: Array = []
+	for cell in walkable.keys():
+		if not walkable[cell]:
+			continue
+		if _cell_to_world(cell).distance_to(player.global_position) > 15.0:
+			far.append(cell)
+	if far.is_empty():
+		for cell in walkable.keys():
+			if walkable[cell] and cell != start_cell:
+				far.append(cell)
+	if far.is_empty():
+		far.append(start_cell)
+	var cell: Vector2i = far[rng.randi() % far.size()]
+	rival = _spawn_enemy("mirror", cell)
+	boss_enemy = rival
+	total_enemies = 1
+	FX.nova(fx_root, rival.global_position, Color(0.78, 0.32, 1.0, 1.0), 3.8)
+	FX.ring(fx_root, rival.global_position, Color(0.95, 0.35, 0.45, 0.8), 3.2, 0.8, 0.07)
+
+
+func _start_duel() -> void:
+	if player == null:
+		return
+	if run_active and not duel_mode:
+		return
+	get_tree().paused = false
+	duel_mode = true
+	started = true
+	run_active = true
+	duel_casts = 0
+	hud.hide_title()
+	hud.hide_death()
+	hud.hide_duel_result()
+	hud.hide_boons()
+	hud.hide_prompt()
+	hud.close_relic_window()
+	hud.close_shop()
+	hud.show_body()
+	player.revive()
+	player.set_progress(maxi(1, player.level), player.xp)
+	_generate_floor()
+	hud.flash_transition()
+	hud.toast("THE MIRROR RING", Color(0.85, 0.5, 1.0), 2.4)
+
+
+func _duel_finished(won: bool) -> void:
+	run_active = false
+	hud.set_boss("", 0.0, false)
+	hud.hide_boons()
+	hud.close_relic_window()
+	var casts := duel_casts
+	var timer := get_tree().create_timer(0.8)
+	timer.timeout.connect(func() -> void:
+		if duel_mode:
+			hud.show_duel_result(won, casts)
+	)
+
+
+func _return_home() -> void:
+	get_tree().paused = false
+	duel_mode = false
+	run_active = false
+	started = false
+	mouse_held = false
+	attack_target = null
+	_clear_move_marker()
+	hud.hide_duel_result()
+	hud.hide_death()
+	hud.hide_boons()
+	hud.hide_prompt()
+	hud.close_relic_window()
+	hud.close_shop()
+	hud.hide_body()
+	hud.show_title_again()
 
 
 func _roll_modifiers() -> void:
@@ -554,6 +718,11 @@ func _clear_floor() -> void:
 	merchant_area = null
 	merchant_near = false
 	shop_offers.clear()
+	attackers.clear()
+	attack_target = null
+	hazards_alive = 0
+	move_marker = null
+	move_marker_point = Vector3(9999.0, 0.0, 9999.0)
 
 
 func _make_layout() -> void:
@@ -1021,7 +1190,7 @@ func _build_ground() -> void:
 				var a: Vector3 = corners[e]
 				var b: Vector3 = corners[(e + 1) % 4]
 				var next_cell: Vector2i = cell + neighbors[e]
-				var depth := 1.75 if not walkable.get(next_cell, false) else lip
+				var depth := 4.6 if not walkable.get(next_cell, false) else lip
 				var ab := Vector3(a.x, -depth, a.z)
 				var bb := Vector3(b.x, -depth, b.z)
 				_add_quad(stone, a, b, bb, ab, normals[e], dark_tint, 0.20)
@@ -1043,7 +1212,7 @@ func _build_ground() -> void:
 	plane.size = Vector2(420, 420)
 	sea.mesh = plane
 	sea.position.y = -1.72
-	sea.material_override = _lava_material(0.34, 0.7)
+	sea.material_override = _lava_material(0.9, 0.95)
 	sea.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	floor_root.add_child(sea)
 	var body := StaticBody3D.new()
@@ -1210,6 +1379,135 @@ func _build_lava_gardens() -> void:
 					_tint_glow(shard, seam, 0.4)
 			elif rng.randf() < 0.22:
 				_build_cinder_bloom(at + Vector3(rng.randf_range(-1.4, 1.4), 0.0, rng.randf_range(-1.4, 1.4)))
+			var variant := rng.randf()
+			if variant < 0.2:
+				_build_lava_lotus(at + Vector3(rng.randf_range(-1.8, 1.8), 0.0, rng.randf_range(-1.8, 1.8)))
+			elif variant < 0.36:
+				_build_ember_shrub(at + Vector3(rng.randf_range(-1.8, 1.8), 0.0, rng.randf_range(-1.8, 1.8)))
+	for cell in walkable.keys():
+		if walkable[cell]:
+			continue
+		if not _touches_walkable(cell):
+			continue
+		if rng.randf() > float(theme.get("plants", 0.5)) * 0.14:
+			continue
+		_build_molten_pool(_cell_to_world(cell))
+
+
+func _build_lava_lotus(at: Vector3) -> void:
+	var holder := Node3D.new()
+	holder.position = at
+	holder.rotation.y = rng.randf_range(0.0, TAU)
+	floor_root.add_child(holder)
+	var hot: Color = theme.get("lava_hot", Color(1.0, 0.4, 0.05))
+	var petal_mat := FX.glow_material(hot.lerp(Color(1, 1, 1), 0.18), false)
+	var petal_count := rng.randi_range(4, 6)
+	for i in petal_count:
+		var petal := MeshInstance3D.new()
+		var sphere := SphereMesh.new()
+		sphere.radius = rng.randf_range(0.17, 0.25)
+		sphere.height = sphere.radius * 1.6
+		sphere.radial_segments = 8
+		sphere.rings = 4
+		petal.mesh = sphere
+		petal.material_override = petal_mat
+		var angle := TAU * float(i) / float(petal_count) + rng.randf_range(-0.2, 0.2)
+		petal.position = Vector3(cos(angle) * 0.24, rng.randf_range(0.12, 0.2), sin(angle) * 0.24)
+		petal.rotation = Vector3(deg_to_rad(rng.randf_range(-34.0, -16.0)), angle, 0.0)
+		petal.scale = Vector3(1.0, 0.45, 1.0)
+		petal.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		holder.add_child(petal)
+	var core := MeshInstance3D.new()
+	var core_mesh := SphereMesh.new()
+	core_mesh.radius = 0.12
+	core_mesh.height = 0.16
+	core.mesh = core_mesh
+	core.material_override = FX.glow_material(Color(1.0, 0.8, 0.36, 0.95), false)
+	core.position.y = 0.2
+	core.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	holder.add_child(core)
+	if rng.randf() < 0.3:
+		var light := OmniLight3D.new()
+		light.light_color = hot
+		light.light_energy = 0.7
+		light.omni_range = 3.4
+		light.shadow_enabled = false
+		light.position.y = 0.5
+		holder.add_child(light)
+
+
+func _build_ember_shrub(at: Vector3) -> void:
+	var holder := Node3D.new()
+	holder.position = at
+	holder.rotation.y = rng.randf_range(0.0, TAU)
+	floor_root.add_child(holder)
+	var wood := StandardMaterial3D.new()
+	wood.albedo_color = Color(0.05, 0.025, 0.025)
+	wood.roughness = 0.95
+	var hot: Color = theme.get("lava_hot", Color(1.0, 0.4, 0.05))
+	var tip_mat := FX.glow_material(hot.lerp(Color(1, 0.9, 0.6), 0.25), false)
+	var branches := rng.randi_range(4, 7)
+	for i in branches:
+		var pivot := Node3D.new()
+		pivot.rotation.y = TAU * float(i) / float(branches) + rng.randf_range(-0.4, 0.4)
+		pivot.rotation.z = deg_to_rad(rng.randf_range(18.0, 42.0))
+		holder.add_child(pivot)
+		var length := rng.randf_range(0.5, 1.05)
+		var branch := MeshInstance3D.new()
+		var cylinder := CylinderMesh.new()
+		cylinder.top_radius = 0.012
+		cylinder.bottom_radius = 0.045
+		cylinder.height = length
+		cylinder.radial_segments = 5
+		branch.mesh = cylinder
+		branch.material_override = wood
+		branch.position.y = length * 0.5
+		branch.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		pivot.add_child(branch)
+		var tip := MeshInstance3D.new()
+		var ember := SphereMesh.new()
+		ember.radius = rng.randf_range(0.04, 0.075)
+		ember.height = ember.radius * 2.0
+		ember.radial_segments = 6
+		ember.rings = 3
+		tip.mesh = ember
+		tip.material_override = tip_mat
+		tip.position.y = length
+		tip.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		pivot.add_child(tip)
+
+
+func _build_molten_pool(at: Vector3) -> void:
+	var holder := Node3D.new()
+	holder.position = at + Vector3(rng.randf_range(-1.0, 1.0), 0.0, rng.randf_range(-1.0, 1.0))
+	floor_root.add_child(holder)
+	var radius := rng.randf_range(1.1, 1.9)
+	var pool := MeshInstance3D.new()
+	var disc := CylinderMesh.new()
+	disc.top_radius = radius
+	disc.bottom_radius = radius * 0.94
+	disc.height = 0.05
+	disc.radial_segments = 24
+	pool.mesh = disc
+	var hot: Color = theme.get("lava_hot", Color(1.0, 0.4, 0.05))
+	pool.material_override = FX.glow_material(hot.lerp(Color(1.0, 0.85, 0.45), 0.3), false)
+	pool.position.y = -1.55
+	pool.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	holder.add_child(pool)
+	var crust := MeshInstance3D.new()
+	var ring := TorusMesh.new()
+	ring.inner_radius = radius * 0.98
+	ring.outer_radius = radius * 1.16
+	ring.rings = 28
+	ring.ring_segments = 5
+	crust.mesh = ring
+	var crust_mat := StandardMaterial3D.new()
+	crust_mat.albedo_color = theme.get("lava_crust", Color(0.09, 0.03, 0.02)) * 1.5
+	crust_mat.roughness = 0.95
+	crust.material_override = crust_mat
+	crust.position.y = -1.5
+	crust.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	holder.add_child(crust)
 
 
 func _tint_glow(root: Node3D, color: Color, strength := 0.75) -> void:
@@ -1552,8 +1850,8 @@ func _spawn_packs() -> void:
 			candidates.append(cell)
 	if candidates.is_empty():
 		candidates.append(start_cell)
-	var area_scale := clampf(float(_walkable_count()) / 200.0, 0.55, 1.0)
-	var pack_count := int(round(float(2 if boss_floor else 3 + mini(3, layer - 1)) * area_scale))
+	var area_scale := clampf(float(_walkable_count()) / 220.0, 0.6, 1.0)
+	var pack_count := int(round(float(2 if boss_floor else 2 + mini(2, (layer - 1) / 2)) * area_scale))
 	pack_count = maxi(2, pack_count)
 	for p in pack_count:
 		var center: Vector2i = candidates[rng.randi() % candidates.size()]
@@ -1570,7 +1868,7 @@ func _spawn_packs() -> void:
 						near.append(cell)
 			if not near.is_empty():
 				center = near[rng.randi() % near.size()]
-		var size := rng.randi_range(3, 6) + (2 if has_mod("swarming") else 0)
+		var size := rng.randi_range(2, 4) + (1 if has_mod("swarming") else 0)
 		for i in size:
 			var cell := _nearby_walkable(center)
 			_spawn_enemy(_pick_kind(p == pack_count - 1), cell)
@@ -1625,8 +1923,8 @@ func _spawn_enemy(kind_key: String, cell: Vector2i) -> Enemy:
 		base.speed = float(base.speed) * 1.2
 	var enemy := Enemy.new()
 	entity_root.add_child(enemy)
-	var model := _get_model(DUNGEON_DIR + String(base.file))
-	enemy.setup(base, model, player, find_path, _enemy_bolt)
+	var model: PackedScene = _find_hero_scene() if kind_key == "mirror" else _get_model(DUNGEON_DIR + String(base.file))
+	enemy.setup(base, model, player, find_path, _enemy_bolt, _boss_special, _request_attacker, _release_attacker)
 	enemy.global_position = _cell_to_world(cell) + Vector3(0.0, 0.2, 0.0)
 	enemy.frozen = not run_active
 	enemy.died.connect(_on_enemy_died)
@@ -1685,15 +1983,120 @@ func _enemy_bolt(from: Vector3, to: Vector3, damage: float) -> void:
 	bolt.hostile = true
 	bolt.color = Color(0.7, 0.25, 1.0)
 	bolt.direction = dir
-	bolt.speed = 17.0
+	bolt.speed = 12.5
 	bolt.damage = damage
 	fx_root.add_child(bolt)
 	bolt.global_position = from + dir * 0.6
 
 
+func _request_attacker(enemy: Enemy) -> bool:
+	var live: Array = []
+	for e in attackers:
+		if is_instance_valid(e) and not (e as Enemy).dead:
+			live.append(e)
+	attackers = live
+	if enemy in attackers:
+		return true
+	var limit := MAX_MELEE_ATTACKERS + (1 if _is_boss_layer() else 0)
+	if attackers.size() >= limit:
+		return false
+	attackers.append(enemy)
+	return true
+
+
+func _release_attacker(enemy: Enemy) -> void:
+	attackers.erase(enemy)
+
+
+func _boss_special(enemy: Enemy) -> void:
+	if enemy == null or not is_instance_valid(enemy) or enemy.dead:
+		return
+	match enemy.kind_key:
+		"prophet":
+			_prophet_volley(enemy)
+		"brood":
+			_brood_call(enemy)
+		"mirror":
+			_mirror_special(enemy)
+		_:
+			_prophet_volley(enemy)
+
+
+func _mirror_special(enemy: Enemy) -> void:
+	var origin := enemy.global_position + Vector3(0.0, 1.3, 0.0)
+	var aim := player.global_position - origin
+	aim.y = 0.0
+	if aim.length() > 0.1:
+		aim = aim.normalized()
+		var count := 7
+		var fan := deg_to_rad(74.0)
+		for i in count:
+			var t := float(i) / float(count - 1) - 0.5
+			var dir := aim.rotated(Vector3.UP, t * fan)
+			var bolt := BloodBolt.new()
+			bolt.hostile = true
+			bolt.color = Color(1.0, 0.26, 0.42)
+			bolt.direction = dir
+			bolt.speed = 11.0
+			bolt.damage = enemy.damage * 0.55
+			fx_root.add_child(bolt)
+			bolt.global_position = origin + dir * 1.1
+	enemy.health = minf(enemy.max_health, enemy.health + enemy.max_health * 0.04)
+	FX.burst(fx_root, origin, Color(1.0, 0.3, 0.45, 0.9), 30, 6.5, 0.45, 0.75)
+	FX.ring(fx_root, enemy.global_position, Color(1.0, 0.35, 0.45, 0.65), 4.0, 0.6, 0.07)
+	hud.toast("SHE WEARS YOUR FACE", Color(1.0, 0.45, 0.55), 1.2)
+
+
+func _prophet_volley(enemy: Enemy) -> void:
+	var origin := enemy.global_position + Vector3(0.0, 1.4, 0.0)
+	var aim := player.global_position - origin
+	aim.y = 0.0
+	if aim.length() < 0.1:
+		return
+	aim = aim.normalized()
+	var count := 5
+	var fan := deg_to_rad(58.0)
+	for i in count:
+		var t := 0.0 if count <= 1 else float(i) / float(count - 1) - 0.5
+		var dir := aim.rotated(Vector3.UP, t * fan)
+		var bolt := BloodBolt.new()
+		bolt.hostile = true
+		bolt.color = Color(0.78, 0.3, 1.0)
+		bolt.direction = dir
+		bolt.speed = 10.5
+		bolt.damage = enemy.damage * 0.62
+		fx_root.add_child(bolt)
+		bolt.global_position = origin + dir * 1.1
+	FX.burst(fx_root, origin, Color(0.8, 0.35, 1.0, 0.9), 26, 6.0, 0.4, 0.7)
+	FX.ring(fx_root, enemy.global_position, Color(0.82, 0.35, 1.0, 0.6), 3.4, 0.5, 0.06)
+	hud.toast("SOUL VOLLEY", Color(0.85, 0.45, 1.0), 1.1)
+
+
+func _brood_call(enemy: Enemy) -> void:
+	var alive_adds := 0
+	for e in enemies:
+		if is_instance_valid(e) and not e.dead and e.kind_key == "crawler":
+			alive_adds += 1
+	var center := _world_to_cell(enemy.global_position)
+	FX.ring(fx_root, enemy.global_position, Color(1.0, 0.45, 0.2, 0.7), 6.5, 0.6, 0.08)
+	FX.burst(fx_root, enemy.global_position + Vector3(0.0, 1.0, 0.0), Color(0.95, 0.3, 0.15, 0.9), 30, 6.5, 0.5, 0.9)
+	if alive_adds < 3:
+		for i in 2:
+			var cell := _nearby_walkable(center + Vector2i(rng.randi_range(-2, 2), rng.randi_range(-2, 2)))
+			_spawn_enemy("crawler", cell)
+			FX.burst(fx_root, _cell_to_world(cell) + Vector3(0.0, 0.6, 0.0), Color(1.0, 0.4, 0.2, 0.9), 18, 4.5, 0.4, 0.6)
+	hud.toast("THE BROOD STIRS", Color(1.0, 0.5, 0.28), 1.2)
+
+
 func _on_enemy_died(enemy: Enemy) -> void:
 	kills += 1
 	enemies.erase(enemy)
+	if duel_mode:
+		if enemy == rival:
+			rival = null
+			boss_enemy = null
+			_duel_finished(true)
+		return
 	if enemy == boss_enemy:
 		boss_enemy = null
 		hud.set_boss("", 0.0, false)
@@ -2274,21 +2677,51 @@ func begin_run() -> void:
 	if started:
 		return
 	get_tree().paused = false
+	duel_mode = false
 	RunSave.clear()
 	started = true
 	run_active = true
 	coins = 0
+	layer = 1
+	kills = 0
+	run_boons.clear()
+	attack_target = null
+	player.set_progress(1, 0.0)
+	player.revive()
 	hud.hide_title()
 	hud.show_body()
 	hud.set_coins(0)
+	_generate_floor()
 	for enemy in enemies:
 		enemy.frozen = false
 	hud.toast("RIFT LAYER 1", Color(1.0, 0.72, 0.3), 2.4)
 	_save_run()
 
 
+func _continue_from_title() -> void:
+	if started:
+		return
+	if not continue_run():
+		begin_run()
+
+
+func _open_rift_map() -> void:
+	var entries: Array = []
+	var count := maxi(10, layer + 1)
+	for i in count:
+		var l := i + 1
+		entries.append({
+			"layer": l,
+			"name": String(THEMES[i % THEMES.size()].get("name", "RIFT")),
+			"merchant": l % 5 == 0 and l % 6 != 0,
+			"boss": l % 6 == 0,
+		})
+	hud.show_rift_map(entries, layer, best_layer)
+
+
 func _restart_run() -> void:
 	get_tree().paused = false
+	duel_mode = false
 	mouse_held = false
 	boon_luck = 0.0
 	coins = 0
@@ -2381,18 +2814,82 @@ func _left_click(screen_pos: Vector2) -> void:
 	if _merchant_under(screen_pos):
 		_open_shop()
 		return
-	var enemy := _enemy_under(screen_pos)
-	if enemy != null:
-		player.set_aim(enemy.global_position)
+	var point := _aim_point(screen_pos)
+	if Input.is_key_pressed(KEY_SHIFT):
+		attack_target = null
+		player.stop()
+		_clear_move_marker()
+		player.set_aim(point)
 		_cast_ability(1)
 		return
-	var point := _aim_point(screen_pos)
+	var enemy := _enemy_under(screen_pos)
+	if enemy != null and not enemy.dead:
+		_engage(enemy)
+		return
 	var cell := _world_to_cell(point)
 	if _is_inside(cell) and not walkable.get(cell, false):
 		point = _cell_to_world(_nearest_walkable(cell))
+	attack_target = null
 	last_move_target = point
 	player.move_along(find_path(player.global_position, point))
+	_set_move_marker(point)
 	FX.ring(fx_root, point, Color(1.0, 0.55, 0.2, 0.5), 0.9, 0.35, 0.05)
+
+
+func _engage(enemy: Enemy) -> void:
+	attack_target = enemy
+	last_move_target = enemy.global_position
+	engage_timer = 0.0
+	_clear_move_marker()
+	player.set_aim(enemy.global_position)
+	_combat_step(0.0, true)
+
+
+func _combat_step(delta: float, immediate := false) -> void:
+	if attack_target == null:
+		return
+	if not is_instance_valid(attack_target) or attack_target.dead:
+		attack_target = null
+		return
+	var to_target := attack_target.global_position - player.global_position
+	to_target.y = 0.0
+	var dist := to_target.length()
+	player.set_aim(attack_target.global_position)
+	if dist > ENGAGE_RANGE:
+		engage_timer -= delta
+		if engage_timer <= 0.0 or immediate:
+			engage_timer = 0.3
+			player.move_along(find_path(player.global_position, attack_target.global_position))
+		return
+	player.stop()
+	if player.ability_ready(1):
+		_cast_ability(1)
+
+
+func _set_move_marker(point: Vector3) -> void:
+	if move_marker == null or not is_instance_valid(move_marker):
+		move_marker = Node3D.new()
+		move_marker.name = "MoveMarker"
+		fx_root.add_child(move_marker)
+		var ring := MeshInstance3D.new()
+		var torus := TorusMesh.new()
+		torus.inner_radius = 0.34
+		torus.outer_radius = 0.44
+		torus.rings = 36
+		torus.ring_segments = 4
+		ring.mesh = torus
+		ring.material_override = FX.glow_material(Color(1.0, 0.64, 0.26, 0.8))
+		ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		move_marker.add_child(ring)
+	move_marker.global_position = point + Vector3(0.0, 0.08, 0.0)
+	move_marker.visible = true
+	move_marker_point = point
+
+
+func _clear_move_marker() -> void:
+	if move_marker != null and is_instance_valid(move_marker):
+		move_marker.visible = false
+	move_marker_point = Vector3(9999.0, 0.0, 9999.0)
 
 
 func _aim_point(screen_pos: Vector2) -> Vector3:
@@ -2517,6 +3014,8 @@ func _dash_burn() -> void:
 
 
 func _on_ability_used(index: int, aim: Vector3) -> void:
+	if duel_mode:
+		duel_casts += 1
 	match index:
 		0:
 			_blood_nova()
@@ -2646,6 +3145,15 @@ func _on_health_changed(current: float, maximum: float) -> void:
 
 func _on_player_died() -> void:
 	run_active = false
+	if duel_mode:
+		hud.set_boss("", 0.0, false)
+		hud.hide_boons()
+		hud.close_relic_window()
+		play_sfx("death", 0.0, 0.05)
+		FX.burst(fx_root, player.global_position + Vector3(0.0, 1.0, 0.0), Color(0.9, 0.1, 0.12, 1.0), 60, 8.0, 0.6, 1.2)
+		FX.nova(fx_root, player.global_position, Color(0.9, 0.12, 0.1, 1.0), 5.0)
+		_duel_finished(false)
+		return
 	RunSave.clear()
 	hud.set_boss("", 0.0, false)
 	_save_record()
@@ -2689,15 +3197,20 @@ func _process(delta: float) -> void:
 		if flat_cam.distance_to(portal_disc.global_position) > 0.2:
 			portal_disc.look_at(flat_cam, Vector3.UP)
 	_update_camera(delta)
+	_update_move_marker()
 	if not run_active or not player.alive:
 		mouse_held = false
+		attack_target = null
+		_clear_move_marker()
 		player.set_move_direct(Vector3.ZERO)
 		return
-	_hold_to_move(delta)
+	_combat_step(delta)
+	if attack_target == null:
+		_hold_to_move(delta)
 	_pull_loot(delta)
 	hazard_timer -= delta
 	if hazard_timer <= 0.0:
-		hazard_timer = maxf(2.4, 7.0 - 0.5 * float(layer - 1)) * rng.randf_range(0.8, 1.3)
+		hazard_timer = maxf(5.5, 11.0 - 0.35 * float(layer - 1)) * rng.randf_range(0.9, 1.25)
 		if has_mod("unstable"):
 			hazard_timer *= 0.7
 		if not _is_merchant_layer():
@@ -2721,6 +3234,8 @@ func _hold_to_move(delta: float) -> void:
 		return
 	if not bool(GameSettings.get_value("hold_move")):
 		return
+	if Input.is_key_pressed(KEY_SHIFT):
+		return
 	hold_timer -= delta
 	if hold_timer > 0.0:
 		return
@@ -2734,6 +3249,16 @@ func _hold_to_move(delta: float) -> void:
 		return
 	last_move_target = point
 	player.move_along(find_path(player.global_position, point))
+	_set_move_marker(point)
+
+
+func _update_move_marker() -> void:
+	if move_marker == null or not is_instance_valid(move_marker) or not move_marker.visible:
+		return
+	var pulse := 1.0 + 0.14 * sin(Time.get_ticks_msec() * 0.009)
+	move_marker.scale = Vector3(pulse, 1.0, pulse)
+	if player.global_position.distance_to(move_marker_point) < 1.0:
+		_clear_move_marker()
 
 
 func _update_move_input() -> void:
@@ -2790,6 +3315,8 @@ func _camera_desired() -> Vector3:
 
 
 func _spawn_hazard() -> void:
+	if hazards_alive >= 1:
+		return
 	var options: Array = []
 	for cell in walkable.keys():
 		if not walkable[cell]:
@@ -2804,12 +3331,15 @@ func _spawn_hazard() -> void:
 	var hazard := LavaEruption.new()
 	fx_root.add_child(hazard)
 	hazard.global_position = _cell_to_world(cell)
-	hazard.radius = rng.randf_range(2.2, 3.2)
+	hazard.radius = rng.randf_range(1.9, 2.6)
 	hazard.damage = 16.0 + 4.0 * float(layer)
+	hazard.telegraph = 1.5
 	hazard.set_player(player)
 	hazard.exploded.connect(_on_hazard_exploded)
+	hazards_alive += 1
 
 
 func _on_hazard_exploded(at: Vector3) -> void:
+	hazards_alive = maxi(0, hazards_alive - 1)
 	play_sfx("lava", -3.0, 0.12)
 	_shake(0.25)

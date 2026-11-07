@@ -45,14 +45,21 @@ func _build_visual() -> void:
 	mesh_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mesh_inst)
 	var trail := MeshInstance3D.new()
-	var capsule := CapsuleMesh.new()
-	capsule.radius = 0.14
-	capsule.height = 1.15
-	trail.mesh = capsule
-	trail.material_override = FX.glow_material(Color(color.r, color.g, color.b, 0.5))
+	var trail_quad := QuadMesh.new()
+	trail_quad.size = Vector2(0.55, 1.9)
+	trail.mesh = trail_quad
+	var trail_mat := StandardMaterial3D.new()
+	trail_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	trail_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	trail_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	trail_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	trail_mat.albedo_texture = FX.soft_texture()
+	trail_mat.albedo_color = Color(color.r, color.g, color.b, 0.6)
+	trail_mat.disable_receive_shadows = true
+	trail_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	trail.material_override = trail_mat
 	trail.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	trail.position = Vector3(0.0, 0.0, -0.55)
-	trail.rotation_degrees = Vector3(90.0, 0.0, 0.0)
+	trail.position = Vector3(0.0, 0.0, -0.85)
 	add_child(trail)
 	var light := OmniLight3D.new()
 	light.light_color = color
