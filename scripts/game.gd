@@ -9,6 +9,7 @@ const ROCK_PATH := "res://art/generated/basalt_rocks/3d_61c4c6fd5084468abe17b1bb
 const GATE_PATH := "res://art/generated/rift_gate/3d_de536d2e46e04f69aab95a43_1794029026993.glb"
 const BASALT_TEX := "res://art/generated/basalt_v2/img-f4afbd64-b344-4c4f-a17c-5b062341cf23-1794037284380-0_1794037284380_vzb0pgdi.png"
 const DUNGEON_DIR := "res://assets/library/dungeon/"
+const MERCHANT_DIR := "res://art/generated/merchant_broker"
 
 const KINDS := {
 	"wolf": {"key": "wolf", "name": "Gloam Wolf", "file": "gloam-wolf.glb", "health": 46.0, "damage": 8.0, "speed": 5.0, "range": 2.0, "interval": 1.5, "windup": 0.45, "scale": 1.0},
@@ -93,10 +94,19 @@ var map_timer := 0.0
 var theme: Dictionary = {}
 var active_mods: Array = []
 var boon_luck := 0.0
+var run_boons: Array = []
+var coins := 0
+var merchant_npc: Node3D
+var merchant_area: Area3D
+var merchant_near := false
+var shop_offers: Array = []
+var shop_open := false
 var boss_enemy: Enemy
 var music_tracks: Array = []
 var boss_tracks: Array = []
 var music_boss := false
+var music_mode := ""
+var merchant_tracks: Array = []
 var camera_zoom := 1.0
 var camera_focus := Vector3.ZERO
 
@@ -127,6 +137,8 @@ func _ready() -> void:
 	hud.restart_pressed.connect(_restart_run)
 	hud.settings_changed.connect(_apply_settings)
 	hud.boon_chosen.connect(_on_boon_chosen)
+	hud.shop_buy.connect(_on_shop_buy)
+	hud.shop_close.connect(_on_shop_closed)
 	_setup_audio()
 	_apply_settings()
 	_create_player()
@@ -167,6 +179,64 @@ func _save_record() -> void:
 	hud.set_record(best_layer)
 
 
+func _save_run() -> void:
+	if player == null or not run_active or not player.alive:
+		return
+	var relics: Array = []
+	for item in player.relics:
+		relics.append(item.duplicate(true) if not item.is_empty() else {})
+	RunSave.write({
+		"layer": layer,
+		"coins": coins,
+		"boons": run_boons.duplicate(),
+		"relics": relics,
+		"health": clampf(player.health / maxf(1.0, player.max_health), 0.0, 1.0),
+		"best": best_layer,
+		"settings": GameSettings.snapshot(),
+	})
+
+
+func continue_run() -> bool:
+	var data := RunSave.read()
+	if data.is_empty():
+		return false
+	var saved_settings = data.get("settings", {})
+	if typeof(saved_settings) == TYPE_DICTIONARY and not saved_settings.is_empty():
+		GameSettings.apply_snapshot(saved_settings)
+		GameSettings.persist_now()
+		_apply_settings()
+	layer = maxi(1, int(data.get("layer", 1)))
+	coins = maxi(0, int(data.get("coins", 0)))
+	run_boons.clear()
+	var saved_boons = data.get("boons", [])
+	if typeof(saved_boons) == TYPE_ARRAY:
+		for key in saved_boons:
+			run_boons.append(String(key))
+	started = true
+	run_active = true
+	hud.hide_title()
+	hud.show_body()
+	player.revive()
+	hud.close_relic_window()
+	var saved_relics = data.get("relics", [])
+	if typeof(saved_relics) == TYPE_ARRAY:
+		for item in saved_relics:
+			if typeof(item) == TYPE_DICTIONARY and not item.is_empty():
+				player.equip(item)
+	for key in run_boons:
+		_apply_boon(String(key), false)
+	_generate_floor()
+	var ratio := clampf(float(data.get("health", 1.0)), 0.25, 1.0)
+	player.health = maxf(1.0, player.max_health * ratio)
+	player.health_changed.emit(player.health, player.max_health)
+	hud.set_coins(coins)
+	hud.set_relics(player.relics)
+	hud.flash_transition()
+	hud.toast("RIFT RESTORED  -  LAYER %d" % layer, Color(1.0, 0.78, 0.35), 2.8)
+	_save_run()
+	return true
+
+
 func _find_hero_scene() -> PackedScene:
 	var dir := DirAccess.open(HERO_DIR)
 	if dir == null:
@@ -197,8 +267,9 @@ func _setup_audio() -> void:
 	music_player.volume_db = -9.0
 	add_child(music_player)
 	music_player.finished.connect(_restart_music)
-	music_tracks = _music_list("res://audio/music") + _music_list("res://audio/generated/metal_combat")
+	music_tracks = _music_list("res://audio/music") + _music_list("res://audio/generated/metal_combat") + _music_list("res://audio/generated/metal_combat2") + _music_list("res://audio/generated/metal_combat3")
 	boss_tracks = _music_list("res://audio/generated/metal_boss")
+	merchant_tracks = _music_list("res://audio/generated/metal_merchant")
 	play_music(false)
 	ambient_player = AudioStreamPlayer.new()
 	ambient_player.volume_db = -16.0
@@ -234,14 +305,31 @@ func _music_list(dir_path: String) -> Array:
 
 
 func play_music(boss: bool) -> void:
-	if music_player.playing and boss == music_boss:
-		return
 	music_boss = boss
 	var list := boss_tracks if boss and not boss_tracks.is_empty() else music_tracks
 	if list.is_empty():
 		return
-	var path := String(list[rng.randi() % list.size()])
-	music_player.stream = load(path)
+	var index := 0
+	if not boss:
+		index = (layer - 1) % list.size()
+	_play_track("boss" if boss else "combat", list, index)
+
+
+func play_merchant_music() -> void:
+	if merchant_tracks.is_empty():
+		return
+	_play_track("merchant", merchant_tracks, 0)
+
+
+func _play_track(mode: String, list: Array, index: int) -> void:
+	if music_player == null or list.is_empty():
+		return
+	var path := String(list[absi(index) % list.size()])
+	var stream := load(path)
+	if music_mode == mode and music_player.playing and music_player.stream == stream:
+		return
+	music_mode = mode
+	music_player.stream = stream
 	music_player.play()
 
 
@@ -292,6 +380,7 @@ func _apply_settings() -> void:
 	var vsync := bool(GameSettings.get_value("vsync"))
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if vsync else DisplayServer.VSYNC_DISABLED)
 	_apply_brightness()
+	_save_run()
 
 
 func _apply_brightness() -> void:
@@ -325,22 +414,37 @@ func _generate_floor() -> void:
 	camera_focus = player.global_position
 	camera.global_position = _camera_desired()
 	camera.look_at(camera_focus + Vector3(0.0, 1.0, 0.0), Vector3.UP)
-	_spawn_packs()
+	var merchant_floor := _is_merchant_layer()
+	if merchant_floor:
+		_spawn_merchant()
+	else:
+		_spawn_packs()
 	_spawn_embers()
 	hud.set_map_cells(walkable, bridge_cells, GRID)
-	hud.set_layer_info(layer, enemies.size(), total_enemies, kills)
-	hud.set_theme_name(String(theme.get("name", "RIFT")))
 	hud.set_modifiers(active_mods)
-	hud.set_status("PACKS AWAKE")
 	hud.set_health(player.health, player.max_health)
 	hud.set_relics(player.relics)
 	hud.set_boss("", 0.0, false)
-	play_music(layer % 5 == 0)
+	hud.set_coins(coins)
+	if merchant_floor:
+		hud.set_layer_info(layer, 0, 0, kills)
+		hud.set_theme_name("THE ASHEN BAZAAR")
+		hud.set_status("NO HOSTILES  -  THE BROKER WAITS")
+		play_merchant_music()
+		_open_portal(false)
+	else:
+		hud.set_layer_info(layer, enemies.size(), total_enemies, kills)
+		hud.set_theme_name(String(theme.get("name", "RIFT")))
+		hud.set_status("PACKS AWAKE")
+		play_music(layer % 5 == 0)
 	map_timer = 0.0
+	_save_run()
 
 
 func _roll_modifiers() -> void:
 	active_mods.clear()
+	if _is_merchant_layer():
+		return
 	var pool := MODIFIERS.duplicate()
 	var count := 1
 	if layer >= 6:
@@ -375,10 +479,18 @@ func _apply_theme() -> void:
 
 
 func _clear_floor() -> void:
+	if shop_open:
+		shop_open = false
+		hud.close_shop()
+	hud.hide_prompt()
 	for root in [floor_root, entity_root, fx_root]:
 		for child in root.get_children():
 			child.queue_free()
 	ember_emitter = null
+	merchant_npc = null
+	merchant_area = null
+	merchant_near = false
+	shop_offers.clear()
 
 
 func _make_layout() -> void:
@@ -697,22 +809,14 @@ func _corner_jitter(lx: int, lz: int) -> Vector2:
 func _build_ground() -> void:
 	var stone := SurfaceTool.new()
 	stone.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var lava := SurfaceTool.new()
-	lava.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var local_rng := RandomNumberGenerator.new()
 	local_rng.seed = rng.randi()
 	var half := CELL * 0.5
-	var lava_y := -1.15
 	for x in GRID:
 		for y in GRID:
 			var cell := Vector2i(x, y)
 			var center := _cell_to_world(cell)
 			if not walkable.get(cell, false):
-				var la := Vector3(center.x - half, lava_y, center.z - half)
-				var lb := Vector3(center.x + half, lava_y, center.z - half)
-				var lc := Vector3(center.x + half, lava_y, center.z + half)
-				var ld := Vector3(center.x - half, lava_y, center.z + half)
-				_add_quad(lava, la, lb, lc, ld, Vector3.UP, Color.WHITE, 0.12)
 				continue
 			var j00 := _corner_jitter(2 * x - 1, 2 * y - 1)
 			var j10 := _corner_jitter(2 * x + 1, 2 * y - 1)
@@ -737,7 +841,7 @@ func _build_ground() -> void:
 				var a: Vector3 = corners[e]
 				var b: Vector3 = corners[(e + 1) % 4]
 				var next_cell: Vector2i = cell + neighbors[e]
-				var depth := 1.2 if not walkable.get(next_cell, false) else lip
+				var depth := 1.75 if not walkable.get(next_cell, false) else lip
 				var ab := Vector3(a.x, -depth, a.z)
 				var bb := Vector3(b.x, -depth, b.z)
 				_add_quad(stone, a, b, bb, ab, normals[e], dark_tint, 0.20)
@@ -754,19 +858,12 @@ func _build_ground() -> void:
 	ground.mesh = stone_mesh
 	ground.material_override = _stone_material()
 	floor_root.add_child(ground)
-	var lava_mesh := lava.commit()
-	var lava_inst := MeshInstance3D.new()
-	lava_inst.name = "Lava"
-	lava_inst.mesh = lava_mesh
-	lava_inst.material_override = _lava_material(0.42, 0.58)
-	lava_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	floor_root.add_child(lava_inst)
 	var sea := MeshInstance3D.new()
 	var plane := PlaneMesh.new()
 	plane.size = Vector2(420, 420)
 	sea.mesh = plane
-	sea.position.y = -2.6
-	sea.material_override = _lava_material(0.24, 0.34)
+	sea.position.y = -1.72
+	sea.material_override = _lava_material(0.34, 0.7)
 	sea.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	floor_root.add_child(sea)
 	var body := StaticBody3D.new()
@@ -1263,6 +1360,7 @@ func _on_enemy_died(enemy: Enemy) -> void:
 	FX.burst(fx_root, enemy.global_position + Vector3(0.0, 1.0, 0.0), Color(0.55, 0.12, 0.9, 0.9), 30, 6.0, 0.5, 0.8)
 	FX.ring(fx_root, player.global_position, Color(1.0, 0.35, 0.12, 0.35), 2.4, 0.4, 0.05)
 	_drop_loot(enemy)
+	_drop_coins(enemy)
 	hud.set_layer_info(layer, enemies.size(), total_enemies, kills)
 	if enemies.is_empty():
 		_on_floor_cleared()
@@ -1297,6 +1395,30 @@ func _spawn_item(at: Vector3, force_rarity := "") -> void:
 		FX.burst(fx_root, at + Vector3(0.0, 0.8, 0.0), Color(1.0, 0.45, 0.1, 1.0), 40, 8.0, 0.6, 1.2, -3.0)
 
 
+func _drop_coins(enemy: Enemy) -> void:
+	var value := 6 + int(round(float(layer) * 2.0)) + rng.randi_range(0, 5)
+	if enemy.elite:
+		value = int(round(float(value) * 3.0))
+	if enemy.boss:
+		value = int(round(float(value) * 9.0))
+	_spawn_coin(enemy.global_position, value)
+
+
+func _spawn_coin(at: Vector3, value: int) -> void:
+	var coin := CoinDrop.new()
+	coin.setup(value, player)
+	entity_root.add_child(coin)
+	coin.global_position = at + Vector3(rng.randf_range(-0.5, 0.5), 0.35, rng.randf_range(-0.5, 0.5))
+	coin.collected.connect(_on_coin_collected)
+
+
+func _on_coin_collected(amount: int) -> void:
+	coins += amount
+	hud.set_coins(coins, true)
+	play_sfx("pickup", -10.0, 0.25)
+	_save_run()
+
+
 func _spawn_life(at: Vector3) -> void:
 	var drop := LootDrop.new()
 	drop.is_life = true
@@ -1327,12 +1449,14 @@ func _on_equip_requested(item: Dictionary, slot: int) -> void:
 	hud.toast("RELIC BOUND  ·  SLOT %d" % (slot + 1), Color(1.0, 0.55, 0.2), 2.0)
 	play_sfx("cast", -4.0, 0.12)
 	FX.ring(fx_root, player.global_position, Color(1.0, 0.6, 0.2, 0.9), 3.0, 0.6, 0.06)
+	_save_run()
 
 
 func _on_unequip_requested(slot: int) -> void:
 	player.unequip_slot(slot)
 	hud.set_relics(player.relics)
 	play_sfx("pickup", -12.0, 0.2)
+	_save_run()
 
 
 func _on_discard_requested() -> void:
@@ -1359,7 +1483,7 @@ func _farthest_cell() -> Vector2i:
 	return _portal_cell()
 
 
-func _open_portal() -> void:
+func _open_portal(offer_boons := true) -> void:
 	var cell := _farthest_cell()
 	var pos := _cell_to_world(cell)
 	portal = Node3D.new()
@@ -1486,7 +1610,8 @@ func _open_portal() -> void:
 	play_sfx("portal", 0.0, 0.03)
 	FX.ring(fx_root, pos, Color(1.0, 0.55, 0.2, 0.9), 9.0, 1.2, 0.08)
 	FX.burst(fx_root, pos + Vector3(0.0, 1.5, 0.0), Color(1.0, 0.5, 0.2, 1.0), 60, 10.0, 0.7, 1.4, -2.0)
-	_offer_boons()
+	if offer_boons:
+		_offer_boons()
 
 
 func _offer_boons() -> void:
@@ -1506,6 +1631,16 @@ func _offer_boons() -> void:
 func _on_boon_chosen(key: String) -> void:
 	if player == null or not player.alive:
 		return
+	var claimed := _apply_boon(key)
+	if claimed == "":
+		return
+	play_sfx("pickup", -2.0, 0.05)
+	FX.ring(fx_root, player.global_position, Color(1.0, 0.6, 0.25, 0.8), 5.0, 0.7, 0.06)
+	hud.toast("%s  CLAIMED" % claimed, Color(1.0, 0.8, 0.35), 2.4)
+	_save_run()
+
+
+func _apply_boon(key: String, record := true) -> String:
 	var claimed := ""
 	match key:
 		"fury":
@@ -1528,10 +1663,229 @@ func _on_boon_chosen(key: String) -> void:
 			player.move_speed *= 1.08
 			claimed = "CRIMSON STRIDE"
 		_:
-			return
-	play_sfx("pickup", -2.0, 0.05)
-	FX.ring(fx_root, player.global_position, Color(1.0, 0.6, 0.25, 0.8), 5.0, 0.7, 0.06)
-	hud.toast("%s  CLAIMED" % claimed, Color(1.0, 0.8, 0.35), 2.4)
+			return ""
+	if record:
+		run_boons.append(key)
+	return claimed
+
+
+func _is_merchant_layer() -> bool:
+	return layer % 6 == 0
+
+
+func _first_glb(dir_path: String) -> String:
+	var dir := DirAccess.open(dir_path)
+	if dir == null:
+		return ""
+	for file in dir.get_files():
+		if String(file).get_extension().to_lower() == "glb":
+			return dir_path.path_join(file)
+	return ""
+
+
+func _spawn_merchant() -> void:
+	merchant_near = false
+	var cell := _nearest_walkable(start_cell + Vector2i(2, -2))
+	var pos := _cell_to_world(cell)
+	merchant_npc = Node3D.new()
+	merchant_npc.name = "Merchant"
+	entity_root.add_child(merchant_npc)
+	merchant_npc.global_position = pos
+	var model_path := _first_glb(MERCHANT_DIR)
+	if model_path == "":
+		model_path = DUNGEON_DIR + "hushed-acolyte.glb"
+	var to_player := player.global_position - pos
+	var yaw := rad_to_deg(atan2(to_player.x, to_player.z))
+	var model := _spawn_model(_get_model(model_path), 2.25, merchant_npc, Vector3.ZERO, yaw)
+	var dais := MeshInstance3D.new()
+	var dais_mesh := CylinderMesh.new()
+	dais_mesh.top_radius = 1.9
+	dais_mesh.bottom_radius = 2.1
+	dais_mesh.height = 0.14
+	dais_mesh.radial_segments = 24
+	dais.mesh = dais_mesh
+	var stone := StandardMaterial3D.new()
+	stone.albedo_color = Color(0.12, 0.09, 0.09)
+	stone.roughness = 0.85
+	dais.material_override = stone
+	dais.position.y = 0.05
+	dais.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	merchant_npc.add_child(dais)
+	var ring := MeshInstance3D.new()
+	var ring_mesh := TorusMesh.new()
+	ring_mesh.inner_radius = 1.65
+	ring_mesh.outer_radius = 1.78
+	ring_mesh.rings = 40
+	ring_mesh.ring_segments = 4
+	ring.mesh = ring_mesh
+	ring.material_override = FX.glow_material(Color(1.0, 0.66, 0.24, 0.6))
+	ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	ring.position.y = 0.14
+	merchant_npc.add_child(ring)
+	var light := OmniLight3D.new()
+	light.light_color = Color(1.0, 0.66, 0.3)
+	light.light_energy = 3.2
+	light.omni_range = 8.0
+	light.shadow_enabled = false
+	light.position.y = 2.6
+	merchant_npc.add_child(light)
+	var label := Label3D.new()
+	label.text = "THE ASHEN BROKER"
+	label.font_size = 52
+	label.pixel_size = 0.0038
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.modulate = Color(1.0, 0.78, 0.36)
+	label.outline_size = 12
+	label.outline_modulate = Color(0.05, 0.0, 0.0, 0.9)
+	label.position = Vector3(0.0, 3.1, 0.0)
+	merchant_npc.add_child(label)
+	var crate_scene := _get_model(DUNGEON_DIR + "crate.glb")
+	var pot_scene := _get_model(DUNGEON_DIR + "pot.glb")
+	_spawn_model(crate_scene, 0.8, merchant_npc, Vector3(1.6, 0.0, 0.6), 24.0)
+	_spawn_model(crate_scene, 0.6, merchant_npc, Vector3(1.9, 0.0, -0.4), -12.0)
+	_spawn_model(pot_scene, 0.55, merchant_npc, Vector3(-1.6, 0.0, 0.5), 0.0)
+	_build_brazier(pos + Vector3(2.1, 0.0, -1.3))
+	_build_brazier(pos + Vector3(-2.1, 0.0, -1.3))
+	merchant_area = Area3D.new()
+	merchant_area.name = "MerchantArea"
+	merchant_area.collision_layer = 16
+	merchant_area.collision_mask = 2
+	merchant_area.monitoring = true
+	var shape := CollisionShape3D.new()
+	var sphere := SphereShape3D.new()
+	sphere.radius = 3.4
+	shape.shape = sphere
+	shape.position.y = 1.2
+	merchant_area.add_child(shape)
+	merchant_area.body_entered.connect(_on_merchant_range.bind(true))
+	merchant_area.body_exited.connect(_on_merchant_range.bind(false))
+	merchant_npc.add_child(merchant_area)
+	_roll_shop_offers()
+	if model == null:
+		push_warning("Merchant model missing; using fallback")
+
+
+func _on_merchant_range(body: Node, near: bool) -> void:
+	if not (body is Player):
+		return
+	merchant_near = near
+	if near and not shop_open:
+		hud.show_prompt("E  -  TRADE WITH THE ASHEN BROKER")
+	else:
+		hud.hide_prompt()
+
+
+func _open_shop() -> void:
+	if shop_open or merchant_npc == null or not run_active:
+		return
+	shop_open = true
+	hud.hide_prompt()
+	hud.show_shop(shop_offers, coins, layer)
+
+
+func _close_shop() -> void:
+	if shop_open:
+		hud.close_shop()
+
+
+func _on_shop_closed() -> void:
+	shop_open = false
+	if merchant_near:
+		hud.show_prompt("E  -  TRADE WITH THE ASHEN BROKER")
+
+
+func _roll_shop_offers() -> void:
+	shop_offers.clear()
+	for i in 3:
+		var item := ItemDB.make_item(layer + 2, rng)
+		if i == 0 and layer >= 12 and rng.randf() < 0.55:
+			item = ItemDB.make_item(layer + 2, rng, "rare")
+		shop_offers.append({
+			"kind": "relic",
+			"item": item,
+			"name": String(item.get("name", "Relic")),
+			"detail": _item_detail(item),
+			"color": item.get("color", Color(0.90, 0.86, 0.79)),
+			"price": _relic_price(item),
+		})
+	var pool := BOONS.duplicate()
+	for i in 2:
+		if pool.is_empty():
+			break
+		var pick := rng.randi() % pool.size()
+		var boon: Dictionary = pool[pick]
+		pool.remove_at(pick)
+		shop_offers.append({
+			"kind": "boon",
+			"boon": String(boon.get("key", "")),
+			"name": String(boon.get("name", "Boon")),
+			"detail": String(boon.get("text", "")),
+			"color": boon.get("color", Color(1.0, 0.72, 0.28)),
+			"price": 55 + layer * 4,
+		})
+	shop_offers.append({
+		"kind": "heal",
+		"name": "VITAE FLASK",
+		"detail": "Restore all vitae.",
+		"color": Color(0.95, 0.32, 0.34),
+		"price": 20 + layer * 2,
+	})
+
+
+func _relic_price(item: Dictionary) -> int:
+	var base := 20
+	match String(item.get("rarity", "common")):
+		"magic":
+			base = 45
+		"rare":
+			base = 95
+		"legendary":
+			base = 180
+	var price := float(base) * (1.0 + 0.05 * float(layer - 1))
+	return int(round(price))
+
+
+func _item_detail(item: Dictionary) -> String:
+	var parts: Array = []
+	var unique := String(item.get("unique_text", ""))
+	if unique != "":
+		parts.append(unique)
+	for line in ItemDB.mod_lines(item):
+		parts.append(String(line.text))
+	return "   ".join(parts)
+
+
+func _on_shop_buy(index: int) -> void:
+	if not shop_open or index < 0 or index >= shop_offers.size():
+		return
+	var offer: Dictionary = shop_offers[index]
+	var price := int(offer.get("price", 0))
+	if coins < price:
+		hud.toast("NOT ENOUGH COIN", Color(1.0, 0.4, 0.3), 1.8)
+		play_sfx("hit", -9.0, 0.1)
+		return
+	var kind := String(offer.get("kind", ""))
+	if kind == "relic" and player.relics.size() >= Player.MAX_RELICS:
+		hud.toast("RELICS FULL  -  REMOVE ONE FIRST", Color(1.0, 0.4, 0.3), 2.2)
+		return
+	coins -= price
+	shop_offers.remove_at(index)
+	hud.set_coins(coins, true)
+	play_sfx("pickup", -3.0, 0.1)
+	match kind:
+		"relic":
+			hud.close_shop()
+			hud.offer_relic(offer.get("item", {}))
+			hud.toast("BOUGHT  %s" % String(offer.get("name", "RELIC")), offer.get("color", Color(1.0, 0.72, 0.28)), 2.2)
+		"boon":
+			var claimed := _apply_boon(String(offer.get("boon", "")))
+			hud.update_shop(shop_offers, coins)
+			hud.toast("%s  CLAIMED" % claimed, offer.get("color", Color(1.0, 0.8, 0.35)), 2.2)
+		"heal":
+			player.heal(player.max_health)
+			hud.update_shop(shop_offers, coins)
+			hud.toast("VITAE RESTORED", Color(0.95, 0.4, 0.42), 2.0)
+	_save_run()
 
 
 func _on_portal_entered(body: Node) -> void:
@@ -1559,21 +1913,29 @@ func begin_run() -> void:
 	if started:
 		return
 	get_tree().paused = false
+	RunSave.clear()
 	started = true
 	run_active = true
+	coins = 0
 	hud.hide_title()
 	hud.show_body()
+	hud.set_coins(0)
 	for enemy in enemies:
 		enemy.frozen = false
 	hud.toast("RIFT LAYER 1", Color(1.0, 0.72, 0.3), 2.4)
+	_save_run()
 
 
 func _restart_run() -> void:
 	get_tree().paused = false
 	mouse_held = false
 	boon_luck = 0.0
+	coins = 0
+	RunSave.clear()
 	hud.flash_transition()
 	hud.hide_boons()
+	hud.hide_prompt()
+	hud.set_coins(0)
 	layer = 1
 	kills = 0
 	run_active = true
@@ -1590,9 +1952,15 @@ func _restart_run() -> void:
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
-		if not started:
-			begin_run()
 		var key_event := event as InputEventKey
+		if not started:
+			if key_event.keycode == KEY_ESCAPE or key_event.keycode == KEY_P:
+				return
+			if key_event.keycode == KEY_C and RunSave.has_save():
+				continue_run()
+				get_viewport().set_input_as_handled()
+				return
+			begin_run()
 		var key: int = key_event.keycode
 
 		if key == KEY_1:
@@ -1607,6 +1975,11 @@ func _input(event: InputEvent) -> void:
 			hud.equip_pending_best()
 		elif key == KEY_TAB:
 			hud.toggle_relic_window()
+		elif key == KEY_E:
+			if shop_open:
+				_close_shop()
+			elif merchant_near:
+				_open_shop()
 		elif key == KEY_R and not player.alive:
 			_restart_run()
 
@@ -1642,6 +2015,9 @@ func _left_click(screen_pos: Vector2) -> void:
 	if drop != null:
 		_on_loot_picked(drop)
 		drop.queue_free()
+		return
+	if _merchant_under(screen_pos):
+		_open_shop()
 		return
 	var enemy := _enemy_under(screen_pos)
 	if enemy != null:
@@ -1696,6 +2072,21 @@ func _loot_under(screen_pos: Vector2) -> LootDrop:
 	if collider is LootDrop:
 		return collider
 	return null
+
+
+func _merchant_under(screen_pos: Vector2) -> bool:
+	if merchant_area == null or not is_instance_valid(merchant_area):
+		return false
+	var from := camera.project_ray_origin(screen_pos)
+	var dir := camera.project_ray_normal(screen_pos)
+	var query := PhysicsRayQueryParameters3D.create(from, from + dir * 200.0)
+	query.collision_mask = 16
+	query.collide_with_areas = true
+	query.collide_with_bodies = false
+	var result := get_world_3d().direct_space_state.intersect_ray(query)
+	if result.is_empty():
+		return false
+	return result.get("collider") == merchant_area
 
 
 func _on_hud_ability_pressed(index: int) -> void:
@@ -1868,6 +2259,7 @@ func _on_health_changed(current: float, maximum: float) -> void:
 
 func _on_player_died() -> void:
 	run_active = false
+	RunSave.clear()
 	hud.set_boss("", 0.0, false)
 	_save_record()
 	hud.hide_boons()
@@ -1896,6 +2288,10 @@ func _process(delta: float) -> void:
 	hud.set_cooldowns(player.cooldowns, player.dash_cooldown, player.health, costs)
 	hud.set_bloodrush(player.bloodrush, player.bloodrush_timer / Player.BLOODRUSH_TIME)
 	hud.set_health(player.health, player.max_health, player.regen_now(), player.in_combat())
+	if merchant_npc != null and is_instance_valid(merchant_npc):
+		var near := player.global_position.distance_to(merchant_npc.global_position) < 4.4
+		if near != merchant_near:
+			_on_merchant_range(player, near)
 	map_timer -= delta
 	if map_timer <= 0.0:
 		map_timer = 0.12
@@ -1916,7 +2312,8 @@ func _process(delta: float) -> void:
 		hazard_timer = maxf(2.4, 7.0 - 0.5 * float(layer - 1)) * rng.randf_range(0.8, 1.3)
 		if has_mod("unstable"):
 			hazard_timer *= 0.7
-		_spawn_hazard()
+		if not _is_merchant_layer():
+			_spawn_hazard()
 	lava_timer -= delta
 	if lava_timer <= 0.0:
 		lava_timer = 0.5

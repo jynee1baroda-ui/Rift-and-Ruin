@@ -21,6 +21,7 @@ const DEFAULTS := {
 	"minimap": true,
 	"toasts": true,
 	"modifiers": true,
+	"persist": true,
 }
 
 static var values: Dictionary = DEFAULTS.duplicate()
@@ -53,3 +54,18 @@ static func save_all() -> void:
 static func reset_all() -> void:
 	values = DEFAULTS.duplicate()
 	save_all()
+
+
+static func snapshot() -> Dictionary:
+	return values.duplicate()
+
+
+static func apply_snapshot(data: Dictionary) -> void:
+	for key in DEFAULTS.keys():
+		if data.has(key):
+			values[key] = data[key]
+
+
+static func persist_now() -> void:
+	if bool(values.get("persist", true)):
+		save_all()

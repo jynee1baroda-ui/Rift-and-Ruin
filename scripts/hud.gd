@@ -10,6 +10,8 @@ signal ability_pressed(index: int)
 signal restart_pressed
 signal settings_changed
 signal boon_chosen(key: String)
+signal shop_buy(index: int)
+signal shop_close
 
 const INK := Color(0.035, 0.025, 0.045, 0.92)
 const AMBER := Color(1.0, 0.72, 0.28)
@@ -28,6 +30,7 @@ var minimap: RiftMap
 var vitae_bar: VitaeBar
 var health_label: Label
 var regen_label: Label
+var coin_label: Label
 var health_target := 100.0
 var health_shown := 100.0
 var ghost_shown := 100.0
@@ -65,6 +68,12 @@ var boon_shade: ColorRect
 var boon_cards: HBoxContainer
 var boons_open := false
 var boon_keys: Array = []
+var prompt_label: Label
+var shop_window: PanelContainer
+var shop_body: VBoxContainer
+var shop_coins: Label
+var shop_title: Label
+var shop_open := false
 var vignette: TextureRect
 var death_panel: PanelContainer
 var death_stats: Label
@@ -251,6 +260,8 @@ func _build() -> void:
 	_build_settings_button()
 	_build_settings_window()
 	_build_boon_panel()
+	_build_prompt()
+	_build_shop()
 	_build_fade()
 	_apply_ui_settings()
 
@@ -509,6 +520,8 @@ func _build_health() -> void:
 	box.add_theme_constant_override("separation", 3)
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	body.add_child(box)
+	coin_label = _label("COIN  0", 14, GOLD)
+	box.add_child(coin_label)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -885,7 +898,7 @@ func _build_title() -> void:
 	box.alignment = BoxContainer.ALIGNMENT_CENTER
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	title_panel.add_child(box)
-	title_label = _label("RIFT & RUIN", 84, AMBER)
+	title_label = _label("RIFT & RUIN", 72, AMBER)
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(title_label)
 	var sub := _label("THE BLOOD SORCERESS", 20, CRIMSON)
@@ -895,7 +908,7 @@ func _build_title() -> void:
 	record_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(record_label)
 	var spacer := Control.new()
-	spacer.custom_minimum_size = Vector2(0, 26)
+	spacer.custom_minimum_size = Vector2(0, 14)
 	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_child(spacer)
 	var lines := [
@@ -905,7 +918,7 @@ func _build_title() -> void:
 		"3  SANGUINE SIPHON drink their wounds closed",
 		"SPACE  RIFTSTEP    slide over lava",
 		"TAB  relic loadout   ·   click a glowing drop to claim it",
-		"Click ground to walk  ·  click skill cards to cast  ·  ESC pauses",
+		"COIN drops from kills  -  the Ashen Broker trades every 6th layer",
 		"SET (top right)  -  audio, video, gameplay and interface options",
 		"Clear every pack, step into the rift, go deeper.",
 	]
@@ -914,9 +927,14 @@ func _build_title() -> void:
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		box.add_child(l)
 	var spacer2 := Control.new()
-	spacer2.custom_minimum_size = Vector2(0, 30)
+	spacer2.custom_minimum_size = Vector2(0, 18)
 	box.add_child(spacer2)
-	var begin := _label("CLICK ANYWHERE TO BEGIN", 22, AMBER)
+	if RunSave.has_save():
+		var saved := RunSave.read()
+		var continue_label := _label("PRESS C  -  CONTINUE LAYER %d" % int(saved.get("layer", 1)), 20, GOLD)
+		continue_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		box.add_child(continue_label)
+	var begin := _label("CLICK ANYWHERE TO BEGIN A NEW RIFT", 22, AMBER)
 	begin.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(begin)
 	title_panel.modulate.a = 0.0
@@ -969,6 +987,8 @@ func _build_pause() -> void:
 		"CLICK A SKILL CARD   cast without a hotkey",
 		"MOUSE WHEEL   camera zoom",
 		"FLOOR CLEARED   claim a rift boon (1 - 3)",
+		"COIN   kill for it, spend it at the broker every 6th layer",
+		"E   trade  (or click the broker)",
 		"SET   audio, video, gameplay, interface",
 		"ESC   close card / pause",
 	]
@@ -1200,6 +1220,153 @@ func hide_boons() -> void:
 		boon_shade.visible = false
 
 
+func _build_prompt() -> void:
+	prompt_label = _label("E  -  TRADE", 16, GOLD)
+	prompt_label.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	prompt_label.anchor_left = 0.5
+	prompt_label.anchor_right = 0.5
+	prompt_label.offset_left = -220.0
+	prompt_label.offset_right = 220.0
+	prompt_label.offset_top = -206.0
+	prompt_label.offset_bottom = -178.0
+	prompt_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	prompt_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	prompt_label.visible = false
+	body.add_child(prompt_label)
+
+
+func show_prompt(text: String) -> void:
+	if prompt_label == null:
+		return
+	prompt_label.text = text
+	prompt_label.visible = text != ""
+
+
+func hide_prompt() -> void:
+	if prompt_label != null:
+		prompt_label.visible = false
+
+
+func _build_shop() -> void:
+	shop_window = PanelContainer.new()
+	shop_window.set_anchors_preset(Control.PRESET_CENTER)
+	shop_window.anchor_left = 0.5
+	shop_window.anchor_right = 0.5
+	shop_window.anchor_top = 0.5
+	shop_window.anchor_bottom = 0.5
+	shop_window.offset_left = -392.0
+	shop_window.offset_right = 392.0
+	shop_window.offset_top = -262.0
+	shop_window.offset_bottom = 262.0
+	shop_window.add_theme_stylebox_override("panel", _stylebox(Color(0.035, 0.02, 0.03, 0.98), Color(0.66, 0.42, 0.16, 1.0), 2, 4))
+	shop_window.visible = false
+	shop_window.mouse_filter = Control.MOUSE_FILTER_STOP
+	root.add_child(shop_window)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 10)
+	shop_window.add_child(box)
+	var header := HBoxContainer.new()
+	header.add_theme_constant_override("separation", 12)
+	box.add_child(header)
+	shop_title = _label("THE ASHEN BROKER", 30, AMBER)
+	header.add_child(shop_title)
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(spacer)
+	shop_coins = _label("COIN  0", 17, GOLD)
+	header.add_child(shop_coins)
+	var close := Button.new()
+	close.text = "ESC"
+	close.custom_minimum_size = Vector2(58, 30)
+	close.add_theme_font_size_override("font_size", 12)
+	close.add_theme_color_override("font_color", MUTED)
+	close.add_theme_color_override("font_hover_color", AMBER)
+	close.add_theme_stylebox_override("normal", _stylebox(Color(0.05, 0.03, 0.04, 0.9), Color(0.24, 0.16, 0.12, 1.0), 1))
+	close.add_theme_stylebox_override("hover", _stylebox(Color(0.13, 0.06, 0.05, 0.95), Color(0.9, 0.55, 0.2, 1.0), 1))
+	close.pressed.connect(close_shop)
+	header.add_child(close)
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	box.add_child(scroll)
+	shop_body = VBoxContainer.new()
+	shop_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	shop_body.add_theme_constant_override("separation", 8)
+	scroll.add_child(shop_body)
+	var hint := _label("Coin buys relics, boons and vitae. The gate stays open.", 12, MUTED)
+	box.add_child(hint)
+
+
+func show_shop(offers: Array, coin_count: int, layer_num: int) -> void:
+	if shop_window == null:
+		return
+	shop_open = true
+	shop_title.text = "THE ASHEN BROKER  -  LAYER %d" % layer_num
+	shop_window.visible = true
+	shop_window.modulate.a = 0.0
+	get_tree().paused = true
+	if pause_shade != null:
+		pause_shade.visible = false
+	if pause_panel != null:
+		pause_panel.visible = false
+	update_shop(offers, coin_count)
+	var tween := create_tween()
+	tween.tween_property(shop_window, "modulate:a", 1.0, 0.22)
+
+
+func update_shop(offers: Array, coin_count: int) -> void:
+	if shop_window == null or not shop_window.visible:
+		return
+	shop_coins.text = "COIN  %d" % coin_count
+	for child in shop_body.get_children():
+		child.queue_free()
+	for i in offers.size():
+		var offer: Dictionary = offers[i]
+		var color: Color = offer.get("color", BONE)
+		var price := int(offer.get("price", 0))
+		var row := PanelContainer.new()
+		row.add_theme_stylebox_override("panel", _stylebox(Color(0.055, 0.03, 0.045, 0.95), color.darkened(0.35), 1, 3))
+		shop_body.add_child(row)
+		var line := HBoxContainer.new()
+		line.add_theme_constant_override("separation", 10)
+		row.add_child(line)
+		var info := VBoxContainer.new()
+		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		info.add_theme_constant_override("separation", 1)
+		line.add_child(info)
+		var name_label := _label(String(offer.get("name", "Offer")), 16, color, false)
+		info.add_child(name_label)
+		var detail := _label(String(offer.get("detail", "")), 12, MUTED, false)
+		detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		info.add_child(detail)
+		var price_label := _label("%d COIN" % price, 14, GOLD if coin_count >= price else Color(0.62, 0.3, 0.3), false)
+		price_label.custom_minimum_size = Vector2(96, 0)
+		price_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		price_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		line.add_child(price_label)
+		var buy := Button.new()
+		buy.text = "BUY"
+		buy.custom_minimum_size = Vector2(74, 34)
+		buy.add_theme_font_size_override("font_size", 13)
+		buy.add_theme_color_override("font_color", AMBER)
+		buy.add_theme_color_override("font_hover_color", Color(1.0, 0.94, 0.76))
+		buy.disabled = coin_count < price
+		buy.add_theme_stylebox_override("normal", _stylebox(Color(0.1, 0.04, 0.05, 0.95), Color(0.5, 0.28, 0.1, 1.0), 1))
+		buy.add_theme_stylebox_override("hover", _stylebox(Color(0.2, 0.08, 0.07, 0.98), Color(0.9, 0.55, 0.2, 1.0), 1))
+		buy.add_theme_stylebox_override("pressed", _stylebox(Color(0.3, 0.1, 0.08, 1.0), Color(1.0, 0.7, 0.3, 1.0), 1))
+		buy.pressed.connect(func() -> void: shop_buy.emit(i))
+		line.add_child(buy)
+
+
+func close_shop() -> void:
+	if shop_window == null:
+		return
+	shop_open = false
+	shop_window.visible = false
+	get_tree().paused = false
+	shop_close.emit()
+
+
 func close_settings() -> void:
 	if settings_window == null:
 		return
@@ -1256,7 +1423,7 @@ func _add_slider(label_text: String, key: String, minv: float, maxv: float, step
 	settings_body.add_child(row)
 	slider.value_changed.connect(func(v: float) -> void:
 		GameSettings.set_value(key, v)
-		GameSettings.save_all()
+		GameSettings.persist_now()
 		value_label.text = _format_value(v, key, suffix)
 		_apply_ui_settings()
 		settings_changed.emit()
@@ -1273,7 +1440,7 @@ func _add_toggle(label_text: String, key: String) -> void:
 	settings_body.add_child(row)
 	check.toggled.connect(func(on: bool) -> void:
 		GameSettings.set_value(key, on)
-		GameSettings.save_all()
+		GameSettings.persist_now()
 		_apply_ui_settings()
 		settings_changed.emit()
 	)
@@ -1325,6 +1492,7 @@ func _build_settings_body() -> void:
 			_add_slider("HUD Scale", "hud_scale", 0.85, 1.15, 0.05, "%")
 			_add_toggle("Rift Minimap", "minimap")
 			_add_toggle("Announcement Toasts", "toasts")
+			_add_toggle("Save Settings Automatically", "persist")
 	var footer := HBoxContainer.new()
 	footer.add_theme_constant_override("separation", 8)
 	settings_body.add_child(footer)
@@ -1338,6 +1506,16 @@ func _build_settings_body() -> void:
 	reset.add_theme_stylebox_override("hover", _stylebox(Color(0.16, 0.06, 0.05, 0.98), Color(0.95, 0.45, 0.25, 1.0), 1))
 	reset.pressed.connect(reset_settings)
 	footer.add_child(reset)
+	var save := Button.new()
+	save.text = "SAVE SETTINGS"
+	save.custom_minimum_size = Vector2(170, 34)
+	save.add_theme_font_size_override("font_size", 13)
+	save.add_theme_color_override("font_color", GOLD)
+	save.add_theme_color_override("font_hover_color", Color(1.0, 0.94, 0.76))
+	save.add_theme_stylebox_override("normal", _stylebox(Color(0.1, 0.05, 0.04, 0.95), Color(0.55, 0.36, 0.12, 1.0), 1))
+	save.add_theme_stylebox_override("hover", _stylebox(Color(0.2, 0.09, 0.05, 0.98), Color(0.95, 0.62, 0.24, 1.0), 1))
+	save.pressed.connect(save_settings_now)
+	footer.add_child(save)
 	if settings_window != null:
 		var panel_height: float = settings_body.get_combined_minimum_size().y + 78.0
 		panel_height = clampf(panel_height, 300.0, 560.0)
@@ -1350,6 +1528,12 @@ func reset_settings() -> void:
 	_apply_ui_settings()
 	settings_changed.emit()
 	_build_settings_body()
+	toast("SETTINGS RESTORED TO DEFAULTS", GOLD, 2.0)
+
+
+func save_settings_now() -> void:
+	GameSettings.save_all()
+	toast("SETTINGS SAVED", GOLD, 1.8)
 
 
 func _apply_ui_settings() -> void:
@@ -1389,6 +1573,11 @@ func set_record(best: int) -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if shop_open:
+		if event is InputEventKey and event.pressed and not event.echo and (event.keycode == KEY_ESCAPE or event.keycode == KEY_P or event.keycode == KEY_E):
+			close_shop()
+			get_viewport().set_input_as_handled()
+		return
 	if boons_open:
 		if event is InputEventKey and event.pressed and not event.echo:
 			var index: int = event.keycode - KEY_1
@@ -1436,6 +1625,18 @@ func set_health(current: float, maximum: float, regen_rate := -1.0, in_combat :=
 		else:
 			regen_label.text = "REGEN +%.1f/s" % regen_rate
 			regen_label.add_theme_color_override("font_color", GOLD)
+
+
+func set_coins(value: int, pulse := false) -> void:
+	if coin_label == null:
+		return
+	coin_label.text = "COIN  %d" % value
+	if not pulse:
+		return
+	coin_label.scale = Vector2.ONE * 1.16
+	coin_label.pivot_offset = coin_label.size * 0.5
+	var tween := create_tween()
+	tween.tween_property(coin_label, "scale", Vector2.ONE, 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 
 func set_layer_info(layer: int, remaining: int, total: int, kills := 0) -> void:

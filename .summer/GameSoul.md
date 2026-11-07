@@ -23,14 +23,30 @@ An isometric, click-to-move action RPG in a volcanic wasteland split by lava rif
 ## Core Loop (implemented)
 1. Random connected cave layout of stone plates over lava, chosen from four floor themes that cycle: ASHEN CAUSEWAY, MOLTEN WARRENS, SUNKEN CATHEDRAL, CINDER CHASM. Each changes land density, river and pool count, props, fog and ambient colour. Lava spits are filled in, the gate scar leaves a land gap, and bridges are widened.
 2. Packs of cultists, wolves, bats, crawlers, slingers and alphas spawn away from the player. Every 5th layer is a boss floor: the Hushed Prophet or the Brood Mother with two brutes, a boss bar, boss music and triple loot.
-3. Killing drops colour-coded relics and life orbs. Walking over a relic shows a stat comparison card; click the card (or Enter) to bind it to the single relic slot.
-4. Clearing every pack opens a rift gate. Stepping into it starts the next layer: more enemies, more HP and damage, better rarity odds.
+3. Killing drops colour-coded relics, life orbs and coin. Walking over a relic shows a stat comparison card; click the card (or Enter) to bind it to a relic slot.
+4. Clearing every pack opens a rift gate. Stepping into it starts the next layer: more enemies, more HP and damage, better rarity odds. Every 6th layer is the Ashen Broker's bazaar instead.
 5. Death ends the run and shows the layer reached; R revives at layer 1 keeping the relics.
 
 ## Rift Boons (per-layer progression)
 - Clearing every pack opens the gate and deals three boons; click one or press 1-3 before you descend.
 - Blood Fury +15% ability damage, Deep Vitae +40 max vitae and a heal, Quickened Blood -15% cooldowns, Sanguine Flow +0.9 regen/s, Gilded Hour +30% relic drop chance, Crimson Stride +8% move speed.
 - Boons stack for the whole run and reset on death/restart.
+
+## Coin and the Ashen Broker
+- Every kill drops a coin stack that flies to the player (coins are saved as they are picked up). Elites pay x3, bosses x9; payout scales with the layer.
+- Every 6th layer is a merchant floor: no enemies, no hazards. The Ashen Broker stands on a lit dais with his stall, braziers and a label; walk up and press E (or click him) to open the shop, and step into the gate to descend.
+- The shop sells 3 relics (priced by rarity and layer), 2 random boons and a full vitae flask. Bought relics open the normal slot-bind window; boons apply at once.
+- The merchant floor plays the ambient metal bazaar track and shows NO HOSTILES - THE BROKER WAITS.
+
+## Music
+- Combat floors 1-4 each play a different metal track, layer 5 uses the boss track, and every 6th layer plays the ambient metal merchant theme. Layers cycle after that.
+- Music tracks live in audio/music, audio/generated/metal_combat, metal_combat2, metal_combat3, metal_boss and metal_merchant; each folder is picked up automatically.
+
+## Saving and settings per save
+- The run is saved at every floor start, coin pickup, relic bind, boon claim, shop purchase and settings change to user://run_save.cfg.
+- The title offers PRESS C - CONTINUE LAYER N when a run save exists; clicking starts a new run and clears it. Death clears the save.
+- The save stores layer, coins, boons, relic loadout, health and a snapshot of the settings; continuing reapplies that snapshot, so each save carries its own audio/video/gameplay/interface setup.
+- Settings > Interface has Save Settings Automatically and the window has SAVE SETTINGS; RESET DEFAULTS restores everything.
 
 ## Classes and Abilities
 Only the Blood Sorceress is playable.
