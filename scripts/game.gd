@@ -1075,16 +1075,39 @@ func _open_portal() -> void:
 	_spawn_model(_get_model(GATE_PATH), 7.2, portal, Vector3.ZERO, yaw)
 	var disc := MeshInstance3D.new()
 	var quad := QuadMesh.new()
-	quad.size = Vector2(3.7, 5.2)
+	quad.size = Vector2(3.8, 5.0)
 	disc.mesh = quad
 	var mat := ShaderMaterial.new()
 	mat.shader = load("res://shaders/portal.gdshader")
 	mat.set_shader_parameter("intensity", 1.9)
 	disc.material_override = mat
 	disc.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	disc.position = Vector3(0.0, 2.8, 0.0)
+	disc.position = Vector3(0.0, 2.6, 0.0)
 	disc.rotation.y = deg_to_rad(yaw)
 	portal.add_child(disc)
+	var back := MeshInstance3D.new()
+	var back_quad := QuadMesh.new()
+	back_quad.size = Vector2(4.5, 5.7)
+	back.mesh = back_quad
+	var back_mat := StandardMaterial3D.new()
+	back_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	back_mat.albedo_color = Color(0.03, 0.0, 0.06)
+	back.material_override = back_mat
+	back.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	back.position = Vector3(0.0, 0.0, 0.08)
+	disc.add_child(back)
+	var frame := MeshInstance3D.new()
+	var frame_torus := TorusMesh.new()
+	frame_torus.inner_radius = 2.28
+	frame_torus.outer_radius = 2.46
+	frame_torus.rings = 64
+	frame_torus.ring_segments = 8
+	frame.mesh = frame_torus
+	frame.material_override = FX.glow_material(Color(1.0, 0.24, 0.04, 0.85), false)
+	frame.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	frame.rotation_degrees = Vector3(90.0, 0.0, 0.0)
+	frame.position = Vector3(0.0, 0.0, -0.04)
+	disc.add_child(frame)
 	portal_disc = disc
 	var pool := MeshInstance3D.new()
 	var pool_mesh := CylinderMesh.new()
@@ -1099,12 +1122,12 @@ func _open_portal() -> void:
 	portal.add_child(pool)
 	var halo := MeshInstance3D.new()
 	var torus := TorusMesh.new()
-	torus.inner_radius = 2.9
-	torus.outer_radius = 3.0
+	torus.inner_radius = 2.32
+	torus.outer_radius = 2.4
 	torus.rings = 48
 	torus.ring_segments = 6
 	halo.mesh = torus
-	halo.material_override = FX.glow_material(Color(1.0, 0.3, 0.06, 0.75))
+	halo.material_override = FX.glow_material(Color(1.0, 0.26, 0.05, 0.6))
 	halo.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	halo.position.y = 0.14
 	portal.add_child(halo)
@@ -1148,7 +1171,7 @@ func _open_portal() -> void:
 	label.modulate = Color(1.0, 0.75, 0.35)
 	label.outline_size = 12
 	label.outline_modulate = Color(0.05, 0.0, 0.0, 0.9)
-	label.position = Vector3(0.0, 6.6, 0.0)
+	label.position = Vector3(0.0, 5.9, 0.0)
 	portal.add_child(label)
 	portal_area = Area3D.new()
 	portal_area.collision_layer = 0
@@ -1466,6 +1489,9 @@ func _process(delta: float) -> void:
 
 func _update_camera(delta: float) -> void:
 	var desired := player.global_position + CAMERA_OFFSET
+	var limit := float(GRID) * CELL * 0.5 - 7.0
+	desired.x = clampf(desired.x, -limit, limit)
+	desired.z = clampf(desired.z, -limit, limit)
 	camera.global_position = camera.global_position.lerp(desired, clampf(delta * 6.5, 0.0, 1.0))
 	camera_shake = maxf(0.0, camera_shake - delta * 1.8)
 	var jitter := Vector3(rng.randf_range(-1.0, 1.0), rng.randf_range(-1.0, 1.0), 0.0) * camera_shake * 0.6

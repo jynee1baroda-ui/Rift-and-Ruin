@@ -1,8 +1,8 @@
 shader_type spatial;
-render_mode blend_add, unshaded, cull_disabled, depth_draw_never, shadows_disabled;
+render_mode unshaded, cull_disabled, depth_draw_never, shadows_disabled;
 
-uniform vec4 inner_color : source_color = vec4(1.0, 0.44, 0.07, 1.0);
-uniform vec4 outer_color : source_color = vec4(0.34, 0.04, 0.58, 1.0);
+uniform vec4 inner_color : source_color = vec4(1.0, 0.46, 0.08, 1.0);
+uniform vec4 outer_color : source_color = vec4(0.22, 0.02, 0.46, 1.0);
 uniform float intensity = 1.4;
 
 float hash(vec2 p) {
@@ -35,9 +35,9 @@ void fragment() {
 	float swirl = fbm(vec2(ang * 1.4 + r * 4.0 - TIME * 0.9, r * 3.0 - TIME * 0.5));
 	float mask = smoothstep(1.0, 0.55, r);
 	float ring = smoothstep(0.15, 0.0, abs(r - 0.92));
-	float core = smoothstep(0.65, 0.0, r);
-	vec3 col = mix(outer_color.rgb, inner_color.rgb, clamp(swirl * 0.9 + core * 0.35, 0.0, 1.0));
-	col += inner_color.rgb * ring * 0.45;
-	ALBEDO = col * intensity * (0.45 + swirl * 1.15);
-	ALPHA = clamp(mask * (0.32 + swirl * 0.5) + ring * 0.3, 0.0, 1.0);
+	float core = smoothstep(0.6, 0.0, r);
+	vec3 col = mix(outer_color.rgb, inner_color.rgb, clamp(swirl * 0.85 + core * 0.5, 0.0, 1.0));
+	col += inner_color.rgb * ring * 0.55;
+	ALBEDO = col * intensity * (0.65 + swirl * 1.35);
+	ALPHA = mask;
 }
