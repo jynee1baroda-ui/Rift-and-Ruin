@@ -77,6 +77,7 @@ var theme: Dictionary = {}
 var boss_enemy: Enemy
 var music_tracks: Array = []
 var boss_tracks: Array = []
+var music_boss := false
 var camera_zoom := 1.0
 var camera_focus := Vector3.ZERO
 
@@ -209,6 +210,9 @@ func _music_list(dir_path: String) -> Array:
 
 
 func play_music(boss: bool) -> void:
+	if music_player.playing and boss == music_boss:
+		return
+	music_boss = boss
 	var list := boss_tracks if boss and not boss_tracks.is_empty() else music_tracks
 	if list.is_empty():
 		return

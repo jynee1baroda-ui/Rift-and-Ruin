@@ -944,7 +944,7 @@ func _build_pause() -> void:
 		"ESC   close card / pause",
 	]
 	for line in lines:
-		var l := _label(line, 14, BONE)
+		var l := _label(line, 13, BONE)
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		box.add_child(l)
 	var spacer2 := Control.new()
