@@ -133,7 +133,44 @@ static func disc(parent: Node, global_pos: Vector3, color: Color, radius := 3.0,
 static func nova(parent: Node, global_pos: Vector3, color: Color, radius := 4.0) -> void:
 	disc(parent, global_pos, Color(color.r, color.g, color.b, 0.55), radius, 0.4)
 	ring(parent, global_pos, color, radius, 0.5, 0.09)
+	ring(parent, global_pos, Color(color.r, color.g, color.b, 0.45), radius * 0.62, 0.34, 0.05)
 	burst(parent, global_pos + Vector3(0.0, 0.5, 0.0), color, 40, 9.0, 0.7, 0.75)
+	burst(parent, global_pos + Vector3(0.0, 0.2, 0.0), Color(1.0, 0.86, 0.55, 0.95), 16, 3.4, 0.34, 0.5, -1.5)
+	if parent != null and parent.is_inside_tree():
+		var light := OmniLight3D.new()
+		light.light_color = color
+		light.light_energy = 5.0
+		light.omni_range = radius * 2.4
+		light.shadow_enabled = false
+		parent.add_child(light)
+		light.global_position = global_pos + Vector3(0.0, 1.3, 0.0)
+		var lt := light.create_tween()
+		lt.tween_property(light, "light_energy", 0.0, 0.45).set_ease(Tween.EASE_IN)
+		lt.tween_callback(light.queue_free)
+
+
+static func flash_mesh(root: Node, color: Color, duration := 0.18) -> void:
+	if root == null or not root.is_inside_tree():
+		return
+	var entries: Array = []
+	for node in root.find_children("*", "MeshInstance3D", true, false):
+		var mesh := node as MeshInstance3D
+		if mesh == null:
+			continue
+		var previous: Material = mesh.material_overlay
+		var mat := glow_material(Color(color.r, color.g, color.b, 0.55))
+		mesh.material_overlay = mat
+		entries.append({"mesh": mesh, "mat": mat, "prev": previous})
+	if entries.is_empty():
+		return
+	var tween := root.create_tween()
+	for entry in entries:
+		tween.parallel().tween_property(entry.mat, "albedo_color:a", 0.0, duration)
+	tween.chain().tween_callback(func() -> void:
+		for entry in entries:
+			if is_instance_valid(entry.mesh):
+				entry.mesh.material_overlay = entry.prev
+	)
 
 
 static func damage_number(parent: Node, global_pos: Vector3, amount: float, crit := false, color := Color(1.0, 0.82, 0.42)) -> void:

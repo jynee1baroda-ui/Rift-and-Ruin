@@ -7,6 +7,7 @@ signal ability_used(index: int, aim: Vector3)
 signal damaged(amount: float)
 signal healed(amount: float)
 signal life_spent(amount: float)
+signal leveled_up(level: int)
 
 const BASE_MAX_HEALTH := 220.0
 const BASE_SPEED := 7.2
@@ -26,6 +27,8 @@ const ABILITIES := [
 
 var max_health := BASE_MAX_HEALTH
 var health := BASE_MAX_HEALTH
+var level := 1
+var xp := 0.0
 var move_speed := BASE_SPEED
 var crit_chance := 0.06
 var crit_damage := 1.75
@@ -537,14 +540,15 @@ func _recalculate() -> void:
 	if max_health > 0.0:
 		ratio = health / max_health
 	var syn := synergy()
-	max_health = BASE_MAX_HEALTH + relic_total("vitality") + float(syn.life)
+	var level_steps := float(level - 1)
+	max_health = BASE_MAX_HEALTH + 12.0 * level_steps + relic_total("vitality") + float(syn.life)
 	max_health *= 1.0 + float(syn.life_pct)
-	move_speed = BASE_SPEED * (1.0 + (relic_total("move_speed") + float(syn.move_speed)) / 100.0)
+	move_speed = BASE_SPEED * (1.0 + 0.007 * level_steps + (relic_total("move_speed") + float(syn.move_speed)) / 100.0)
 	crit_chance = 0.06 + (relic_total("crit") + float(syn.crit)) / 100.0
 	crit_damage = 1.75 + (relic_total("crit_damage") + float(syn.crit_damage)) / 100.0
-	regen = BASE_REGEN + relic_total("regen") + float(syn.regen)
+	regen = BASE_REGEN + 0.09 * level_steps + relic_total("regen") + float(syn.regen)
 	life_cost_mult = (1.0 + relic_total("life_cost") / 100.0) * (1.0 - float(syn.cost_cut))
-	power = (1.0 + relic_total("power") / 100.0) * (1.0 + float(syn.power))
+	power = (1.0 + relic_total("power") / 100.0) * (1.0 + float(syn.power)) * (1.0 + 0.045 * level_steps)
 	dash_cooldown_base = 2.2 - float(syn.dash)
 	health = clampf(max_health * ratio, 1.0, max_health)
 	health_changed.emit(health, max_health)
@@ -554,3 +558,45 @@ func roll_damage(base: float) -> Array:
 	var crit := randf() < crit_chance
 	var amount := base * power * (1.0 + 0.035 * float(bloodrush)) * (crit_damage if crit else 1.0)
 	return [amount, crit]
+
+
+func xp_to_next() -> float:
+	return 70.0 + 62.0 * float(level - 1)
+
+
+func set_progress(level_value: int, xp_value: float) -> void:
+	level = maxi(1, level_value)
+	xp = maxf(0.0, xp_value)
+	_recalculate()
+
+
+func ensure_level(target_level: int) -> bool:
+	if target_level <= level:
+		return false
+	var gained := target_level - level
+	level = target_level
+	xp = 0.0
+	_recalculate()
+	health = minf(max_health, health + 45.0 * float(gained))
+	health_changed.emit(health, max_health)
+	for i in gained:
+		leveled_up.emit(level)
+	return true
+
+
+func gain_xp(amount: float) -> void:
+	if not alive or amount <= 0.0:
+		return
+	xp += amount
+	var gained := 0
+	while xp >= xp_to_next():
+		xp -= xp_to_next()
+		level += 1
+		gained += 1
+	if gained <= 0:
+		return
+	_recalculate()
+	health = minf(max_health, health + 40.0 * float(gained))
+	health_changed.emit(health, max_health)
+	for i in gained:
+		leveled_up.emit(level)

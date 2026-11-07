@@ -77,6 +77,11 @@ void fragment() {
 	col += hot_color.rgb * molten * heat * 0.35;
 	col = mix(col, hot_color.rgb * 0.62, molten * 0.45);
 	col += hot_color.rgb * 0.08;
+	float crust_plate = smoothstep(0.10, 0.40, cells.x) * (1.0 - core);
+	col = mix(col, crust_color.rgb * 1.7, crust_plate * 0.38);
+	float vein = 1.0 - smoothstep(0.0, 0.014, abs(edge - 0.085));
+	col += core_color.rgb * vein * (0.35 + molten * 0.75);
+	col += hot_color.rgb * pow(clamp(heat, 0.0, 1.0), 3.0) * 0.45;
 	float pulse = 0.78 + 0.22 * sin(TIME * 0.7 + hash21(floor(p)) * 6.283);
-	ALBEDO = col * (0.55 + (heat * 0.85 + core * 0.3) * glow_strength * pulse);
+	ALBEDO = col * (0.55 + (heat * 0.85 + core * 0.3) * glow_strength * pulse) * (1.0 + core * 0.45);
 }

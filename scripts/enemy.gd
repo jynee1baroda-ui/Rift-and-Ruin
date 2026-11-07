@@ -256,8 +256,8 @@ func _begin_attack(dist: float) -> void:
 	attack_timer = attack_interval
 	windup = windup_time
 	play_anim(["attack", "cast", "hit"], 1.2)
-	if not ranged:
-		FX.ring(get_parent(), global_position, Color(0.9, 0.15, 0.1, 0.55), attack_range + 0.4, 0.35, 0.04)
+	FX.flash_mesh(model_root, Color(1.0, 0.28, 0.18), maxf(0.16, windup_time * 0.7))
+	FX.ring(get_parent(), global_position, Color(1.0, 0.24, 0.14, 0.5), attack_range + 0.15, windup_time, 0.045)
 
 
 func _strike(dist: float) -> void:
@@ -270,12 +270,17 @@ func _strike(dist: float) -> void:
 	if dist <= attack_range * 1.4:
 		target.take_damage(damage)
 		FX.burst(get_parent(), target.global_position + Vector3(0.0, 1.0, 0.0), Color(0.9, 0.12, 0.1, 0.9), 12, 4.0, 0.3, 0.4)
+		if boss:
+			FX.nova(get_parent(), global_position, Color(1.0, 0.5, 0.14, 0.9), 6.4)
+			FX.ring(get_parent(), global_position, Color(1.0, 0.72, 0.32, 0.85), attack_range + 2.8, 0.5, 0.09)
 
 
 func take_damage(amount: float, crit := false) -> void:
 	if dead:
 		return
 	health -= amount
+	FX.flash_mesh(model_root, Color(1.0, 0.62, 0.42), 0.12)
+	FX.burst(get_parent(), global_position + Vector3(0.0, 1.05, 0.0), Color(1.0, 0.42, 0.24, 0.9), 7, 3.4, 0.2, 0.26)
 	hp_root.visible = bool(GameSettings.get_value("enemy_health"))
 	_update_hp_bar()
 	FX.damage_number(get_parent(), global_position + Vector3(0.0, 1.9, 0.0), amount, crit, Color(1.0, 0.9, 0.5) if crit else Color(1.0, 0.78, 0.42))
@@ -295,6 +300,15 @@ func _die() -> void:
 	dead = true
 	collision_layer = 0
 	hp_root.visible = false
+	var death_color := Color(0.95, 0.22, 0.16, 0.95)
+	if boss:
+		death_color = Color(1.0, 0.62, 0.18, 1.0)
+	elif elite:
+		death_color = Color(1.0, 0.46, 0.18, 0.95)
+	FX.burst(get_parent(), global_position + Vector3(0.0, 1.0, 0.0), death_color, 40 if boss else 18, 7.5 if boss else 5.0, 0.46, 0.85, -8.0)
+	FX.ring(get_parent(), global_position, death_color, 4.2 if boss else 1.8, 0.55, 0.08)
+	if boss:
+		FX.nova(get_parent(), global_position, Color(1.0, 0.5, 0.15, 0.9), 8.5)
 	var played := play_anim(["death", "die"], 1.0)
 	if anim != null:
 		anim.speed_scale = 1.0

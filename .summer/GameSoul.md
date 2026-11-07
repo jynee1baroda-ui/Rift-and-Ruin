@@ -7,7 +7,8 @@ An isometric, click-to-move action RPG in a volcanic wasteland split by lava rif
 - Palette: near-black basalt and dark violet shadow, broken by amber, crimson and electric gold.
 - Ground: fractured basalt plates using the generated cracked-lava texture at three scales over the procedural plate shader. The texture reads as rock grain and pits, dark plate seams read as bevels, and amber veins glow only inside low-frequency hot zones, so most of the floor stays dark basalt. Trench side walls are darkened so they never read as glowing slabs. Lava rivers cut the arena into islands joined by narrow stone bridges.
 - Lighting: warm key light, violet fill from above, volcanic fog and volumetric haze, strong bloom on magical seams and lava.
-- Ability VFX read as hard-edged blood-red rings, discs and ember bursts.
+- Scenery: lava gardens of generated ember plants and obsidian shards tinted with each theme's seam colour, plus cinder-bloom mushroom clusters, glowing braziers, scattered boulders, ruined pillars and pots. Rock and plant density rises with each theme's decor and plants values, so no two layers are dressed the same.
+- Ability VFX read as hard-edged blood-red rings, discs and ember bursts. Nova opens with a disc, two rings, a rising ember column and an aftershock ring; Lance throws a muzzle gout and spark spray; Siphon opens with a violet nova and pulls beads of light from every foe. Mobs flash red through their windup telegraph, spark on every hit, and burst into blood and embers on death; bosses add a scorching shockwave on their swings and a full nova when they fall.
 - UI: dark stone plates with amber borders, grainy gradient backdrop, crimson vitae, gold legendary text, Cinzel display face. The vitae bar has a smoothed fill, an orange damage trail and a live REGEN readout. Each ability card shows its life cost and can be clicked to cast.
 - Rift map (top left): tile-accurate minimap of the floor, lava and bridges, with the player in gold, packs in red, elites in amber and the gate in violet.
 - Lava reads as dark cooled crust with molten amber seams, so the pit stays legible without turning the screen orange.
@@ -21,11 +22,17 @@ An isometric, click-to-move action RPG in a volcanic wasteland split by lava rif
 - Packs aggro at 13 m, so fights are deliberate and readable instead of a screen-wide swarm.
 
 ## Core Loop (implemented)
-1. Random connected cave layout of stone plates over lava, chosen from four floor themes that cycle: ASHEN CAUSEWAY, MOLTEN WARRENS, SUNKEN CATHEDRAL, CINDER CHASM. Each changes land density, river and pool count, props, fog and ambient colour. Lava spits are filled in, the gate scar leaves a land gap, and bridges are widened.
-2. Packs of cultists, wolves, bats, crawlers, slingers and alphas spawn away from the player. Every 5th layer is a boss floor: the Hushed Prophet or the Brood Mother with two brutes, a boss bar, boss music and triple loot.
+1. Ten rift layers, each a different place and a different floor plan: ASHEN CAUSEWAY (bridged causeway), MOLTEN WARRENS (twisting warrens), SUNKEN CATHEDRAL (four chapels), CINDER CHASM (split canyon), THE ASHEN BAZAAR (market plaza), EMBER SPIRES (nine pillar islands), GLASS FOUNDRY (stepped terraces), BONE ORCHARD (crossing aisles), BLACK OBSIDIAN MAW (ring arena), THE LAST FURNACE (core and outer ring). Each theme carries its own rock, seam, lava crust/hot/core colours, fog, sun tint, prop density and plant density. Lava spits are filled in, the gate scar leaves a land gap, and bridges are widened so every floor is walkable end to end.
+2. Packs of cultists, wolves, bats, crawlers, slingers and alphas spawn away from the player. Every 6th layer is a boss floor: the Hushed Prophet or the Brood Mother with two brutes, a boss bar, boss music and triple loot.
 3. Killing drops colour-coded relics, life orbs and coin. Walking over a relic shows a stat comparison card; click the card (or Enter) to bind it to a relic slot.
-4. Clearing every pack opens a rift gate. Stepping into it starts the next layer: more enemies, more HP and damage, better rarity odds. Every 6th layer is the Ashen Broker's bazaar instead.
-5. Death ends the run and shows the layer reached; R revives at layer 1 keeping the relics.
+4. Clearing every pack opens a rift gate. Stepping into it starts the next layer: more enemies, +24% enemy life and +11% damage per layer, better rarity odds. Every 5th layer is the Ashen Broker's bazaar instead.
+5. Death ends the run and shows the layer reached; R starts a fresh run at layer 1 with a level-1 sorceress.
+
+## Levels and scaling
+- The player gains XP from kills (12 + 2 per layer, x3 elites, x10 bosses) and levels up with a burst, a heal and a toast.
+- Each level adds 12 max vitae, 4.5% ability power, 0.09 vitae regen and 0.7% move speed.
+- Descending a layer also lifts the sorceress to that layer's level, so character level tracks rift depth instead of falling behind it. Layer 10 is a level 10 sorceress even before her kills are counted.
+- Enemy life is 1 + 0.24 x (layer - 1) of base and enemy damage is 1 + 0.11 x (layer - 1); bosses use 1 + 0.28 x (layer - 1) life.
 
 ## Rift Boons (per-layer progression)
 - Clearing every pack opens the gate and deals three boons; click one or press 1-3 before you descend.
@@ -34,13 +41,13 @@ An isometric, click-to-move action RPG in a volcanic wasteland split by lava rif
 
 ## Coin and the Ashen Broker
 - Every kill drops a coin stack that flies to the player (coins are saved as they are picked up). Elites pay x3, bosses x9; payout scales with the layer.
-- Every 6th layer is a merchant floor: no enemies, no hazards. The Ashen Broker stands on a lit dais with his stall, braziers and a label; walk up and press E (or click him) to open the shop, and step into the gate to descend.
+- Every 5th layer is a merchant floor: no enemies, no hazards. The Ashen Broker stands on a lit dais with his stall, braziers and a label; walk up and press E (or click him) to open the shop, and step into the gate to descend.
 - The shop sells 3 relics (priced by rarity and layer), 2 random boons and a full vitae flask. Bought relics open the normal slot-bind window; boons apply at once.
 - The merchant floor plays the ambient metal bazaar track and shows NO HOSTILES - THE BROKER WAITS.
 
 ## Music
-- Combat floors 1-4 each play a different metal track, layer 5 uses the boss track, and every 6th layer plays the ambient metal merchant theme. Layers cycle after that.
-- Music tracks live in audio/music, audio/generated/metal_combat, metal_combat2, metal_combat3, metal_boss and metal_merchant; each folder is picked up automatically.
+- Seven combat tracks cover the seven combat layers of 1-10 (layers 1, 2, 3, 4, 7, 8, 9), the boss layer plays the boss track, and merchant layers 5 and 10 play the ambient metal bazaar theme. Each layer therefore has its own song for a full ten-layer run.
+- Music tracks live in audio/music, audio/generated/metal_combat ... metal_combat6, metal_boss and metal_merchant; each folder is picked up automatically.
 
 ## Saving and settings per save
 - The run is saved at every floor start, coin pickup, relic bind, boon claim, shop purchase and settings change to user://run_save.cfg.
@@ -63,7 +70,7 @@ Only the Blood Sorceress is playable.
 ## Quality of Life
 - WASD / arrows move; hold left mouse to keep walking; release to stop.
 - Loot within 6.5 m is pulled into the player.
-- Esc or P pauses (Resume button too), and the pause panel lists every control.
+- Esc or P pauses (Resume button too). The pause panel lists every control, states the merchant and boss cadence, and carries a live layer/level/coin/souls summary. OPTIONS opens settings on top of the pause without losing it, and Resume drops back into the fight.
 - Skill cards can be clicked to cast; the Riftstep card included.
 - A thin rift-clear bar under the layer title tracks packs cleared.
 - The death screen has a DESCEND AGAIN button, not just the R hotkey.

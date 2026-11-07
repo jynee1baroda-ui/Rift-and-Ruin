@@ -31,6 +31,8 @@ var vitae_bar: VitaeBar
 var health_label: Label
 var regen_label: Label
 var coin_label: Label
+var level_label: Label
+var xp_bar: ProgressBar
 var health_target := 100.0
 var health_shown := 100.0
 var ghost_shown := 100.0
@@ -52,6 +54,12 @@ var relic_body: VBoxContainer
 var boss_panel: PanelContainer
 var boss_name: Label
 var boss_bar: ProgressBar
+var pause_summary: Label
+var controls_hint: Label
+var run_layer := 1
+var run_level := 1
+var run_coins := 0
+var run_kills := 0
 var relic_rows: Array = []
 var relics: Array = []
 var relic_tab := "relics"
@@ -63,6 +71,7 @@ var settings_body: VBoxContainer
 var settings_tab := "audio"
 var settings_open := false
 var settings_was_paused := false
+var settings_from_pause := false
 var boon_panel: PanelContainer
 var boon_shade: ColorRect
 var boon_cards: HBoxContainer
@@ -461,7 +470,7 @@ func _build_top() -> void:
 	status_label = _label("", 20, GOLD)
 	status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(status_label)
-	var controls_hint := _label("WASD MOVE  ·  LMB ATTACK  ·  RMB LANCE  ·  1 2 3 CAST  ·  SPACE RIFTSTEP  ·  TAB RELICS", 12, MUTED)
+	controls_hint = _label("WASD MOVE  ·  LMB ATTACK  ·  RMB LANCE  ·  1 2 3 CAST  ·  SPACE RIFTSTEP  ·  TAB RELICS", 12, MUTED)
 	controls_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(controls_hint)
 
@@ -515,11 +524,33 @@ func _build_health() -> void:
 	box.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	box.offset_left = 30.0
 	box.offset_bottom = -104.0
-	box.offset_top = -196.0
+	box.offset_top = -218.0
 	box.offset_right = 330.0
 	box.add_theme_constant_override("separation", 3)
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	body.add_child(box)
+	var level_row := HBoxContainer.new()
+	level_row.add_theme_constant_override("separation", 8)
+	level_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(level_row)
+	level_label = _label("LEVEL 1", 13, GOLD)
+	level_row.add_child(level_label)
+	xp_bar = ProgressBar.new()
+	xp_bar.custom_minimum_size = Vector2(0, 4)
+	xp_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	xp_bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	xp_bar.show_percentage = false
+	xp_bar.max_value = 100.0
+	xp_bar.value = 0.0
+	var xp_bg := StyleBoxFlat.new()
+	xp_bg.bg_color = Color(0.09, 0.05, 0.02, 0.9)
+	xp_bg.set_corner_radius_all(2)
+	var xp_fill := StyleBoxFlat.new()
+	xp_fill.bg_color = Color(1.0, 0.74, 0.26, 0.95)
+	xp_fill.set_corner_radius_all(2)
+	xp_bar.add_theme_stylebox_override("background", xp_bg)
+	xp_bar.add_theme_stylebox_override("fill", xp_fill)
+	level_row.add_child(xp_bar)
 	coin_label = _label("COIN  0", 14, GOLD)
 	box.add_child(coin_label)
 	var row := HBoxContainer.new()
@@ -582,8 +613,8 @@ func _build_abilities() -> void:
 	box.anchor_right = 0.5
 	box.offset_bottom = -22.0
 	box.offset_top = -128.0
-	box.offset_left = -290.0
-	box.offset_right = 290.0
+	box.offset_left = -272.0
+	box.offset_right = 272.0
 	box.alignment = BoxContainer.ALIGNMENT_END
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	body.add_child(box)
@@ -596,7 +627,7 @@ func _build_abilities() -> void:
 	for ability_index in Player.ABILITIES.size():
 		var ability: Dictionary = Player.ABILITIES[ability_index]
 		var panel := Panel.new()
-		panel.custom_minimum_size = Vector2(150, 62)
+		panel.custom_minimum_size = Vector2(142, 62)
 		panel.add_theme_stylebox_override("panel", _stylebox(INK, Color(0.3, 0.16, 0.12, 1.0), 1))
 		panel.mouse_filter = Control.MOUSE_FILTER_STOP
 		panel.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
@@ -711,8 +742,8 @@ func _build_relic() -> void:
 	panel.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	panel.anchor_left = 1.0
 	panel.anchor_right = 1.0
-	panel.offset_left = -300.0
-	panel.offset_right = -26.0
+	panel.offset_left = -252.0
+	panel.offset_right = -24.0
 	panel.offset_top = -158.0
 	panel.offset_bottom = -26.0
 	panel.add_theme_stylebox_override("panel", _stylebox(Color(0.03, 0.02, 0.04, 0.9), Color(0.34, 0.22, 0.14, 1.0), 1))
@@ -768,7 +799,7 @@ func _build_relic_window() -> void:
 	relic_window.offset_left = -320.0
 	relic_window.offset_right = 320.0
 	relic_window.offset_top = -238.0
-	relic_window.offset_bottom = 238.0
+	relic_window.offset_bottom = 208.0
 	relic_window.add_theme_stylebox_override("panel", _stylebox(Color(0.035, 0.02, 0.04, 0.97), Color(0.55, 0.34, 0.14, 1.0), 2, 4))
 	relic_window.visible = false
 	relic_window.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -801,6 +832,9 @@ func _build_relic_window() -> void:
 	relic_body.add_theme_constant_override("separation", 5)
 	relic_body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	box.add_child(relic_body)
+	var foot := _label("Families stack at most twice. Legends rewrite a skill. TAB closes this.", 11, MUTED)
+	foot.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(foot)
 
 
 func _tab_button(text: String, tab: String) -> Button:
@@ -918,7 +952,8 @@ func _build_title() -> void:
 		"3  SANGUINE SIPHON drink their wounds closed",
 		"SPACE  RIFTSTEP    slide over lava",
 		"TAB  relic loadout   ·   click a glowing drop to claim it",
-		"COIN drops from kills  -  the Ashen Broker trades every 6th layer",
+		"COIN drops from kills  -  the Ashen Broker trades every 5th layer",
+		"A RIFT WARDEN hunts every 6th layer",
 		"SET (top right)  -  audio, video, gameplay and interface options",
 		"Clear every pack, step into the rift, go deeper.",
 	]
@@ -955,10 +990,10 @@ func _build_pause() -> void:
 	pause_panel.anchor_right = 0.5
 	pause_panel.anchor_top = 0.5
 	pause_panel.anchor_bottom = 0.5
-	pause_panel.offset_left = -250.0
-	pause_panel.offset_right = 250.0
-	pause_panel.offset_top = -190.0
-	pause_panel.offset_bottom = 190.0
+	pause_panel.offset_left = -382.0
+	pause_panel.offset_right = 382.0
+	pause_panel.offset_top = -222.0
+	pause_panel.offset_bottom = 222.0
 	pause_panel.add_theme_stylebox_override("panel", _stylebox(Color(0.04, 0.02, 0.05, 0.97), Color(0.55, 0.34, 0.14, 1.0), 2, 4))
 	pause_panel.visible = false
 	root.add_child(pause_panel)
@@ -975,29 +1010,49 @@ func _build_pause() -> void:
 	var spacer := Control.new()
 	spacer.custom_minimum_size = Vector2(0, 8)
 	box.add_child(spacer)
-	var lines := [
-		"WASD / ARROWS      move",
-		"CLICK GROUND       walk there",
-		"CLICK A FOE        crimson lance",
-		"1   BLOOD NOVA     6 vitae",
-		"2   CRIMSON LANCE  3 vitae",
-		"3   SANGUINE SIPHON free",
-		"SPACE   RIFTSTEP   dash over lava",
-		"TAB   relic loadout and synergies",
-		"CLICK A SKILL CARD   cast without a hotkey",
-		"MOUSE WHEEL   camera zoom",
-		"FLOOR CLEARED   claim a rift boon (1 - 3)",
-		"COIN   kill for it, spend it at the broker every 6th layer",
-		"E   trade  (or click the broker)",
-		"SET   audio, video, gameplay, interface",
-		"ESC   close card / pause",
-	]
-	for line in lines:
-		var l := _label(line, 13, BONE)
-		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		box.add_child(l)
+	var columns := HBoxContainer.new()
+	columns.add_theme_constant_override("separation", 30)
+	box.add_child(columns)
+	var controls := VBoxContainer.new()
+	controls.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	controls.add_theme_constant_override("separation", 1)
+	columns.add_child(controls)
+	controls.add_child(_label("CONTROLS", 12, GOLD))
+	for line in [
+		"WASD / ARROWS    move",
+		"CLICK GROUND     walk there",
+		"CLICK A FOE      crimson lance",
+		"1  BLOOD NOVA    6 vitae",
+		"2  CRIMSON LANCE 3 vitae",
+		"3  SANGUINE SIPHON free",
+		"SPACE  RIFTSTEP  cross lava",
+		"TAB  relic loadout",
+		"E  trade at the broker",
+		"WHEEL zoom    ESC close / pause",
+	]:
+		controls.add_child(_label(line, 12, BONE, false))
+	var tips := VBoxContainer.new()
+	tips.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tips.add_theme_constant_override("separation", 1)
+	columns.add_child(tips)
+	tips.add_child(_label("RIFT LAW", 12, GOLD))
+	for line in [
+		"Clear the packs, then claim a boon (1 - 3).",
+		"Kills drop coin. Elites and bosses pay more.",
+		"THE ASHEN BROKER waits on every 5th layer.",
+		"A RIFT WARDEN stalks every 6th layer.",
+		"Relics stack at most twice per family.",
+		"Click a glowing drop to claim the relic.",
+		"Your level rises with kills and depth.",
+	]:
+		var tip := _label(line, 12, BONE, false)
+		tip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		tips.add_child(tip)
+	pause_summary = _label("", 13, MUTED)
+	pause_summary.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(pause_summary)
 	var spacer2 := Control.new()
-	spacer2.custom_minimum_size = Vector2(0, 10)
+	spacer2.custom_minimum_size = Vector2(0, 2)
 	box.add_child(spacer2)
 	var resume := Button.new()
 	resume.text = "RESUME"
@@ -1008,7 +1063,7 @@ func _build_pause() -> void:
 	resume.add_theme_stylebox_override("normal", _stylebox(Color(0.1, 0.04, 0.05, 0.95), Color(0.5, 0.28, 0.1, 1.0), 1))
 	resume.add_theme_stylebox_override("hover", _stylebox(Color(0.2, 0.08, 0.07, 0.98), Color(0.9, 0.55, 0.2, 1.0), 1))
 	resume.add_theme_stylebox_override("pressed", _stylebox(Color(0.3, 0.1, 0.08, 1.0), Color(1.0, 0.7, 0.3, 1.0), 1))
-	resume.button_down.connect(toggle_pause)
+	resume.pressed.connect(toggle_pause)
 	var options := Button.new()
 	options.text = "OPTIONS"
 	options.custom_minimum_size = Vector2(200, 44)
@@ -1120,6 +1175,9 @@ func open_settings() -> void:
 	settings_open = true
 	settings_window.visible = true
 	settings_was_paused = get_tree().paused
+	settings_from_pause = pause_panel != null and pause_panel.visible
+	if settings_from_pause:
+		pause_panel.visible = false
 	get_tree().paused = true
 	_build_settings_body()
 
@@ -1139,8 +1197,8 @@ func _build_boon_panel() -> void:
 	boon_panel.anchor_bottom = 0.5
 	boon_panel.offset_left = -430.0
 	boon_panel.offset_right = 430.0
-	boon_panel.offset_top = -168.0
-	boon_panel.offset_bottom = 168.0
+	boon_panel.offset_top = -120.0
+	boon_panel.offset_bottom = 120.0
 	boon_panel.add_theme_stylebox_override("panel", _stylebox(Color(0.03, 0.012, 0.03, 0.97), Color(0.62, 0.36, 0.14, 1.0), 2, 4))
 	boon_panel.visible = false
 	boon_panel.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -1192,6 +1250,11 @@ func show_boons(list: Array) -> void:
 	boon_panel.visible = true
 	boon_shade.visible = true
 	boons_open = true
+	if relic_window != null and relic_window.visible:
+		close_relic_window()
+	if shop_window != null and shop_window.visible:
+		shop_open = false
+		shop_window.visible = false
 	get_tree().paused = true
 	pause_shade.visible = false
 	pause_panel.visible = false
@@ -1256,8 +1319,8 @@ func _build_shop() -> void:
 	shop_window.anchor_bottom = 0.5
 	shop_window.offset_left = -392.0
 	shop_window.offset_right = 392.0
-	shop_window.offset_top = -262.0
-	shop_window.offset_bottom = 262.0
+	shop_window.offset_top = -250.0
+	shop_window.offset_bottom = 250.0
 	shop_window.add_theme_stylebox_override("panel", _stylebox(Color(0.035, 0.02, 0.03, 0.98), Color(0.66, 0.42, 0.16, 1.0), 2, 4))
 	shop_window.visible = false
 	shop_window.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -1293,14 +1356,32 @@ func _build_shop() -> void:
 	shop_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	shop_body.add_theme_constant_override("separation", 8)
 	scroll.add_child(shop_body)
+	var footer := HBoxContainer.new()
+	footer.add_theme_constant_override("separation", 12)
+	box.add_child(footer)
 	var hint := _label("Coin buys relics, boons and vitae. The gate stays open.", 12, MUTED)
-	box.add_child(hint)
+	hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	footer.add_child(hint)
+	var leave := Button.new()
+	leave.text = "WALK ON  -  E"
+	leave.custom_minimum_size = Vector2(150, 30)
+	leave.add_theme_font_size_override("font_size", 12)
+	leave.add_theme_color_override("font_color", AMBER)
+	leave.add_theme_color_override("font_hover_color", Color(1.0, 0.92, 0.72))
+	leave.add_theme_stylebox_override("normal", _stylebox(Color(0.08, 0.04, 0.04, 0.95), Color(0.42, 0.24, 0.1, 1.0), 1))
+	leave.add_theme_stylebox_override("hover", _stylebox(Color(0.18, 0.07, 0.06, 0.98), Color(0.9, 0.55, 0.2, 1.0), 1))
+	leave.pressed.connect(close_shop)
+	footer.add_child(leave)
 
 
 func show_shop(offers: Array, coin_count: int, layer_num: int) -> void:
 	if shop_window == null:
 		return
 	shop_open = true
+	if relic_window != null and relic_window.visible:
+		close_relic_window()
+	if boons_open:
+		hide_boons()
 	shop_title.text = "THE ASHEN BROKER  -  LAYER %d" % layer_num
 	shop_window.visible = true
 	shop_window.modulate.a = 0.0
@@ -1373,6 +1454,11 @@ func close_settings() -> void:
 	settings_open = false
 	settings_window.visible = false
 	get_tree().paused = settings_was_paused
+	if settings_from_pause and pause_panel != null:
+		pause_panel.visible = settings_was_paused
+		if pause_shade != null:
+			pause_shade.visible = settings_was_paused
+	settings_from_pause = false
 
 
 func _select_settings_tab(tab: String) -> void:
@@ -1603,6 +1689,8 @@ func toggle_pause() -> void:
 		return
 	last_pause_ms = now
 	var paused := not get_tree().paused
+	if paused and pause_summary != null:
+		pause_summary.text = "LAYER %d    ·    LEVEL %d    ·    COIN %d    ·    SOULS %d" % [run_layer, run_level, run_coins, run_kills]
 	get_tree().paused = paused
 	pause_shade.visible = paused
 	pause_panel.visible = paused
@@ -1630,6 +1718,7 @@ func set_health(current: float, maximum: float, regen_rate := -1.0, in_combat :=
 func set_coins(value: int, pulse := false) -> void:
 	if coin_label == null:
 		return
+	run_coins = value
 	coin_label.text = "COIN  %d" % value
 	if not pulse:
 		return
@@ -1639,7 +1728,21 @@ func set_coins(value: int, pulse := false) -> void:
 	tween.tween_property(coin_label, "scale", Vector2.ONE, 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 
+func set_level(level: int, xp: float, need: float) -> void:
+	if level_label == null:
+		return
+	run_level = level
+	level_label.text = "LEVEL %d" % level
+	if xp_bar != null:
+		var ratio := 0.0
+		if need > 0.0:
+			ratio = clampf(xp / need, 0.0, 1.0)
+		xp_bar.value = ratio * 100.0
+
+
 func set_layer_info(layer: int, remaining: int, total: int, kills := 0) -> void:
+	run_layer = layer
+	run_kills = kills
 	layer_label.text = "RIFT LAYER %d" % layer
 	wave_label.text = "HOSTILES REMAIN  %d / %d    ·    SOULS %d" % [remaining, total, kills]
 	if wave_bar != null:
@@ -1690,6 +1793,8 @@ func set_boss(name_text: String, ratio: float, active: bool) -> void:
 	if boss_panel == null:
 		return
 	boss_panel.visible = active
+	if controls_hint != null:
+		controls_hint.visible = not active
 	if not active:
 		return
 	boss_name.text = name_text

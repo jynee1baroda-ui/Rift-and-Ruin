@@ -24,10 +24,56 @@ const KINDS := {
 }
 
 const THEMES := [
-	{"name": "ASHEN CAUSEWAY", "density": 0.76, "rivers": 1, "pools": 1, "decor": 1.0, "fog": Color(0.10, 0.035, 0.05), "ambient": Color(0.30, 0.18, 0.22)},
-	{"name": "MOLTEN WARRENS", "density": 0.72, "rivers": 2, "pools": 1, "decor": 0.8, "fog": Color(0.18, 0.06, 0.03), "ambient": Color(0.36, 0.2, 0.16)},
-	{"name": "SUNKEN CATHEDRAL", "density": 0.74, "rivers": 1, "pools": 1, "decor": 1.5, "fog": Color(0.07, 0.06, 0.13), "ambient": Color(0.24, 0.22, 0.42)},
-	{"name": "CINDER CHASM", "density": 0.68, "rivers": 1, "pools": 2, "decor": 0.7, "fog": Color(0.13, 0.03, 0.03), "ambient": Color(0.34, 0.16, 0.14)},
+	{"name": "ASHEN CAUSEWAY", "density": 0.76, "rivers": 1, "pools": 1, "decor": 1.0, "layout": "causeway",
+		"fog": Color(0.10, 0.035, 0.05), "ambient": Color(0.30, 0.18, 0.22),
+		"rock": Color(0.17, 0.145, 0.145), "seam": Color(1.0, 0.42, 0.10), "glow": 1.35, "plate": 0.13,
+		"lava_crust": Color(0.09, 0.03, 0.02), "lava_hot": Color(1.0, 0.38, 0.05), "lava_core": Color(1.0, 0.78, 0.30),
+		"plants": 0.55, "sun": Color(1.0, 0.88, 0.78)},
+	{"name": "MOLTEN WARRENS", "density": 0.72, "rivers": 2, "pools": 1, "decor": 0.85, "layout": "warrens",
+		"fog": Color(0.18, 0.06, 0.03), "ambient": Color(0.36, 0.20, 0.16),
+		"rock": Color(0.18, 0.11, 0.09), "seam": Color(1.0, 0.32, 0.05), "glow": 1.45, "plate": 0.15,
+		"lava_crust": Color(0.11, 0.025, 0.015), "lava_hot": Color(1.0, 0.30, 0.03), "lava_core": Color(1.0, 0.72, 0.20),
+		"plants": 0.42, "sun": Color(1.0, 0.80, 0.62)},
+	{"name": "SUNKEN CATHEDRAL", "density": 0.74, "rivers": 1, "pools": 1, "decor": 1.55, "layout": "cathedral",
+		"fog": Color(0.07, 0.06, 0.13), "ambient": Color(0.24, 0.22, 0.42),
+		"rock": Color(0.14, 0.14, 0.19), "seam": Color(0.72, 0.55, 1.0), "glow": 1.10, "plate": 0.11,
+		"lava_crust": Color(0.05, 0.03, 0.07), "lava_hot": Color(0.82, 0.36, 1.0), "lava_core": Color(0.92, 0.82, 1.0),
+		"plants": 0.28, "sun": Color(0.85, 0.84, 1.0)},
+	{"name": "CINDER CHASM", "density": 0.68, "rivers": 1, "pools": 2, "decor": 0.7, "layout": "chasm",
+		"fog": Color(0.13, 0.03, 0.03), "ambient": Color(0.34, 0.16, 0.14),
+		"rock": Color(0.15, 0.11, 0.11), "seam": Color(1.0, 0.25, 0.08), "glow": 1.30, "plate": 0.12,
+		"lava_crust": Color(0.07, 0.02, 0.02), "lava_hot": Color(1.0, 0.22, 0.05), "lava_core": Color(1.0, 0.62, 0.22),
+		"plants": 0.35, "sun": Color(1.0, 0.74, 0.66)},
+	{"name": "THE ASHEN BAZAAR", "density": 0.74, "rivers": 1, "pools": 1, "decor": 1.6, "layout": "plaza",
+		"fog": Color(0.12, 0.06, 0.03), "ambient": Color(0.40, 0.28, 0.18),
+		"rock": Color(0.19, 0.15, 0.11), "seam": Color(1.0, 0.66, 0.22), "glow": 1.25, "plate": 0.14,
+		"lava_crust": Color(0.10, 0.04, 0.02), "lava_hot": Color(1.0, 0.45, 0.08), "lava_core": Color(1.0, 0.85, 0.40),
+		"plants": 0.55, "sun": Color(1.0, 0.88, 0.70)},
+	{"name": "EMBER SPIRES", "density": 0.60, "rivers": 1, "pools": 1, "decor": 0.9, "layout": "spires",
+		"fog": Color(0.16, 0.07, 0.02), "ambient": Color(0.40, 0.24, 0.12),
+		"rock": Color(0.20, 0.14, 0.09), "seam": Color(1.0, 0.55, 0.12), "glow": 1.50, "plate": 0.17,
+		"lava_crust": Color(0.10, 0.04, 0.02), "lava_hot": Color(1.0, 0.40, 0.06), "lava_core": Color(1.0, 0.86, 0.35),
+		"plants": 0.85, "sun": Color(1.0, 0.84, 0.64)},
+	{"name": "GLASS FOUNDRY", "density": 0.70, "rivers": 1, "pools": 2, "decor": 1.2, "layout": "terrace",
+		"fog": Color(0.05, 0.09, 0.12), "ambient": Color(0.20, 0.30, 0.40),
+		"rock": Color(0.12, 0.15, 0.17), "seam": Color(0.55, 0.85, 1.0), "glow": 1.55, "plate": 0.10,
+		"lava_crust": Color(0.03, 0.06, 0.08), "lava_hot": Color(0.35, 0.72, 1.0), "lava_core": Color(0.85, 0.98, 1.0),
+		"plants": 0.22, "sun": Color(0.78, 0.90, 1.0)},
+	{"name": "BONE ORCHARD", "density": 0.72, "rivers": 1, "pools": 1, "decor": 1.3, "layout": "cross",
+		"fog": Color(0.10, 0.12, 0.07), "ambient": Color(0.32, 0.34, 0.22),
+		"rock": Color(0.19, 0.18, 0.14), "seam": Color(0.85, 1.0, 0.40), "glow": 1.15, "plate": 0.13,
+		"lava_crust": Color(0.05, 0.07, 0.03), "lava_hot": Color(0.75, 0.95, 0.35), "lava_core": Color(0.95, 1.0, 0.72),
+		"plants": 0.95, "sun": Color(0.90, 1.0, 0.80)},
+	{"name": "BLACK OBSIDIAN MAW", "density": 0.66, "rivers": 2, "pools": 1, "decor": 0.8, "layout": "ring",
+		"fog": Color(0.04, 0.03, 0.10), "ambient": Color(0.18, 0.16, 0.34),
+		"rock": Color(0.09, 0.09, 0.14), "seam": Color(1.0, 0.35, 0.90), "glow": 1.60, "plate": 0.12,
+		"lava_crust": Color(0.04, 0.01, 0.06), "lava_hot": Color(1.0, 0.20, 0.70), "lava_core": Color(1.0, 0.75, 0.95),
+		"plants": 0.30, "sun": Color(0.80, 0.72, 1.0)},
+	{"name": "THE LAST FURNACE", "density": 0.64, "rivers": 1, "pools": 2, "decor": 1.0, "layout": "furnace",
+		"fog": Color(0.22, 0.10, 0.02), "ambient": Color(0.46, 0.30, 0.14),
+		"rock": Color(0.20, 0.16, 0.12), "seam": Color(1.0, 0.70, 0.20), "glow": 1.65, "plate": 0.14,
+		"lava_crust": Color(0.12, 0.05, 0.01), "lava_hot": Color(1.0, 0.55, 0.08), "lava_core": Color(1.0, 0.95, 0.60),
+		"plants": 0.70, "sun": Color(1.0, 0.90, 0.66)},
 ]
 
 const MODIFIERS := [
@@ -161,6 +207,7 @@ func _create_player() -> void:
 	player.health_changed.connect(_on_health_changed)
 	player.ability_used.connect(_on_ability_used)
 	player.life_spent.connect(_on_life_spent)
+	player.leveled_up.connect(_on_player_leveled)
 
 
 func _load_record() -> void:
@@ -190,6 +237,8 @@ func _save_run() -> void:
 		"coins": coins,
 		"boons": run_boons.duplicate(),
 		"relics": relics,
+		"level": player.level,
+		"xp": player.xp,
 		"health": clampf(player.health / maxf(1.0, player.max_health), 0.0, 1.0),
 		"best": best_layer,
 		"settings": GameSettings.snapshot(),
@@ -217,6 +266,7 @@ func continue_run() -> bool:
 	hud.hide_title()
 	hud.show_body()
 	player.revive()
+	player.set_progress(int(data.get("level", 1)), float(data.get("xp", 0.0)))
 	hud.close_relic_window()
 	var saved_relics = data.get("relics", [])
 	if typeof(saved_relics) == TYPE_ARRAY:
@@ -267,7 +317,7 @@ func _setup_audio() -> void:
 	music_player.volume_db = -9.0
 	add_child(music_player)
 	music_player.finished.connect(_restart_music)
-	music_tracks = _music_list("res://audio/music") + _music_list("res://audio/generated/metal_combat") + _music_list("res://audio/generated/metal_combat2") + _music_list("res://audio/generated/metal_combat3")
+	music_tracks = _music_list("res://audio/music") + _music_list("res://audio/generated/metal_combat") + _music_list("res://audio/generated/metal_combat2") + _music_list("res://audio/generated/metal_combat3") + _music_list("res://audio/generated/metal_combat4") + _music_list("res://audio/generated/metal_combat5") + _music_list("res://audio/generated/metal_combat6")
 	boss_tracks = _music_list("res://audio/generated/metal_boss")
 	merchant_tracks = _music_list("res://audio/generated/metal_merchant")
 	play_music(false)
@@ -311,8 +361,17 @@ func play_music(boss: bool) -> void:
 		return
 	var index := 0
 	if not boss:
-		index = (layer - 1) % list.size()
+		index = _combat_track_index(list.size())
 	_play_track("boss" if boss else "combat", list, index)
+
+
+func _combat_track_index(size: int) -> int:
+	var ord := 0
+	for l in range(1, layer):
+		if l % 5 == 0 or l % 6 == 0:
+			continue
+		ord += 1
+	return ord % maxi(1, size)
 
 
 func play_merchant_music() -> void:
@@ -394,7 +453,7 @@ func _apply_brightness() -> void:
 func _generate_floor() -> void:
 	_clear_floor()
 	hud.hide_boons()
-	theme = THEMES[(layer - 1) % THEMES.size()]
+	theme = THEMES[4] if _is_merchant_layer() else THEMES[(layer - 1) % THEMES.size()]
 	_roll_modifiers()
 	portal = null
 	portal_area = null
@@ -403,6 +462,7 @@ func _generate_floor() -> void:
 	boss_enemy = null
 	enemies.clear()
 	kills = 0
+	player.ensure_level(layer)
 	hazard_timer = 7.5 * (0.7 if has_mod("unstable") else 1.0)
 	_apply_theme()
 	_make_layout()
@@ -436,7 +496,7 @@ func _generate_floor() -> void:
 		hud.set_layer_info(layer, enemies.size(), total_enemies, kills)
 		hud.set_theme_name(String(theme.get("name", "RIFT")))
 		hud.set_status("PACKS AWAKE")
-		play_music(layer % 5 == 0)
+		play_music(_is_boss_layer())
 	map_timer = 0.0
 	_save_run()
 
@@ -475,7 +535,8 @@ func _apply_theme() -> void:
 		env.ambient_light_color = ambient
 		env.fog_enabled = true
 	if sun != null:
-		sun.light_color = Color(1.0, 0.86, 0.78).lerp(fog.lightened(0.35), 0.45)
+		var sun_color: Color = theme.get("sun", Color(1.0, 0.86, 0.78))
+		sun.light_color = sun_color.lerp(fog.lightened(0.35), 0.35)
 
 
 func _clear_floor() -> void:
@@ -541,15 +602,18 @@ func _make_layout() -> void:
 					if rng.randf() < 0.85:
 						walkable[Vector2i(x, y)] = true
 	walkable[start_cell] = true
-	var rivers := int(theme.get("rivers", 1))
-	for i in rivers:
-		if i == 0:
-			_carve_river(false, 1, clampi(start_cell.x + 3, 3, GRID - 4))
-		else:
-			_carve_river(i % 2 == 0, 1 if rng.randf() < 0.7 else 2)
-	var pools := int(theme.get("pools", 1))
-	for i in pools:
-		_carve_pool()
+	var style := String(theme.get("layout", "causeway"))
+	_apply_layout_style(style)
+	if style == "causeway" or style == "warrens":
+		var rivers := int(theme.get("rivers", 1))
+		for i in rivers:
+			if i == 0:
+				_carve_river(false, 1, clampi(start_cell.x + 3, 3, GRID - 4))
+			else:
+				_carve_river(i % 2 == 0, 1 if rng.randf() < 0.7 else 2)
+		var pools := int(theme.get("pools", 1))
+		for i in pools:
+			_carve_pool()
 	_fill_lava_spits()
 	_clear_start_pad()
 	_carve_gate_river()
@@ -557,6 +621,120 @@ func _make_layout() -> void:
 	_widen_bridges()
 	_rebuild_grid()
 	_compute_distances()
+
+
+func _inside_map(cell: Vector2i) -> bool:
+	return cell.x > 0 and cell.y > 0 and cell.x < GRID - 1 and cell.y < GRID - 1
+
+
+func _carve_rect(center: Vector2i, radius: int) -> void:
+	for x in range(center.x - radius, center.x + radius + 1):
+		for y in range(center.y - radius, center.y + radius + 1):
+			var cell := Vector2i(x, y)
+			if _inside_map(cell):
+				walkable[cell] = true
+
+
+func _carve_line(a: Vector2i, b: Vector2i) -> void:
+	var cell := a
+	while cell != b:
+		if _inside_map(cell):
+			walkable[cell] = true
+		if cell.x != b.x:
+			cell += Vector2i(signi(b.x - cell.x), 0)
+		else:
+			cell += Vector2i(0, signi(b.y - cell.y))
+	walkable[b] = true
+
+
+func _apply_layout_style(style: String) -> void:
+	match style:
+		"warrens":
+			for i in 4:
+				var c := Vector2i(rng.randi_range(3, GRID - 4), rng.randi_range(3, GRID - 4))
+				_carve_rect(c, rng.randi_range(1, 2))
+				_carve_line(start_cell, c)
+		"cathedral":
+			for offset in [Vector2i(4, 4), Vector2i(4, -4), Vector2i(-4, 4), Vector2i(-4, -4)]:
+				var c: Vector2i = start_cell + offset
+				_carve_rect(c, 2)
+				_carve_line(start_cell, c)
+		"chasm":
+			var offset := clampi(start_cell.y + rng.randi_range(-2, 2), 5, GRID - 7)
+			for i in range(2, GRID - 2):
+				var y := offset + int(round(sin(float(i) * 0.42 + 1.1) * 2.0))
+				if i < 6 or i > GRID - 7:
+					continue
+				for w in 2:
+					var cell := Vector2i(i, y + w)
+					if _inside_map(cell):
+						walkable[cell] = false
+		"spires":
+			for cell in walkable.keys():
+				walkable[cell] = false
+			for dx in [-6, 0, 6]:
+				for dy in [-6, 0, 6]:
+					_carve_rect(start_cell + Vector2i(dx, dy), 2)
+			for dx in [-6, 0, 6]:
+				for dy in [-6, 0, 6]:
+					var c := start_cell + Vector2i(dx, dy)
+					if dx < 6:
+						_carve_line(c, start_cell + Vector2i(dx + 6, dy))
+					if dy < 6:
+						_carve_line(c, start_cell + Vector2i(dx, dy + 6))
+		"terrace":
+			for x in GRID:
+				for y in GRID:
+					var cell := Vector2i(x, y)
+					var d := maxi(absi(x - start_cell.x), absi(y - start_cell.y))
+					if d > 7:
+						walkable[cell] = false
+					elif d == 3 or d == 5:
+						var gap := absi(x - start_cell.x) <= 1 or absi(y - start_cell.y) <= 1
+						walkable[cell] = gap
+		"cross":
+			for i in range(2, GRID - 2):
+				for w in 2:
+					var row_cell := Vector2i(i, start_cell.y - 1 + w)
+					var col_cell := Vector2i(start_cell.x - 1 + w, i)
+					if _inside_map(row_cell):
+						walkable[row_cell] = true
+					if _inside_map(col_cell):
+						walkable[col_cell] = true
+			_carve_rect(start_cell, 2)
+		"ring":
+			for x in GRID:
+				for y in GRID:
+					var cell := Vector2i(x, y)
+					var d := Vector2(cell - start_cell).length()
+					walkable[cell] = d <= 3.2 or (d >= 4.2 and d <= 6.8)
+			for dir in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+				for s in range(0, 9):
+					var cell: Vector2i = start_cell + dir * s
+					if _inside_map(cell):
+						walkable[cell] = true
+		"furnace":
+			for x in GRID:
+				for y in GRID:
+					var cell := Vector2i(x, y)
+					var d := Vector2(cell - start_cell).length()
+					walkable[cell] = d <= 2.6 or (d >= 3.8 and d <= 5.8)
+			for dir in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+				for s in range(0, 9):
+					var cell: Vector2i = start_cell + dir * s
+					if _inside_map(cell):
+						walkable[cell] = true
+		"plaza":
+			_carve_rect(start_cell, 3)
+			for i in range(2, GRID - 2):
+				for w in 2:
+					var row_cell := Vector2i(i, start_cell.y - 1 + w)
+					var col_cell := Vector2i(start_cell.x - 1 + w, i)
+					if _inside_map(row_cell):
+						walkable[row_cell] = true
+					if _inside_map(col_cell):
+						walkable[col_cell] = true
+	walkable[start_cell] = true
 
 
 func _fill_lava_spits() -> void:
@@ -905,10 +1083,16 @@ func _stone_material() -> ShaderMaterial:
 	mat.shader = load("res://shaders/basalt.gdshader")
 	if ResourceLoader.exists(BASALT_TEX):
 		mat.set_shader_parameter("basalt_tex", load(BASALT_TEX))
-	mat.set_shader_parameter("tex_mix", 0.62)
+	mat.set_shader_parameter("tex_mix", 0.78)
+	mat.set_shader_parameter("detail_scale", 6.4)
+	mat.set_shader_parameter("bump_strength", 3.0)
 	mat.set_shader_parameter("seed", rng.randf() * 40.0)
-	mat.set_shader_parameter("plate_scale", 0.13)
-	mat.set_shader_parameter("glow_strength", 1.4)
+	var rock: Color = theme.get("rock", Color(0.17, 0.145, 0.145))
+	mat.set_shader_parameter("rock_color", rock)
+	mat.set_shader_parameter("rock_dark", Color(rock.r * 0.16, rock.g * 0.14, rock.b * 0.16))
+	mat.set_shader_parameter("seam_color", theme.get("seam", Color(1.0, 0.42, 0.10)))
+	mat.set_shader_parameter("plate_scale", float(theme.get("plate", 0.13)))
+	mat.set_shader_parameter("glow_strength", float(theme.get("glow", 1.4)))
 	return mat
 
 
@@ -918,6 +1102,9 @@ func _lava_material(scale_value: float, glow: float) -> ShaderMaterial:
 	mat.set_shader_parameter("plate_scale", scale_value)
 	mat.set_shader_parameter("glow_strength", glow)
 	mat.set_shader_parameter("flow_speed", 0.08)
+	mat.set_shader_parameter("crust_color", theme.get("lava_crust", Color(0.09, 0.03, 0.02)))
+	mat.set_shader_parameter("hot_color", theme.get("lava_hot", Color(1.0, 0.38, 0.05)))
+	mat.set_shader_parameter("core_color", theme.get("lava_core", Color(1.0, 0.78, 0.30)))
 	return mat
 
 
@@ -973,6 +1160,158 @@ func _build_decor() -> void:
 		var near := _cell_to_world(near_cell)
 		_build_brazier(near)
 	_scatter_stone_props(rock_scene, pillar_scene, pot_scene)
+	_build_lava_gardens()
+	var boulders := 0
+	var guard2 := 0
+	while boulders < 15 and guard2 < 220:
+		guard2 += 1
+		var cell := Vector2i(rng.randi_range(2, GRID - 3), rng.randi_range(2, GRID - 3))
+		if not walkable.get(cell, false) or int(distance.get(cell, 99)) < 3:
+			continue
+		var at := _cell_to_world(cell) + Vector3(rng.randf_range(-1.2, 1.2), 0.0, rng.randf_range(-1.2, 1.2))
+		var boulder := _spawn_model(rock_scene, rng.randf_range(0.5, 1.1), floor_root, at, rng.randf_range(0, 360))
+		if boulder != null:
+			_apply_rock_material(boulder, 1.6)
+		boulders += 1
+
+
+func _build_lava_gardens() -> void:
+	var plant_scene := _get_model(_first_glb("res://art/generated/lava_plant"))
+	var shard_scene := _get_model(_first_glb("res://art/generated/obsidian_spires"))
+	var density := float(theme.get("plants", 0.5))
+	var seam: Color = theme.get("seam", Color(1.0, 0.42, 0.10))
+	for x in GRID:
+		for y in GRID:
+			var cell := Vector2i(x, y)
+			if not walkable.get(cell, false) or cell == start_cell:
+				continue
+			var open := 0
+			for dir in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+				if not walkable.get(cell + dir, true):
+					open += 1
+			if open <= 0:
+				continue
+			if rng.randf() > density * 0.20 * float(open):
+				continue
+			var center := _cell_to_world(cell)
+			var at := center + Vector3(rng.randf_range(-1.3, 1.3), 0.0, rng.randf_range(-1.3, 1.3))
+			if plant_scene != null:
+				var plant := _spawn_model(plant_scene, rng.randf_range(0.7, 1.5), floor_root, at, rng.randf_range(0, 360))
+				if plant != null and rng.randf() < 0.75:
+					_tint_glow(plant, seam)
+			else:
+				_build_lava_plant(at)
+			if shard_scene != null and rng.randf() < 0.3:
+				var side := at + Vector3(rng.randf_range(-1.6, 1.6), 0.0, rng.randf_range(-1.6, 1.6))
+				var shard := _spawn_model(shard_scene, rng.randf_range(0.9, 1.9), floor_root, side, rng.randf_range(0, 360))
+				if shard != null and rng.randf() < 0.45:
+					_tint_glow(shard, seam, 0.4)
+			elif rng.randf() < 0.22:
+				_build_cinder_bloom(at + Vector3(rng.randf_range(-1.4, 1.4), 0.0, rng.randf_range(-1.4, 1.4)))
+
+
+func _tint_glow(root: Node3D, color: Color, strength := 0.75) -> void:
+	for node in root.find_children("*", "MeshInstance3D", true, false):
+		var mesh_inst := node as MeshInstance3D
+		if mesh_inst.mesh == null:
+			continue
+		var source: Material = null
+		for surface in mesh_inst.mesh.get_surface_count():
+			var candidate := mesh_inst.mesh.surface_get_material(surface)
+			if candidate != null:
+				source = candidate
+				break
+		var mat: StandardMaterial3D
+		if source is StandardMaterial3D:
+			mat = (source as StandardMaterial3D).duplicate()
+		else:
+			mat = StandardMaterial3D.new()
+		mat.emission_enabled = true
+		mat.emission = color
+		mat.emission_energy_multiplier = 0.55 * strength
+		mesh_inst.material_override = mat
+
+
+func _build_cinder_bloom(at: Vector3) -> void:
+	var holder := Node3D.new()
+	holder.position = at
+	holder.rotation.y = rng.randf_range(0.0, TAU)
+	floor_root.add_child(holder)
+	var stem := StandardMaterial3D.new()
+	stem.albedo_color = Color(0.07, 0.03, 0.035)
+	stem.roughness = 0.95
+	var hot: Color = theme.get("lava_hot", Color(1.0, 0.38, 0.05))
+	var cap_mat := FX.glow_material(hot.lerp(Color(1, 1, 1), 0.22), false)
+	var stalks := rng.randi_range(3, 5)
+	for i in stalks:
+		var pivot := Node3D.new()
+		pivot.position = Vector3(rng.randf_range(-0.55, 0.55), 0.0, rng.randf_range(-0.55, 0.55))
+		pivot.rotation.z = deg_to_rad(rng.randf_range(-14.0, 14.0))
+		holder.add_child(pivot)
+		var height := rng.randf_range(0.32, 0.78)
+		var stalk := MeshInstance3D.new()
+		var stalk_mesh := CylinderMesh.new()
+		stalk_mesh.top_radius = 0.045
+		stalk_mesh.bottom_radius = 0.07
+		stalk_mesh.height = height
+		stalk_mesh.radial_segments = 6
+		stalk.mesh = stalk_mesh
+		stalk.material_override = stem
+		stalk.position.y = height * 0.5
+		stalk.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		pivot.add_child(stalk)
+		var cap := MeshInstance3D.new()
+		var cap_mesh := SphereMesh.new()
+		cap_mesh.radius = rng.randf_range(0.16, 0.28)
+		cap_mesh.height = cap_mesh.radius * 1.15
+		cap_mesh.radial_segments = 8
+		cap_mesh.rings = 4
+		cap.mesh = cap_mesh
+		cap.material_override = cap_mat
+		cap.scale.y = 0.55
+		cap.position.y = height
+		cap.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		pivot.add_child(cap)
+
+
+func _build_lava_plant(at: Vector3) -> void:
+	var holder := Node3D.new()
+	holder.position = at
+	holder.rotation.y = rng.randf_range(0.0, TAU)
+	floor_root.add_child(holder)
+	var stem := StandardMaterial3D.new()
+	stem.albedo_color = Color(0.10, 0.035, 0.035)
+	stem.roughness = 0.9
+	var tip := FX.glow_material(Color(1.0, 0.45, 0.10, 0.95), false)
+	var blades := rng.randi_range(4, 6)
+	for i in blades:
+		var pivot := Node3D.new()
+		pivot.rotation.y = TAU * float(i) / float(blades) + rng.randf_range(-0.3, 0.3)
+		pivot.rotation.z = deg_to_rad(rng.randf_range(-34.0, -12.0))
+		holder.add_child(pivot)
+		var height := rng.randf_range(0.45, 1.0)
+		var blade := MeshInstance3D.new()
+		var cone := CylinderMesh.new()
+		cone.top_radius = 0.008
+		cone.bottom_radius = 0.045
+		cone.height = height
+		cone.radial_segments = 5
+		blade.mesh = cone
+		blade.material_override = stem
+		blade.position.y = height * 0.5
+		blade.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		pivot.add_child(blade)
+		var ember := MeshInstance3D.new()
+		var bud := SphereMesh.new()
+		bud.radius = 0.035
+		bud.height = 0.07
+		bud.radial_segments = 6
+		bud.rings = 3
+		ember.mesh = bud
+		ember.material_override = tip
+		ember.position.y = height
+		ember.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		pivot.add_child(ember)
 
 
 func _build_brazier(at: Vector3) -> void:
@@ -1005,12 +1344,12 @@ func _build_brazier(at: Vector3) -> void:
 	holder.add_child(bowl)
 	var coals := MeshInstance3D.new()
 	var coal_mesh := CylinderMesh.new()
-	coal_mesh.top_radius = 0.44
-	coal_mesh.bottom_radius = 0.44
+	coal_mesh.top_radius = 0.34
+	coal_mesh.bottom_radius = 0.34
 	coal_mesh.height = 0.06
 	coal_mesh.radial_segments = 12
 	coals.mesh = coal_mesh
-	coals.material_override = FX.glow_material(Color(1.0, 0.32, 0.05, 0.95))
+	coals.material_override = FX.glow_material(Color(0.72, 0.22, 0.04, 0.9))
 	coals.position.y = 1.22
 	holder.add_child(coals)
 	_add_fire(at + Vector3(0.0, 1.24, 0.0))
@@ -1048,16 +1387,16 @@ func _scatter_stone_props(rock_scene: PackedScene, pillar_scene: PackedScene, po
 		var roll := rng.randf()
 		var angle := rng.randf() * TAU
 		var offset := Vector3(cos(angle), 0.0, sin(angle)) * rng.randf_range(1.1, 1.5)
-		if rock_scene != null and roll < 0.1:
+		if rock_scene != null and roll < 0.15:
 			var rock := _spawn_model(rock_scene, rng.randf_range(0.8, 2.2), floor_root, center + offset + Vector3(0.0, -0.12, 0.0), rng.randf_range(0, 360))
 			if rock != null:
 				_apply_rock_material(rock, 1.9)
-		elif pillar_scene != null and roll < 0.13:
+		elif pillar_scene != null and roll < 0.18:
 			var ruined := _spawn_model(pillar_scene, rng.randf_range(1.2, 3.4), floor_root, center + offset, rng.randf_range(0, 360))
 			if ruined != null:
 				ruined.rotate_x(deg_to_rad(rng.randf_range(-10, 10)))
 				_apply_rock_material(ruined, 2.0)
-		elif pot_scene != null and roll < 0.16:
+		elif pot_scene != null and roll < 0.22:
 			var pot := _spawn_model(pot_scene, 0.85, floor_root, center + offset, rng.randf_range(0, 360))
 			if pot != null:
 				_apply_rock_material(pot, 2.2)
@@ -1065,8 +1404,8 @@ func _scatter_stone_props(rock_scene: PackedScene, pillar_scene: PackedScene, po
 
 func _add_fire(at: Vector3) -> void:
 	var particles := GPUParticles3D.new()
-	particles.amount = 34
-	particles.lifetime = 0.62
+	particles.amount = 22
+	particles.lifetime = 0.5
 	particles.preprocess = 0.6
 	particles.position = at
 	var proc := ParticleProcessMaterial.new()
@@ -1077,9 +1416,9 @@ func _add_fire(at: Vector3) -> void:
 	proc.initial_velocity_min = 0.9
 	proc.initial_velocity_max = 2.1
 	proc.gravity = Vector3(0.0, 1.2, 0.0)
-	proc.scale_min = 0.1
-	proc.scale_max = 0.26
-	proc.color = Color(1.0, 0.55, 0.15, 0.9)
+	proc.scale_min = 0.045
+	proc.scale_max = 0.11
+	proc.color = Color(1.0, 0.42, 0.1, 0.55)
 	particles.process_material = proc
 	var quad := QuadMesh.new()
 	quad.size = Vector2(1, 1)
@@ -1088,7 +1427,7 @@ func _add_fire(at: Vector3) -> void:
 	floor_root.add_child(particles)
 	var light := OmniLight3D.new()
 	light.light_color = Color(1.0, 0.5, 0.18)
-	light.light_energy = 2.6
+	light.light_energy = 1.7
 	light.omni_range = 9.0
 	light.shadow_enabled = false
 	light.position = at + Vector3(0.0, 0.3, 0.0)
@@ -1202,7 +1541,7 @@ func _apply_rock_material(root: Node3D, scale_value: float) -> void:
 
 func _spawn_packs() -> void:
 	total_enemies = 0
-	var boss_floor := layer % 5 == 0
+	var boss_floor := _is_boss_layer()
 	var candidates: Array = []
 	for cell in walkable.keys():
 		if not walkable[cell]:
@@ -1211,7 +1550,9 @@ func _spawn_packs() -> void:
 			candidates.append(cell)
 	if candidates.is_empty():
 		candidates.append(start_cell)
-	var pack_count := 2 if boss_floor else 3 + mini(3, layer - 1)
+	var area_scale := clampf(float(_walkable_count()) / 200.0, 0.55, 1.0)
+	var pack_count := int(round(float(2 if boss_floor else 3 + mini(3, layer - 1)) * area_scale))
+	pack_count = maxi(2, pack_count)
 	for p in pack_count:
 		var center: Vector2i = candidates[rng.randi() % candidates.size()]
 		if p == 0:
@@ -1233,7 +1574,7 @@ func _spawn_packs() -> void:
 			_spawn_enemy(_pick_kind(p == pack_count - 1), cell)
 	if boss_floor:
 		var boss_cell := _nearby_walkable(candidates[rng.randi() % candidates.size()])
-		var boss_kind := "prophet" if (layer / 5) % 2 == 1 else "brood"
+		var boss_kind := "prophet" if (layer / 6) % 2 == 1 else "brood"
 		boss_enemy = _spawn_enemy(boss_kind, boss_cell)
 		for i in 2:
 			_spawn_enemy("brute", _nearby_walkable(boss_cell + Vector2i(rng.randi_range(-2, 2), rng.randi_range(-2, 2))))
@@ -1263,19 +1604,19 @@ func _pick_kind(last_pack: bool) -> String:
 	if last_pack and roll < 0.28:
 		return "brute"
 	var table := ["wolf", "acolyte", "bat", "slinger", "crawler", "wolf", "acolyte"]
-	if layer % 5 == 4:
+	if _is_boss_layer() or layer % 6 == 5:
 		table = ["brute", "acolyte", "slinger", "wolf", "brute", "crawler", "acolyte"]
 	return String(table[rng.randi() % table.size()])
 
 
 func _spawn_enemy(kind_key: String, cell: Vector2i) -> Enemy:
 	var base: Dictionary = KINDS.get(kind_key, KINDS["wolf"]).duplicate()
-	var health_scale := 1.0 + 0.30 * float(layer - 1)
-	var damage_scale := 1.0 + 0.13 * float(layer - 1)
+	var health_scale := 1.0 + 0.24 * float(layer - 1)
+	var damage_scale := 1.0 + 0.11 * float(layer - 1)
 	if has_mod("brutal"):
 		damage_scale *= 1.25
 	if bool(base.get("boss", false)):
-		health_scale = 1.0 + 0.34 * float(layer - 1)
+		health_scale = 1.0 + 0.28 * float(layer - 1)
 	base.health = float(base.health) * health_scale
 	base.damage = float(base.damage) * damage_scale
 	if has_mod("frenzied"):
@@ -1356,6 +1697,12 @@ func _on_enemy_died(enemy: Enemy) -> void:
 		hud.set_boss("", 0.0, false)
 		hud.toast("RIFT WARDEN SLAIN", Color(1.0, 0.6, 0.2), 3.0)
 	player.add_bloodrush()
+	var xp_gain := 12.0 + 2.0 * float(layer)
+	if enemy.elite:
+		xp_gain *= 3.0
+	if enemy.boss:
+		xp_gain *= 10.0
+	player.gain_xp(xp_gain)
 	play_sfx("death", -4.0)
 	FX.burst(fx_root, enemy.global_position + Vector3(0.0, 1.0, 0.0), Color(0.55, 0.12, 0.9, 0.9), 30, 6.0, 0.5, 0.8)
 	FX.ring(fx_root, player.global_position, Color(1.0, 0.35, 0.12, 0.35), 2.4, 0.4, 0.05)
@@ -1468,7 +1815,7 @@ func _on_floor_cleared() -> void:
 	hud.toast("PACKS CLEARED", Color(1.0, 0.8, 0.35), 3.0)
 	player.heal(player.max_health * 0.2)
 	_open_portal()
-	if layer % 5 == 0:
+	if _is_boss_layer():
 		_spawn_item(player.global_position + Vector3(0.0, 0.0, 1.6), "legendary")
 		_spawn_item(player.global_position + Vector3(-1.8, 0.0, 1.0), "legendary")
 		_spawn_item(player.global_position + Vector3(1.8, 0.0, 0.6), "rare")
@@ -1670,7 +2017,11 @@ func _apply_boon(key: String, record := true) -> String:
 
 
 func _is_merchant_layer() -> bool:
-	return layer % 6 == 0
+	return layer % 5 == 0
+
+
+func _is_boss_layer() -> bool:
+	return layer % 6 == 0 and not _is_merchant_layer()
 
 
 func _first_glb(dir_path: String) -> String:
@@ -1904,10 +2255,13 @@ func _next_layer() -> void:
 	portal_active = false
 	layer += 1
 	play_sfx("portal", -2.0, 0.02)
+	var level_before := player.level
 	player.heal(player.max_health * 0.3)
 	FX.nova(fx_root, player.global_position, Color(0.75, 0.3, 1.0, 1.0), 6.0)
 	_generate_floor()
-	hud.toast("RIFT LAYER %d  ·  +%d%% ENEMY LIFE" % [layer, int(45.0 * float(layer - 1))], Color(1.0, 0.72, 0.3), 2.8)
+	hud.toast("RIFT LAYER %d  ·  +%d%% ENEMY LIFE" % [layer, int(24.0 * float(layer - 1))], Color(1.0, 0.72, 0.3), 2.8)
+	if player.level > level_before:
+		hud.toast("BLOOD DEEPENS  ·  LEVEL %d" % player.level, Color(1.0, 0.58, 0.66), 2.4)
 
 
 func _on_ui_click() -> void:
@@ -1948,6 +2302,7 @@ func _restart_run() -> void:
 	hud.hide_death()
 	hud.close_relic_window()
 	hud.show_body()
+	player.set_progress(1, 0.0)
 	player.revive()
 	_generate_floor()
 	for enemy in enemies:
@@ -2179,6 +2534,9 @@ func _blood_nova() -> void:
 		radius *= 1.55
 	var center := player.global_position
 	FX.nova(fx_root, center, Color(1.0, 0.13, 0.1, 1.0), radius)
+	FX.burst(fx_root, center + Vector3(0.0, 0.4, 0.0), Color(1.0, 0.32, 0.16, 0.95), 26, 6.5, 0.5, 0.6, 6.0, 55.0)
+	FX.ring(fx_root, center, Color(1.0, 0.44, 0.2, 0.55), radius * 1.28, 0.45, 0.04)
+	_aftershock(center, radius)
 	_shake(0.45)
 	play_sfx("hit", -1.0, 0.14)
 	for enemy in enemies.duplicate():
@@ -2191,6 +2549,14 @@ func _blood_nova() -> void:
 				var push: Vector3 = enemy.global_position - center
 				push.y = 0.0
 				enemy.global_position += push.normalized() * 0.4
+
+
+func _aftershock(center: Vector3, radius: float) -> void:
+	await get_tree().create_timer(0.16).timeout
+	if not is_inside_tree():
+		return
+	FX.ring(fx_root, center, Color(1.0, 0.28, 0.18, 0.42), radius * 1.45, 0.42, 0.05)
+	FX.disc(fx_root, center, Color(0.9, 0.16, 0.1, 0.22), radius * 0.8, 0.5, 0.03)
 
 
 func _crimson_lance(aim: Vector3) -> void:
@@ -2216,6 +2582,9 @@ func _crimson_lance(aim: Vector3) -> void:
 		bolt.color = Color(1.0, 0.12, 0.1)
 		fx_root.add_child(bolt)
 		bolt.global_position = player.global_position + Vector3(0.0, 1.05, 0.0) + shot_dir * 0.9
+		FX.burst(fx_root, bolt.global_position, Color(1.0, 0.2, 0.16, 0.9), 10, 4.0, 0.28, 0.28)
+		FX.beam(fx_root, player.global_position + Vector3(0.0, 1.05, 0.0), bolt.global_position + shot_dir * 2.2, Color(1.0, 0.24, 0.18, 0.55), 0.13, 0.14)
+		FX.ring(fx_root, player.global_position, Color(1.0, 0.25, 0.2, 0.5), 1.4, 0.22, 0.05)
 
 
 func _siphon() -> void:
@@ -2223,6 +2592,8 @@ func _siphon() -> void:
 	var damage_per_tick := 9.0 if greater else 7.0
 	var heal_factor := 0.34 if greater else 0.2
 	var radius := 7.5
+	FX.nova(fx_root, player.global_position, Color(0.72, 0.18, 0.95, 1.0), 4.4)
+	FX.ring(fx_root, player.global_position, Color(0.85, 0.35, 1.0, 0.6), radius, 0.7, 0.06)
 	for tick in 8:
 		if not is_instance_valid(player) or not player.alive or not run_active:
 			return
@@ -2239,6 +2610,7 @@ func _siphon() -> void:
 				FX.beam(fx_root, player.global_position + Vector3(0.0, 1.1, 0.0), enemy.global_position + Vector3(0.0, 1.0, 0.0), Color(0.95, 0.12, 0.15, 0.85), 0.06, 0.28)
 		if drained > 0.0:
 			player.heal(drained * heal_factor)
+			FX.burst(fx_root, player.global_position + Vector3(0.0, 1.2, 0.0), Color(1.0, 0.25, 0.3, 0.9), 10, 3.0, 0.3, 0.4)
 		FX.ring(fx_root, player.global_position, Color(0.85, 0.1, 0.12, 0.5), radius * 0.6, 0.3, 0.04)
 		await get_tree().create_timer(0.24).timeout
 
@@ -2252,6 +2624,14 @@ func _on_player_damaged(amount: float) -> void:
 func _on_player_healed(amount: float) -> void:
 	if amount > 3.0:
 		FX.sparkle(fx_root, player.global_position + Vector3(0.0, 1.3, 0.0), Color(1.0, 0.25, 0.25, 0.9))
+
+
+func _on_player_leveled(level: int) -> void:
+	play_sfx("pickup", -2.0, 0.02)
+	FX.nova(fx_root, player.global_position, Color(1.0, 0.82, 0.32, 1.0), 5.0)
+	FX.ring(fx_root, player.global_position, Color(1.0, 0.7, 0.25, 0.8), 4.0, 0.8, 0.05)
+	hud.toast("BLOOD AWAKENS  -  LEVEL %d" % level, Color(1.0, 0.84, 0.34), 2.2)
+	hud.set_level(player.level, player.xp, player.xp_to_next())
 
 
 func _on_life_spent(amount: float) -> void:
@@ -2293,6 +2673,7 @@ func _process(delta: float) -> void:
 	hud.set_cooldowns(player.cooldowns, player.dash_cooldown, player.health, costs)
 	hud.set_bloodrush(player.bloodrush, player.bloodrush_timer / Player.BLOODRUSH_TIME)
 	hud.set_health(player.health, player.max_health, player.regen_now(), player.in_combat())
+	hud.set_level(player.level, player.xp, player.xp_to_next())
 	if merchant_npc != null and is_instance_valid(merchant_npc):
 		var near := player.global_position.distance_to(merchant_npc.global_position) < 4.4
 		if near != merchant_near:
