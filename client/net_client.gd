@@ -61,6 +61,33 @@ func _boot() -> void:
 
 
 ## Sends one Command and waits for the authority's answer.
+## Called from the in-game Co-op panel: retry the queue join and, on success,
+## switch this client into the World without restarting the game.
+func retry_join() -> Dictionary:
+	if online:
+		return {"ok": true}
+	var join := Summer.client.join(SummerJoinTarget.queue(Game.QUEUE))
+	join.acceptance_required.connect(func(proposal: SummerMatchmakingProposal) -> void: proposal.accept())
+	var joined: SummerResult = await join.get_result_or_completed_signal()
+	if not joined.ok:
+		return {"ok": false, "error": "%s: %s" % [joined.code, joined.message]}
+	if not spawner.is_network_ready():
+		await spawner.network_ready
+	online = true
+	var entered: Dictionary = await command({"c": "join"})
+	if bool(entered.get("ok", false)):
+		var result: Dictionary = entered.get("result", {})
+		seat = int(result.get("seat", -1))
+		world_seed = int(result.get("seed", world_seed))
+	var waited := 0
+	while not _seed_ready and waited < 50:
+		await get_tree().create_timer(0.1).timeout
+		waited += 1
+	if game != null:
+		game.boot_online(world_seed, seat)
+	return {"ok": true}
+
+
 func command(payload: Dictionary) -> Dictionary:
 	var admission := spawner.enqueue_command(Game.CMD, Game.pack(payload))
 	if not admission.is_enqueued():

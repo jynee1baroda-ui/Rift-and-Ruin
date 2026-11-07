@@ -17,6 +17,9 @@ signal rift_map_requested
 signal duel_pressed
 signal duel_again_pressed
 signal home_pressed
+signal net_action(action: String, mode: String)
+signal rift_enter_requested(layer: int)
+signal leave_run_pressed
 
 const INK := Color(0.035, 0.025, 0.045, 0.92)
 const AMBER := Color(1.0, 0.72, 0.28)
@@ -132,6 +135,19 @@ var online_chip: PanelContainer
 var online_label: Label
 var boon_sub: Label
 var shop_lore: Label
+var net_panel: PanelContainer
+var net_title: Label
+var net_status: Label
+var net_detail: Label
+var net_mode := "coop"
+var rift_detail: Label
+var rift_enter_btn: Button
+var selected_rift := 0
+var rift_unlock := 1
+var rift_entries: Array = []
+var rift_index := 0
+var leave_btn: Button
+var leave_armed_ms := 0
 
 const HALL_LORE := [
 	"THE BASTION — raised by deserters who refused to kneel to the rift's first warden. Its braziers have not gone out in a hundred years.",
@@ -339,6 +355,7 @@ func _build() -> void:
 	_build_boon_panel()
 	_build_prompt()
 	_build_shop()
+	_build_net_panel()
 	_build_fade()
 	_build_save_chip()
 	_build_rift_map()
@@ -538,14 +555,34 @@ func _build_rift_map() -> void:
 	rift_map_body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	rift_map_body.add_theme_constant_override("separation", 2)
 	box.add_child(rift_map_body)
+	var foot := HBoxContainer.new()
+	foot.add_theme_constant_override("separation", 10)
+	box.add_child(foot)
 	rift_map_footer = _label("", 11, GOLD)
-	rift_map_footer.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	box.add_child(rift_map_footer)
+	rift_map_footer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	foot.add_child(rift_map_footer)
+	rift_detail = _label("SELECT A RIFT", 11, BONE, false)
+	rift_detail.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	foot.add_child(rift_detail)
+	rift_enter_btn = Button.new()
+	rift_enter_btn.text = "ENTER RIFT"
+	rift_enter_btn.custom_minimum_size = Vector2(150, 34)
+	rift_enter_btn.add_theme_font_size_override("font_size", 13)
+	rift_enter_btn.add_theme_color_override("font_color", AMBER)
+	rift_enter_btn.add_theme_color_override("font_hover_color", Color(1.0, 0.92, 0.7))
+	rift_enter_btn.add_theme_color_override("font_disabled_color", Color(0.4, 0.36, 0.38))
+	rift_enter_btn.add_theme_stylebox_override("normal", _stylebox(Color(0.1, 0.05, 0.05, 0.96), Color(0.55, 0.32, 0.12, 1.0), 1, 3))
+	rift_enter_btn.add_theme_stylebox_override("hover", _stylebox(Color(0.2, 0.09, 0.07, 0.99), Color(1.0, 0.66, 0.24, 1.0), 1, 3))
+	rift_enter_btn.add_theme_stylebox_override("disabled", _stylebox(Color(0.06, 0.04, 0.05, 0.9), Color(0.22, 0.18, 0.16, 1.0), 1, 3))
+	rift_enter_btn.pressed.connect(_enter_selected_rift)
+	foot.add_child(rift_enter_btn)
 
 
 func show_rift_map(entries: Array, current_layer: int, deepest: int) -> void:
 	if rift_map_panel == null:
 		return
+	if net_panel != null and net_panel.visible:
+		net_panel.visible = false
 	for child in rift_map_body.get_children():
 		rift_map_body.remove_child(child)
 		child.queue_free()
@@ -570,6 +607,20 @@ func show_rift_map(entries: Array, current_layer: int, deepest: int) -> void:
 			right.add_child(row)
 	var legend := _label("THIS LAYER in gold   ·   CLEARED in violet   ·   AHEAD dim", 10, MUTED)
 	rift_map_body.add_child(legend)
+	rift_unlock = maxi(1, deepest + 1)
+	selected_rift = 0
+	rift_entries = entries.duplicate()
+	rift_index = 0
+	if rift_enter_btn != null:
+		rift_enter_btn.disabled = true
+	if rift_detail != null:
+		rift_detail.text = "SELECT A RIFT TO READ IT"
+	for i in rift_entries.size():
+		if int((rift_entries[i] as Dictionary).get("layer", 0)) == current_layer:
+			rift_index = i
+			break
+	if not rift_entries.is_empty():
+		_select_rift(rift_entries[rift_index])
 	if rift_map_footer != null:
 		rift_map_footer.text = "CURRENT LAYER %d   ·   LEVEL %d   ·   COIN %d   ·   DEEPEST %d" % [current_layer, run_level, run_coins, maxi(deepest, current_layer)]
 	rift_map_panel.visible = true
@@ -582,7 +633,18 @@ func _rift_map_row(entry: Dictionary, current_layer: int, deepest: int) -> Contr
 	var layer_num := int(entry.get("layer", 1))
 	var is_merchant := bool(entry.get("merchant", false))
 	var is_boss := bool(entry.get("boss", false))
+	var button := Button.new()
+	button.flat = true
+	button.custom_minimum_size = Vector2(0, 26)
+	button.add_theme_stylebox_override("normal", _stylebox(Color(0, 0, 0, 0), Color(0, 0, 0, 0), 0, 0))
+	button.add_theme_stylebox_override("hover", _stylebox(Color(0.16, 0.09, 0.07, 0.6), Color(0.6, 0.36, 0.16, 0.8), 1, 2))
+	button.add_theme_stylebox_override("pressed", _stylebox(Color(0.24, 0.12, 0.08, 0.7), Color(0.9, 0.55, 0.2, 1.0), 1, 2))
+	button.pressed.connect(_select_rift.bind(entry))
 	var row := HBoxContainer.new()
+	row.set_anchors_preset(Control.PRESET_FULL_RECT)
+	row.offset_left = 4.0
+	row.offset_right = -4.0
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_theme_constant_override("separation", 8)
 	row.custom_minimum_size = Vector2(0, 26)
 	var marker := ColorRect.new()
@@ -613,7 +675,47 @@ func _rift_map_row(entry: Dictionary, current_layer: int, deepest: int) -> Contr
 	if tag_text != "":
 		var tag := _label(tag_text, 10, tag_color, false)
 		row.add_child(tag)
-	return row
+	button.add_child(row)
+	return button
+
+
+func _select_rift(entry: Dictionary) -> void:
+	selected_rift = int(entry.get("layer", 1))
+	for i in rift_entries.size():
+		if int((rift_entries[i] as Dictionary).get("layer", 0)) == selected_rift:
+			rift_index = i
+			break
+	if rift_detail == null:
+		return
+	var parts: Array = [String(entry.get("name", "RIFT"))]
+	parts.append("TIER %d" % selected_rift)
+	parts.append("LEVEL %d+" % maxi(1, selected_rift))
+	if bool(entry.get("boss", false)):
+		parts.append("RIFT WARDEN")
+	if bool(entry.get("merchant", false)):
+		parts.append("BROKER")
+	var locked: bool = selected_rift > rift_unlock
+	if locked:
+		parts.append("LOCKED - CLEAR LAYER %d FIRST" % rift_unlock)
+	rift_detail.text = "   ".join(parts)
+	rift_detail.add_theme_color_override("font_color", Color(0.6, 0.55, 0.5) if locked else BONE)
+	if rift_enter_btn != null:
+		rift_enter_btn.disabled = locked
+		rift_enter_btn.text = "LOCKED" if locked else "ENTER RIFT %d" % selected_rift
+
+
+func _enter_selected_rift() -> void:
+	if selected_rift <= 0 or rift_enter_btn == null or rift_enter_btn.disabled:
+		return
+	hide_rift_map()
+	rift_enter_requested.emit(selected_rift)
+
+
+func _move_rift_selection(step: int) -> void:
+	if rift_entries.is_empty():
+		return
+	rift_index = clampi(rift_index + step, 0, rift_entries.size() - 1)
+	_select_rift(rift_entries[rift_index])
 
 
 func hide_rift_map() -> void:
@@ -1436,47 +1538,41 @@ func _build_title() -> void:
 	buttons.add_child(begin_btn)
 	var menu2 := HBoxContainer.new()
 	menu2.alignment = BoxContainer.ALIGNMENT_CENTER
-	menu2.add_theme_constant_override("separation", 10)
+	menu2.add_theme_constant_override("separation", 8)
 	box.add_child(menu2)
-	var duel_btn := Button.new()
-	duel_btn.text = "DUEL THE MIRROR"
-	duel_btn.custom_minimum_size = Vector2(186, 34)
-	duel_btn.add_theme_font_size_override("font_size", 13)
-	duel_btn.add_theme_color_override("font_color", Color(0.85, 0.55, 1.0))
-	duel_btn.add_theme_color_override("font_hover_color", Color(1.0, 0.85, 1.0))
-	duel_btn.add_theme_stylebox_override("normal", _stylebox(Color(0.08, 0.04, 0.1, 0.96), Color(0.45, 0.3, 0.6, 1.0), 1, 3))
-	duel_btn.add_theme_stylebox_override("hover", _stylebox(Color(0.15, 0.07, 0.18, 0.99), Color(0.8, 0.55, 1.0, 1.0), 1, 3))
-	duel_btn.mouse_entered.connect(func() -> void: _set_lore("duel"))
-	duel_btn.pressed.connect(func() -> void:
+	var coop_btn := _title_small("CO-OP", Color(0.62, 0.92, 0.7))
+	coop_btn.tooltip_text = "Online co-op: matchmaking, party and connection state"
+	coop_btn.pressed.connect(func() -> void:
+		if not _title_input_ok():
+			return
+		net_action.emit("open", "coop")
+	)
+	menu2.add_child(coop_btn)
+	var pvp_btn := _title_small("PVP", Color(0.85, 0.6, 1.0))
+	pvp_btn.tooltip_text = "Duel the Mirror and competitive modes"
+	pvp_btn.pressed.connect(func() -> void:
 		if not _title_input_ok():
 			return
 		duel_pressed.emit()
 	)
-	menu2.add_child(duel_btn)
-	var hall_btn := Button.new()
-	hall_btn.text = "HALL OF WARDENS"
-	hall_btn.custom_minimum_size = Vector2(186, 34)
-	hall_btn.add_theme_font_size_override("font_size", 13)
-	hall_btn.add_theme_color_override("font_color", MUTED)
-	hall_btn.add_theme_color_override("font_hover_color", AMBER)
-	hall_btn.add_theme_stylebox_override("normal", _stylebox(Color(0.05, 0.035, 0.05, 0.96), Color(0.3, 0.22, 0.16, 1.0), 1, 3))
-	hall_btn.add_theme_stylebox_override("hover", _stylebox(Color(0.12, 0.06, 0.05, 0.99), Color(0.75, 0.5, 0.2, 1.0), 1, 3))
-	hall_btn.mouse_entered.connect(func() -> void: _set_lore("hall"))
+	menu2.add_child(pvp_btn)
+	var map_btn := _title_small("WORLD MAP", GOLD)
+	map_btn.tooltip_text = "Rift ladder, tiers and rewards"
+	map_btn.pressed.connect(func() -> void:
+		if not _title_input_ok():
+			return
+		rift_map_requested.emit()
+	)
+	menu2.add_child(map_btn)
+	var hall_btn := _title_small("HALL", MUTED)
+	hall_btn.tooltip_text = "Hall of Wardens: the rift's history"
 	hall_btn.pressed.connect(func() -> void:
 		if not _title_input_ok():
 			return
 		_cycle_hall()
 	)
 	menu2.add_child(hall_btn)
-	var options_btn := Button.new()
-	options_btn.text = "OPTIONS"
-	options_btn.custom_minimum_size = Vector2(120, 34)
-	options_btn.add_theme_font_size_override("font_size", 13)
-	options_btn.add_theme_color_override("font_color", MUTED)
-	options_btn.add_theme_color_override("font_hover_color", AMBER)
-	options_btn.add_theme_stylebox_override("normal", _stylebox(Color(0.05, 0.035, 0.05, 0.96), Color(0.3, 0.22, 0.16, 1.0), 1, 3))
-	options_btn.add_theme_stylebox_override("hover", _stylebox(Color(0.12, 0.06, 0.05, 0.99), Color(0.75, 0.5, 0.2, 1.0), 1, 3))
-	options_btn.mouse_entered.connect(func() -> void: _set_lore("options"))
+	var options_btn := _title_small("OPTIONS", MUTED)
 	options_btn.pressed.connect(func() -> void:
 		if not _title_input_ok():
 			return
@@ -1506,6 +1602,18 @@ func _build_title() -> void:
 	_set_lore("hall")
 	var fade := create_tween()
 	fade.tween_property(title_panel, "modulate:a", 1.0, 0.7)
+
+
+func _title_small(text: String, color: Color) -> Button:
+	var btn := Button.new()
+	btn.text = text
+	btn.custom_minimum_size = Vector2(118, 34)
+	btn.add_theme_font_size_override("font_size", 12)
+	btn.add_theme_color_override("font_color", color)
+	btn.add_theme_color_override("font_hover_color", Color(1.0, 0.95, 0.85))
+	btn.add_theme_stylebox_override("normal", _stylebox(Color(0.06, 0.035, 0.06, 0.96), color.darkened(0.6), 1, 3))
+	btn.add_theme_stylebox_override("hover", _stylebox(Color(0.15, 0.07, 0.12, 0.99), color, 1, 3))
+	return btn
 
 
 func _title_input_ok() -> bool:
@@ -1617,15 +1725,14 @@ func _build_pause() -> void:
 	controls.add_child(_label("CONTROLS", 12, GOLD))
 	for line in [
 		"WASD / ARROWS    move",
-		"CLICK GROUND     walk there",
-		"CLICK A FOE      crimson lance",
+		"LMB  CRIMSON LANCE",
+		"RMB  BLOOD NOVA",
 		"1  BLOOD NOVA    6 vitae",
 		"2  CRIMSON LANCE 3 vitae",
 		"3  SANGUINE SIPHON free",
-		"SPACE  RIFTSTEP  cross lava",
-		"TAB  relic loadout",
-		"E  trade at the broker",
-		"WHEEL zoom    ESC close / pause",
+		"SPACE  RIFTSTEP",
+		"MMB pan  F recenter",
+		"TAB relics  M map  ESC pause",
 	]:
 		controls.add_child(_label(line, 12, BONE, false))
 	var tips := VBoxContainer.new()
@@ -1651,33 +1758,97 @@ func _build_pause() -> void:
 	var spacer2 := Control.new()
 	spacer2.custom_minimum_size = Vector2(0, 2)
 	box.add_child(spacer2)
-	var resume := Button.new()
-	resume.text = "RESUME"
-	resume.custom_minimum_size = Vector2(200, 44)
-	resume.add_theme_font_size_override("font_size", 18)
-	resume.add_theme_color_override("font_color", AMBER)
-	resume.add_theme_color_override("font_hover_color", Color(1.0, 0.92, 0.72))
-	resume.add_theme_stylebox_override("normal", _stylebox(Color(0.1, 0.04, 0.05, 0.95), Color(0.5, 0.28, 0.1, 1.0), 1))
-	resume.add_theme_stylebox_override("hover", _stylebox(Color(0.2, 0.08, 0.07, 0.98), Color(0.9, 0.55, 0.2, 1.0), 1))
-	resume.add_theme_stylebox_override("pressed", _stylebox(Color(0.3, 0.1, 0.08, 1.0), Color(1.0, 0.7, 0.3, 1.0), 1))
-	resume.pressed.connect(toggle_pause)
-	var options := Button.new()
-	options.text = "OPTIONS"
-	options.custom_minimum_size = Vector2(200, 44)
-	options.add_theme_font_size_override("font_size", 18)
-	options.add_theme_color_override("font_color", AMBER)
-	options.add_theme_color_override("font_hover_color", Color(1.0, 0.92, 0.72))
-	options.add_theme_stylebox_override("normal", _stylebox(Color(0.1, 0.04, 0.05, 0.95), Color(0.5, 0.28, 0.1, 1.0), 1))
-	options.add_theme_stylebox_override("hover", _stylebox(Color(0.2, 0.08, 0.07, 0.98), Color(0.9, 0.55, 0.2, 1.0), 1))
-	options.add_theme_stylebox_override("pressed", _stylebox(Color(0.3, 0.1, 0.08, 1.0), Color(1.0, 0.7, 0.3, 1.0), 1))
-	options.pressed.connect(open_settings)
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 10)
+	grid.add_theme_constant_override("v_separation", 8)
 	var center := CenterContainer.new()
-	var buttons := HBoxContainer.new()
-	buttons.add_theme_constant_override("separation", 12)
-	buttons.add_child(resume)
-	buttons.add_child(options)
-	center.add_child(buttons)
+	center.add_child(grid)
 	box.add_child(center)
+	var resume := _pause_button("RESUME")
+	resume.pressed.connect(toggle_pause)
+	grid.add_child(resume)
+	var character := _pause_button("CHARACTER")
+	character.pressed.connect(func() -> void:
+		_close_pause_for_overlay()
+		get_tree().paused = false
+		toggle_relic_window()
+	)
+	grid.add_child(character)
+	var map_btn := _pause_button("WORLD MAP")
+	map_btn.pressed.connect(func() -> void:
+		_close_pause_for_overlay()
+		get_tree().paused = true
+		toggle_rift_map()
+	)
+	grid.add_child(map_btn)
+	var coop := _pause_button("CO-OP ONLINE", Color(0.62, 0.92, 0.7))
+	coop.pressed.connect(func() -> void:
+		_close_pause_for_overlay()
+		get_tree().paused = true
+		net_action.emit("open", "coop")
+	)
+	grid.add_child(coop)
+	var pvp := _pause_button("PVP ARENA", Color(0.85, 0.6, 1.0))
+	pvp.pressed.connect(func() -> void:
+		_close_pause_for_overlay()
+		get_tree().paused = true
+		net_action.emit("open", "pvp")
+	)
+	grid.add_child(pvp)
+	var options := _pause_button("OPTIONS")
+	options.pressed.connect(open_settings)
+	grid.add_child(options)
+	leave_btn = _pause_button("LEAVE TO HUB", Color(0.95, 0.55, 0.45))
+	leave_btn.pressed.connect(_on_leave_pressed)
+	grid.add_child(leave_btn)
+	var back := _label("Every run is saved at each floor, each purchase and each relic.", 11, MUTED, false)
+	back.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(back)
+
+
+func _pause_button(text: String, color := AMBER) -> Button:
+	var btn := Button.new()
+	btn.text = text
+	btn.custom_minimum_size = Vector2(190, 40)
+	btn.add_theme_font_size_override("font_size", 16)
+	btn.add_theme_color_override("font_color", color)
+	btn.add_theme_color_override("font_hover_color", Color(1.0, 0.94, 0.8))
+	btn.add_theme_stylebox_override("normal", _stylebox(Color(0.1, 0.04, 0.05, 0.95), color.darkened(0.55), 1, 2))
+	btn.add_theme_stylebox_override("hover", _stylebox(Color(0.2, 0.08, 0.07, 0.98), color, 1, 2))
+	btn.add_theme_stylebox_override("pressed", _stylebox(Color(0.3, 0.1, 0.08, 1.0), color, 1, 2))
+	return btn
+
+
+func _close_pause_for_overlay() -> void:
+	if pause_shade != null:
+		pause_shade.visible = false
+	if pause_panel != null:
+		pause_panel.visible = false
+
+
+## The same two-step confirmation pattern as the content buttons: one press
+## arms it, a second press within four seconds leaves.
+func _on_leave_pressed() -> void:
+	if leave_btn == null:
+		return
+	var now := Time.get_ticks_msec()
+	if leave_armed_ms > 0 and now - leave_armed_ms < 4000:
+		leave_armed_ms = 0
+		leave_btn.text = "LEAVE TO HUB"
+		_close_pause_for_overlay()
+		get_tree().paused = false
+		leave_run_pressed.emit()
+		return
+	leave_armed_ms = now
+	leave_btn.text = "CONFIRM LEAVE"
+	var timer := get_tree().create_timer(4.0)
+	timer.timeout.connect(func() -> void:
+		if leave_armed_ms > 0 and Time.get_ticks_msec() - leave_armed_ms >= 3900:
+			leave_armed_ms = 0
+			if leave_btn != null:
+				leave_btn.text = "LEAVE TO HUB"
+	)
 
 
 func _build_pause_button() -> void:
@@ -2245,6 +2416,118 @@ func _apply_ui_settings() -> void:
 		mod_row.visible = bool(GameSettings.get_value("modifiers")) and not current_mods.is_empty()
 
 
+## One multiplayer surface, used by the home screen and the pause menu. It is
+## the same panel and the same callbacks in both places, so there is only one
+## set of matchmaking/party controls to keep working.
+func _build_net_panel() -> void:
+	net_panel = PanelContainer.new()
+	net_panel.set_anchors_preset(Control.PRESET_CENTER)
+	net_panel.anchor_left = 0.5
+	net_panel.anchor_right = 0.5
+	net_panel.anchor_top = 0.5
+	net_panel.anchor_bottom = 0.5
+	net_panel.offset_left = -330.0
+	net_panel.offset_right = 330.0
+	net_panel.offset_top = -186.0
+	net_panel.offset_bottom = 186.0
+	net_panel.add_theme_stylebox_override("panel", _stylebox(Color(0.03, 0.015, 0.045, 0.98), Color(0.55, 0.35, 0.72, 1.0), 2, 5))
+	net_panel.visible = false
+	net_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	root.add_child(net_panel)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 10)
+	net_panel.add_child(box)
+	var header := HBoxContainer.new()
+	header.add_theme_constant_override("separation", 10)
+	box.add_child(header)
+	net_title = _label("CO-OP ONLINE", 32, AMBER)
+	net_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(net_title)
+	var close := Button.new()
+	close.text = "ESC"
+	close.custom_minimum_size = Vector2(58, 30)
+	close.add_theme_font_size_override("font_size", 12)
+	close.add_theme_color_override("font_color", MUTED)
+	close.add_theme_color_override("font_hover_color", AMBER)
+	close.add_theme_stylebox_override("normal", _stylebox(Color(0.05, 0.03, 0.04, 0.9), Color(0.24, 0.16, 0.12, 1.0), 1))
+	close.add_theme_stylebox_override("hover", _stylebox(Color(0.13, 0.06, 0.05, 0.95), Color(0.9, 0.55, 0.2, 1.0), 1))
+	close.pressed.connect(hide_net_panel)
+	header.add_child(close)
+	net_status = _label("CHECKING CONNECTION", 15, GOLD, false)
+	box.add_child(net_status)
+	net_detail = _label("", 13, BONE, false)
+	net_detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(net_detail)
+	var rule := HSeparator.new()
+	rule.custom_minimum_size = Vector2(0, 10)
+	box.add_child(rule)
+	var actions := HBoxContainer.new()
+	actions.add_theme_constant_override("separation", 10)
+	box.add_child(actions)
+	var find_btn := _net_button("FIND MATCH", AMBER)
+	find_btn.pressed.connect(func() -> void:
+		ui_click.emit()
+		net_action.emit("find", net_mode)
+	)
+	actions.add_child(find_btn)
+	var duel_btn := _net_button("DUEL THE MIRROR", Color(0.85, 0.55, 1.0))
+	duel_btn.name = "NetDuel"
+	duel_btn.pressed.connect(func() -> void:
+		ui_click.emit()
+		hide_net_panel()
+		net_action.emit("duel", "pvp")
+	)
+	actions.add_child(duel_btn)
+	var hint := _label("Online play runs on a headless Summer authority. Local testing: Debug > Local Multiplayer > 2 Players.", 11, MUTED, false)
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(hint)
+	_kill_button_focus()
+
+
+func _net_button(text: String, color: Color) -> Button:
+	var btn := Button.new()
+	btn.text = text
+	btn.custom_minimum_size = Vector2(190, 44)
+	btn.add_theme_font_size_override("font_size", 15)
+	btn.add_theme_color_override("font_color", color)
+	btn.add_theme_color_override("font_hover_color", Color(1.0, 0.95, 0.85))
+	btn.add_theme_stylebox_override("normal", _stylebox(Color(0.09, 0.05, 0.11, 0.96), color.darkened(0.45), 1, 3))
+	btn.add_theme_stylebox_override("hover", _stylebox(Color(0.17, 0.09, 0.2, 0.99), color, 1, 3))
+	return btn
+
+
+func show_net_panel(mode: String) -> void:
+	if net_panel == null:
+		return
+	if rift_map_panel != null and rift_map_panel.visible:
+		rift_map_panel.visible = false
+	net_mode = mode
+	net_title.text = "PVP ARENA" if mode == "pvp" else "CO-OP ONLINE"
+	var duel := net_panel.find_child("NetDuel", true, false) as Button
+	if duel != null:
+		duel.visible = mode == "pvp"
+	net_panel.visible = true
+	net_panel.modulate.a = 0.0
+	var tween := create_tween()
+	tween.tween_property(net_panel, "modulate:a", 1.0, 0.16)
+
+
+func hide_net_panel() -> void:
+	if net_panel != null:
+		net_panel.visible = false
+	if body.visible:
+		get_tree().paused = false
+
+
+## Called by the game with the real connection state; never faked.
+func set_net_status(status_text: String, detail_text: String, ok: bool) -> void:
+	if net_status == null:
+		return
+	net_status.text = status_text
+	net_status.add_theme_color_override("font_color", Color(0.62, 0.95, 0.72) if ok else Color(1.0, 0.62, 0.4))
+	net_detail.text = detail_text
+
+
 func _build_fade() -> void:
 	fade_rect = ColorRect.new()
 	fade_rect.color = Color(0.0, 0.0, 0.0, 1.0)
@@ -2274,6 +2557,23 @@ func _input(event: InputEvent) -> void:
 		var focused := get_viewport().gui_get_focus_owner()
 		if focused != null:
 			focused.release_focus()
+	if net_panel != null and net_panel.visible:
+		if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
+			hide_net_panel()
+			get_viewport().set_input_as_handled()
+		return
+	if rift_map_panel != null and rift_map_panel.visible:
+		if event is InputEventKey and event.pressed and not event.echo:
+			if event.keycode == KEY_UP or event.keycode == KEY_LEFT:
+				_move_rift_selection(-1)
+				get_viewport().set_input_as_handled()
+			elif event.keycode == KEY_DOWN or event.keycode == KEY_RIGHT:
+				_move_rift_selection(1)
+				get_viewport().set_input_as_handled()
+			elif event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER:
+				_enter_selected_rift()
+				get_viewport().set_input_as_handled()
+		return
 	if title_panel != null and title_panel.visible and not settings_open:
 		if event is InputEventKey and event.pressed and not event.echo \
 				and (event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER or event.keycode == KEY_SPACE):

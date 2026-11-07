@@ -211,6 +211,9 @@ var world_seed := 0
 var my_seat := 0
 var online_peers := 1
 var net: Node
+var camera_pan := Vector3.ZERO
+var zoom_target := 1.0
+var pan_drag := false
 
 
 func _ready() -> void:
@@ -247,6 +250,9 @@ func _ready() -> void:
 	hud.duel_pressed.connect(_start_duel)
 	hud.duel_again_pressed.connect(_start_duel)
 	hud.home_pressed.connect(_return_home)
+	hud.net_action.connect(_on_net_action)
+	hud.rift_enter_requested.connect(_on_rift_enter)
+	hud.leave_run_pressed.connect(_return_home)
 	_setup_audio()
 	_apply_settings()
 	hud.show_loading()
@@ -532,6 +538,8 @@ func play_sfx(key: String, volume_db := 0.0, pitch_variation := 0.08) -> void:
 
 
 func _apply_settings() -> void:
+	zoom_target = clampf(float(GameSettings.get_value("camera_zoom")), 0.78, 1.4)
+	camera_zoom = zoom_target
 	var master := clampf(float(GameSettings.get_value("master")), 0.0, 1.0)
 	AudioServer.set_bus_mute(0, master <= 0.001)
 	AudioServer.set_bus_volume_db(0, linear_to_db(maxf(master, 0.0001)))
@@ -589,6 +597,7 @@ func _generate_floor() -> void:
 	player.global_position = _cell_to_world(start_cell) + Vector3(0.0, 0.15, 0.0)
 	player.velocity = Vector3.ZERO
 	player.stop()
+	camera_pan = Vector3.ZERO
 	camera_focus = player.global_position
 	camera.global_position = _camera_desired()
 	camera.look_at(camera_focus + Vector3(0.0, 1.0, 0.0), Vector3.UP)
@@ -2757,7 +2766,7 @@ func _on_ui_click() -> void:
 
 
 func begin_run() -> void:
-	if started:
+	if started or player == null:
 		return
 	get_tree().paused = false
 	duel_mode = false
@@ -2786,6 +2795,72 @@ func _continue_from_title() -> void:
 		return
 	if not continue_run():
 		begin_run()
+
+
+## The one multiplayer surface: the home screen and the pause menu both call
+## this panel and these handlers, so there is no second, disconnected system.
+func _on_net_action(action: String, mode: String) -> void:
+	match action:
+		"open":
+			hud.show_net_panel(mode)
+			_refresh_net_panel()
+		"find":
+			_net_find_match()
+		"duel":
+			_start_duel()
+
+
+func _refresh_net_panel() -> void:
+	if online_mode:
+		hud.set_net_status(
+			"CONNECTED  -  SEAT %d  -  %d IN RIFT" % [my_seat + 1, online_peers],
+			"You are in a Summer World. Monsters are still simulated on each client in this build; positions, seats and the world seed are authoritative.",
+			true)
+	else:
+		hud.set_net_status(
+			"NOT CONNECTED",
+			"No Summer World is joined. Start Debug > Local Multiplayer > 2 Players, or a hosted build, then press FIND MATCH.",
+			false)
+
+
+func _net_find_match() -> void:
+	if online_mode:
+		hud.set_net_status("ALREADY IN A PARTY  -  SEAT %d" % (my_seat + 1), "Leave the rift to search for another World.", true)
+		return
+	if net == null or not net.has_method("retry_join"):
+		hud.set_net_status("NO MATCHMAKING", "The network client is not ready.", false)
+		return
+	hud.set_net_status("SEARCHING...", "Asking Summer matchmaking for a rift World.", true)
+	var result: Dictionary = await net.retry_join()
+	if bool(result.get("ok", false)):
+		hud.hide_net_panel()
+		hud.toast("WORLD JOINED  -  SEAT %d" % (my_seat + 1), Color(0.62, 0.95, 0.72), 2.6)
+		return
+	hud.set_net_status("NO WORLD FOUND", String(result.get("error", "Matchmaking is unavailable in this run.")), false)
+
+
+## Entering a selected rift from the map. Online runs stay in their party's
+## World, so entry is local-only until the authority owns floor transitions.
+func _on_rift_enter(target_layer: int) -> void:
+	if online_mode:
+		hud.toast("RIFT ENTRY IS LOCAL FOR NOW", Color(1.0, 0.55, 0.3), 2.6)
+		return
+	var target := clampi(target_layer, 1, maxi(1, best_layer) + 1)
+	get_tree().paused = false
+	started = true
+	run_active = true
+	layer = target
+	kills = 0
+	hud.hide_title()
+	hud.show_body()
+	hud.hide_death()
+	hud.hide_boons()
+	hud.close_relic_window()
+	player.revive()
+	player.ensure_level(layer)
+	_generate_floor()
+	hud.flash_transition()
+	hud.toast("RIFT LAYER %d" % layer, Color(1.0, 0.72, 0.3), 2.2)
 
 
 func _open_rift_map() -> void:
@@ -2829,6 +2904,8 @@ func _restart_run() -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if player == null or hud == null:
+		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		var key_event := event as InputEventKey
 		if not started:
@@ -2860,16 +2937,31 @@ func _input(event: InputEvent) -> void:
 				_open_shop()
 		elif key == KEY_R and not player.alive:
 			_restart_run()
+		elif key == KEY_F:
+			camera_pan = Vector3.ZERO
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if player == null or hud == null:
+		return
 	if event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
-			camera_zoom = maxf(0.78, camera_zoom - 0.07)
+			zoom_target = clampf(zoom_target - 0.06 * float(GameSettings.get_value("zoom_step")), 0.78, 1.4)
 			return
 		if event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			camera_zoom = minf(1.4, camera_zoom + 0.07)
+			zoom_target = clampf(zoom_target + 0.06 * float(GameSettings.get_value("zoom_step")), 0.78, 1.4)
 			return
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_MIDDLE:
+		pan_drag = event.pressed
+		return
+	if event is InputEventMouseMotion and pan_drag:
+		var cam_basis := camera.global_transform.basis
+		var right := Vector3(cam_basis.x.x, 0.0, cam_basis.x.z).normalized()
+		var back := Vector3(cam_basis.z.x, 0.0, cam_basis.z.z).normalized()
+		var pan_speed := 0.018 * float(GameSettings.get_value("cam_pan")) * camera_zoom
+		camera_pan += (-right * event.relative.x - back * event.relative.y) * pan_speed
+		camera_pan = camera_pan.limit_length(14.0)
+		return
 	if event is InputEventMouseButton and event.pressed:
 		if not started:
 			begin_run()
@@ -3318,7 +3410,11 @@ func _pull_loot(delta: float) -> void:
 func _update_camera(delta: float) -> void:
 	var aim := player.aim_point
 	var look := player.global_position + (aim - player.global_position).limit_length(4.0) * 0.10
-	camera_focus = camera_focus.lerp(look, clampf(delta * 3.2, 0.0, 1.0))
+	_edge_pan(delta)
+	look += camera_pan
+	var follow := clampf(float(GameSettings.get_value("cam_follow")), 1.0, 12.0)
+	camera_focus = camera_focus.lerp(look, clampf(delta * follow, 0.0, 1.0))
+	camera_zoom = lerpf(camera_zoom, zoom_target, clampf(delta * 7.0, 0.0, 1.0))
 	var desired := _camera_desired()
 	camera.global_position = camera.global_position.lerp(desired, clampf(delta * 4.6, 0.0, 1.0))
 	camera_shake = maxf(0.0, camera_shake - delta * 1.8)
@@ -3327,11 +3423,39 @@ func _update_camera(delta: float) -> void:
 
 
 func _camera_desired() -> Vector3:
-	var desired := camera_focus + CAMERA_OFFSET * camera_zoom * float(GameSettings.get_value("camera_zoom"))
+	var desired := camera_focus + CAMERA_OFFSET * camera_zoom
 	var limit := float(GRID) * CELL * 0.5 - 7.0
 	desired.x = clampf(desired.x, -limit, limit)
 	desired.z = clampf(desired.z, -limit, limit)
 	return desired
+
+
+## Mouse-edge panning, off by default and never while dragging the camera.
+func _edge_pan(delta: float) -> void:
+	if not bool(GameSettings.get_value("edge_pan")) or pan_drag:
+		return
+	var size := get_viewport().get_visible_rect().size
+	if size.x < 10.0 or size.y < 10.0:
+		return
+	var mouse := get_viewport().get_mouse_position()
+	var margin := 18.0
+	var push := Vector2.ZERO
+	if mouse.x < margin:
+		push.x = -1.0
+	elif mouse.x > size.x - margin:
+		push.x = 1.0
+	if mouse.y < margin:
+		push.y = -1.0
+	elif mouse.y > size.y - margin:
+		push.y = 1.0
+	if push == Vector2.ZERO:
+		return
+	var cam_basis := camera.global_transform.basis
+	var right := Vector3(cam_basis.x.x, 0.0, cam_basis.x.z).normalized()
+	var back := Vector3(cam_basis.z.x, 0.0, cam_basis.z.z).normalized()
+	var speed := 7.0 * float(GameSettings.get_value("cam_pan")) * delta * camera_zoom
+	camera_pan += (right * push.x + back * -push.y) * speed
+	camera_pan = camera_pan.limit_length(14.0)
 
 
 func _spawn_hazard() -> void:
