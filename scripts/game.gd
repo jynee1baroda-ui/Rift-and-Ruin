@@ -109,6 +109,31 @@ const LAYER_LORE := {
 	"THE LAST FURNACE": "This is where the rift was made. It is still running. It has never been turned off.",
 }
 
+## The spine that runs between layers: the Warden speaks when a floor is
+## cleared, the Broker speaks when his shop opens. Keyed by layer.
+const STORY := {
+	1: {"warden": "You came down with a heartbeat. Nobody has done that since the First Warden.",
+		"broker": "Everything in this rift was somebody's once. You want it, you buy it."},
+	2: {"warden": "The warrens breathe because something beneath them is still asleep. Do not wake it politely.",
+		"broker": "The Prophet used to buy candles from me. He stopped when he ran out of face."},
+	3: {"warden": "The choir is not mourning. Listen again: they are counting.",
+		"broker": "Cathedral glass sells well. It sings when it breaks."},
+	4: {"warden": "Cinder does not burn out. It remembers, and then it burns again.",
+		"broker": "I do not set the prices. The rift does. I only hold the coin."},
+	5: {"warden": "You are standing in the only quiet place left. Do not mistake it for mercy.",
+		"broker": "A blade, a boon, a bit of breath. Pick two. You cannot carry all three."},
+	6: {"warden": "Each spire is a pyre. Someone is still climbing the last one.",
+		"broker": "Ember glass. Sold to a woman who wanted to look like fire. She does now."},
+	7: {"warden": "The Foundry was built to make something beautiful. It has not stopped working.",
+		"broker": "The glass remembers the city. Sometimes it sells that memory back."},
+	8: {"warden": "The trees grow fruit so the dead have something to trade. Do not eat it.",
+		"broker": "Orchard fruit. I do not ask who picked it."},
+	9: {"warden": "The Maw does not want you. It simply does not stop opening.",
+		"broker": "Ninth one to reach this depth with a purse. The other eight bought."},
+	10: {"warden": "This is where the rift was made. It was never given an off switch.",
+		"broker": "This is the last layer I know. Below it, I would be a customer too."},
+}
+
 @onready var camera: Camera3D = $Camera3D
 @onready var sun: DirectionalLight3D = $Sun
 @onready var world_env: WorldEnvironment = $WorldEnvironment
@@ -735,6 +760,12 @@ func _roll_modifiers() -> void:
 		var pick: Dictionary = pool[rng.randi() % pool.size()]
 		pool.erase(pick)
 		active_mods.append(pick)
+
+
+## One line of the story spine for this layer, from the Warden or the Broker.
+func _story_line(who: String, layer_num: int) -> String:
+	var entry: Dictionary = STORY.get(layer_num, {})
+	return String(entry.get(who, ""))
 
 
 func has_mod(key: String) -> bool:
@@ -2429,7 +2460,7 @@ func _offer_boons() -> void:
 		var index := rng.randi() % pool.size()
 		picked.append(pool[index])
 		pool.remove_at(index)
-	hud.show_boons(picked)
+	hud.show_boons(picked, _story_line("warden", layer))
 
 
 func _on_boon_chosen(key: String) -> void:
@@ -2588,7 +2619,7 @@ func _open_shop() -> void:
 		return
 	shop_open = true
 	hud.hide_prompt()
-	hud.show_shop(shop_offers, coins, layer)
+	hud.show_shop(shop_offers, coins, layer, _story_line("broker", layer))
 
 
 func _close_shop() -> void:
@@ -2839,8 +2870,6 @@ func _unhandled_input(event: InputEvent) -> void:
 		if event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			camera_zoom = minf(1.4, camera_zoom + 0.07)
 			return
-	if event is InputEventMouseButton and not event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		mouse_held = false
 	if event is InputEventMouseButton and event.pressed:
 		if not started:
 			begin_run()
@@ -2849,15 +2878,14 @@ func _unhandled_input(event: InputEvent) -> void:
 		if not run_active or not player.alive:
 			return
 		if event.button_index == MOUSE_BUTTON_LEFT:
-			mouse_held = true
-			hold_timer = 0.12
-			_left_click(event.position)
+			_primary_attack(event.position)
 		elif event.button_index == MOUSE_BUTTON_RIGHT:
-			player.set_aim(_aim_point(event.position))
-			_cast_ability(1)
+			_secondary_attack(event.position)
 
 
-func _left_click(screen_pos: Vector2) -> void:
+## Left mouse is the primary attack. Loot and the Broker still answer a click,
+## because in an ARPG the cursor is also how you talk to the world.
+func _primary_attack(screen_pos: Vector2) -> void:
 	var drop := _loot_under(screen_pos)
 	if drop != null:
 		_on_loot_picked(drop)
@@ -2867,55 +2895,21 @@ func _left_click(screen_pos: Vector2) -> void:
 		_open_shop()
 		return
 	var point := _aim_point(screen_pos)
-	if Input.is_key_pressed(KEY_SHIFT):
-		attack_target = null
-		player.stop()
-		_clear_move_marker()
-		player.set_aim(point)
-		_cast_ability(1)
-		return
-	var enemy := _enemy_under(screen_pos)
-	if enemy != null and not enemy.dead:
-		_engage(enemy)
-		return
-	var cell := _world_to_cell(point)
-	if _is_inside(cell) and not walkable.get(cell, false):
-		point = _cell_to_world(_nearest_walkable(cell))
 	attack_target = null
-	last_move_target = point
-	player.move_along(find_path(player.global_position, point))
-	_set_move_marker(point)
-	FX.ring(fx_root, point, Color(1.0, 0.55, 0.2, 0.5), 0.9, 0.35, 0.05)
-
-
-func _engage(enemy: Enemy) -> void:
-	attack_target = enemy
-	last_move_target = enemy.global_position
-	engage_timer = 0.0
-	_clear_move_marker()
-	player.set_aim(enemy.global_position)
-	_combat_step(0.0, true)
-
-
-func _combat_step(delta: float, immediate := false) -> void:
-	if attack_target == null:
-		return
-	if not is_instance_valid(attack_target) or attack_target.dead:
-		attack_target = null
-		return
-	var to_target := attack_target.global_position - player.global_position
-	to_target.y = 0.0
-	var dist := to_target.length()
-	player.set_aim(attack_target.global_position)
-	if dist > ENGAGE_RANGE:
-		engage_timer -= delta
-		if engage_timer <= 0.0 or immediate:
-			engage_timer = 0.3
-			player.move_along(find_path(player.global_position, attack_target.global_position))
-		return
 	player.stop()
-	if player.ability_ready(1):
-		_cast_ability(1)
+	_clear_move_marker()
+	player.set_aim(point)
+	_cast_ability(1)
+
+
+## Right mouse is the secondary attack: the close-range blood nova.
+func _secondary_attack(screen_pos: Vector2) -> void:
+	var point := _aim_point(screen_pos)
+	attack_target = null
+	player.stop()
+	_clear_move_marker()
+	player.set_aim(point)
+	_cast_ability(0)
 
 
 func _set_move_marker(point: Vector3) -> void:
@@ -3256,9 +3250,6 @@ func _process(delta: float) -> void:
 		_clear_move_marker()
 		player.set_move_direct(Vector3.ZERO)
 		return
-	_combat_step(delta)
-	if attack_target == null:
-		_hold_to_move(delta)
 	_pull_loot(delta)
 	hazard_timer -= delta
 	if hazard_timer <= 0.0:
@@ -3279,29 +3270,6 @@ func _process(delta: float) -> void:
 				lava_warn_timer = 2.4
 				hud.toast("MOLTEN GROUND  ·  MOVE", Color(1.0, 0.45, 0.2), 1.2)
 	lava_warn_timer = maxf(0.0, lava_warn_timer - 0.5)
-
-
-func _hold_to_move(delta: float) -> void:
-	if not mouse_held:
-		return
-	if not bool(GameSettings.get_value("hold_move")):
-		return
-	if Input.is_key_pressed(KEY_SHIFT):
-		return
-	hold_timer -= delta
-	if hold_timer > 0.0:
-		return
-	hold_timer = 0.1
-	var mouse := get_viewport().get_mouse_position()
-	var point := _aim_point(mouse)
-	var cell := _world_to_cell(point)
-	if _is_inside(cell) and not walkable.get(cell, false):
-		point = _cell_to_world(_nearest_walkable(cell))
-	if point.distance_to(last_move_target) < 1.1:
-		return
-	last_move_target = point
-	player.move_along(find_path(player.global_position, point))
-	_set_move_marker(point)
 
 
 func _update_move_marker() -> void:

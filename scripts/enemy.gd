@@ -46,6 +46,7 @@ var special_timer := 7.0
 var special_windup := 0.0
 var special_pending := false
 var enraged := false
+var stagger := 0.0
 
 
 func _ready() -> void:
@@ -185,6 +186,14 @@ func _physics_process(delta: float) -> void:
 	if frozen:
 		velocity = Vector3.ZERO
 		play_anim(["idle", "walk"], 0.8)
+		return
+	if stagger > 0.0:
+		stagger = maxf(0.0, stagger - delta)
+		velocity.x = move_toward(velocity.x, 0.0, 70.0 * delta)
+		velocity.z = move_toward(velocity.z, 0.0, 70.0 * delta)
+		velocity.y -= GRAVITY * delta
+		move_and_slide()
+		play_anim(["hit", "stagger", "idle"], 1.2)
 		return
 	if target == null or not is_instance_valid(target) or not target.alive:
 		velocity.x = move_toward(velocity.x, 0.0, 30.0 * delta)
@@ -326,6 +335,17 @@ func take_damage(amount: float, crit := false) -> void:
 	if dead:
 		return
 	health -= amount
+	# Ordinary foes flinch and lose their windup on a solid hit; bosses and
+	# elites keep their footing so their mechanics stay readable.
+	if not boss and amount >= max_health * 0.06:
+		stagger = 0.17 if not elite else 0.1
+		if windup > 0.0:
+			windup = 0.0
+			_release_token()
+		var push := global_position - (target.global_position if target != null and is_instance_valid(target) else global_position)
+		push.y = 0.0
+		if push.length() > 0.01:
+			velocity += push.normalized() * 2.2
 	FX.flash_mesh(model_root, Color(1.0, 0.62, 0.42), 0.12)
 	FX.burst(get_parent(), global_position + Vector3(0.0, 1.05, 0.0), Color(1.0, 0.42, 0.24, 0.9), 7, 3.4, 0.2, 0.26)
 	hp_root.visible = bool(GameSettings.get_value("enemy_health"))

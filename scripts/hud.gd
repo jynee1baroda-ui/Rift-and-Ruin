@@ -130,6 +130,8 @@ var duel_shown_ms := 0
 var whisper_label: Label
 var online_chip: PanelContainer
 var online_label: Label
+var boon_sub: Label
+var shop_lore: Label
 
 const HALL_LORE := [
 	"THE BASTION — raised by deserters who refused to kneel to the rift's first warden. Its braziers have not gone out in a hundred years.",
@@ -863,7 +865,7 @@ func _build_top() -> void:
 	status_label = _label("", 20, GOLD)
 	status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(status_label)
-	controls_hint = _label("WASD MOVE  ·  LMB ATTACK  ·  RMB LANCE  ·  1 2 3 CAST  ·  SPACE RIFTSTEP  ·  TAB RELICS", 12, MUTED)
+	controls_hint = _label("WASD MOVE  ·  LMB LANCE  ·  RMB NOVA  ·  1 2 3 CAST  ·  SPACE RIFTSTEP  ·  TAB RELICS", 12, MUTED)
 	controls_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(controls_hint)
 
@@ -1038,6 +1040,10 @@ func _build_abilities() -> void:
 		var key_label := _label(String(ability.key), 13, AMBER)
 		key_label.position = Vector2(8, 3)
 		panel.add_child(key_label)
+		if ability_index < 2:
+			var mouse_hint := _label("RMB" if ability_index == 0 else "LMB", 10, Color(0.74, 0.6, 0.48))
+			mouse_hint.position = Vector2(112, 52)
+			panel.add_child(mouse_hint)
 		var icon_path := String(icon_paths[ability_index])
 		if ResourceLoader.exists(icon_path):
 			var icon_box := Panel.new()
@@ -1489,7 +1495,7 @@ func _build_title() -> void:
 	title_lore_label = _label("", 11, BONE, false)
 	title_lore_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lore_box.add_child(title_lore_label)
-	var hint := _label("CLICK TO MOVE  ·  CLICK A FOE TO ATTACK  ·  SHIFT+CLICK STAND AND CAST  ·  TAB RELICS  ·  M RIFT MAP  ·  ESC PAUSE", 10, Color(0.5, 0.45, 0.46))
+	var hint := _label("WASD MOVE  ·  LMB LANCE  ·  RMB NOVA  ·  1 2 3 CAST  ·  SPACE RIFTSTEP  ·  TAB RELICS  ·  M RIFT MAP", 10, Color(0.5, 0.45, 0.46))
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(hint)
 	var footer := _label("A DARK FANTASY ACTION RPG  ·  THE RIFT NEVER ENDS", 9, Color(0.42, 0.37, 0.4))
@@ -1802,9 +1808,10 @@ func _build_boon_panel() -> void:
 	var title := _label("THE RIFT YIELDS", 34, AMBER)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(title)
-	var sub := _label("Claim one boon. It holds until you fall.", 14, MUTED)
-	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	box.add_child(sub)
+	boon_sub = _label("Claim one boon. It holds until you fall.", 14, MUTED)
+	boon_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	boon_sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(boon_sub)
 	boon_cards = HBoxContainer.new()
 	boon_cards.alignment = BoxContainer.ALIGNMENT_CENTER
 	boon_cards.add_theme_constant_override("separation", 18)
@@ -1829,9 +1836,11 @@ func _boon_card(entry: Dictionary) -> Button:
 	return btn
 
 
-func show_boons(list: Array) -> void:
+func show_boons(list: Array, warden_line := "") -> void:
 	if boon_panel == null:
 		return
+	if boon_sub != null:
+		boon_sub.text = warden_line if not warden_line.is_empty() else "Claim one boon. It holds until you fall."
 	for child in boon_cards.get_children():
 		child.queue_free()
 	boon_keys.clear()
@@ -1942,6 +1951,9 @@ func _build_shop() -> void:
 	close.add_theme_stylebox_override("hover", _stylebox(Color(0.13, 0.06, 0.05, 0.95), Color(0.9, 0.55, 0.2, 1.0), 1))
 	close.pressed.connect(close_shop)
 	header.add_child(close)
+	shop_lore = _label("", 14, Color(0.8, 0.68, 0.56), false)
+	shop_lore.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(shop_lore)
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -1968,7 +1980,7 @@ func _build_shop() -> void:
 	footer.add_child(leave)
 
 
-func show_shop(offers: Array, coin_count: int, layer_num: int) -> void:
+func show_shop(offers: Array, coin_count: int, layer_num: int, broker_line := "") -> void:
 	if shop_window == null:
 		return
 	shop_open = true
@@ -1977,6 +1989,8 @@ func show_shop(offers: Array, coin_count: int, layer_num: int) -> void:
 	if boons_open:
 		hide_boons()
 	shop_title.text = "THE ASHEN BROKER  -  LAYER %d" % layer_num
+	if shop_lore != null:
+		shop_lore.text = broker_line
 	shop_window.visible = true
 	shop_window.modulate.a = 0.0
 	get_tree().paused = true

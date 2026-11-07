@@ -21,9 +21,13 @@ const FAMILY_STACK_LIMIT := 2
 
 const ABILITIES := [
 	{"name": "Blood Nova", "cost": 6.0, "cooldown": 3.2, "key": "1", "glyph": "NOVA", "desc": "Detonate your life force around you."},
-	{"name": "Crimson Lance", "cost": 3.0, "cooldown": 0.85, "key": "2", "glyph": "LANCE", "desc": "Hurl a piercing spear of blood."},
+	{"name": "Crimson Lance", "cost": 3.0, "cooldown": 0.6, "key": "2", "glyph": "LANCE", "desc": "Hurl a piercing spear of blood."},
 	{"name": "Sanguine Siphon", "cost": 0.0, "cooldown": 7.5, "key": "3", "glyph": "SIPHON", "desc": "Drain nearby foes and drink their life."},
 ]
+
+## How long each cast locks the cast pose. The lance is the primary attack, so
+## it recovers almost immediately; the nova needs a beat, the siphon more.
+const CAST_TIME := [0.24, 0.12, 0.3]
 
 var max_health := BASE_MAX_HEALTH
 var health := BASE_MAX_HEALTH
@@ -235,6 +239,11 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 	_fix_height()
 	moving = walking
+	if not walking and cast_timer <= 0.0:
+		var aim_dir := aim_point - global_position
+		aim_dir.y = 0.0
+		if aim_dir.length_squared() > 1.0:
+			_face_direction(aim_dir, delta * 0.6)
 	_update_anim(walking)
 	if ground_ring != null:
 		ground_ring.rotation.y += delta * 0.6
@@ -332,7 +341,7 @@ func try_ability(index: int) -> bool:
 		health = maxf(1.0, health - cost)
 		life_spent.emit(cost)
 		health_changed.emit(health, max_health)
-	cast_timer = 0.42
+	cast_timer = float(CAST_TIME[index]) if index < CAST_TIME.size() else 0.25
 	ability_used.emit(index, aim)
 	return true
 
@@ -374,7 +383,8 @@ func take_damage(amount: float) -> void:
 		return
 	health = maxf(0.0, health - amount)
 	combat_timer = 3.5
-	invulnerable = 0.45
+	# A short grace window only: long i-frames made swarms harmless.
+	invulnerable = 0.12
 	damaged.emit(amount)
 	health_changed.emit(health, max_health)
 	if health <= 0.0:

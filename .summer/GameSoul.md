@@ -16,12 +16,15 @@ An isometric, click-to-move action RPG in a volcanic wasteland split by lava rif
 ## Feel
 - Every spell costs health, but the price is sustainable: Nova 6, Lance 3, Siphon free.
 - Vitae is 220 base and regenerates 2.4/s out of combat (ramping in over a second) and 0.5/s while fighting. Kills build Bloodrush.
-- Movement is WASD first (camera relative); clicking the ground still walks there, clicking a foe lances it, mouse wheel zooms.
+- Movement is WASD only and camera relative. Left mouse is the primary attack (Crimson Lance), right mouse is the secondary (Crimson Nova); 1 2 3 cast the same abilities, Space is Riftstep, mouse wheel zooms. Loot and the Broker still take a left click.
+- Cast locks are per ability (lance 0.12 s, nova 0.24 s, siphon 0.30 s) so the primary attack recovers immediately. The sorceress turns toward the cursor when standing still.
+- Taking a hit grants only a 0.12 s grace window; ordinary foes stagger for 0.17 s on a solid hit and lose their windup, elites 0.1 s, bosses never.
 - Lava plates burn; eruptions telegraph and explode. Standing still is punished.
 - The camera leans lower and closer than before, drifts toward your aim, and eases between positions.
 - Packs aggro at 13 m, so fights are deliberate and readable instead of a screen-wide swarm.
 
 ## Home Hub and the Mirror Ring
+- The story spine lives in `STORY` in game.gd: the Warden speaks a line in the boon panel when a floor is cleared, the Ashen Broker speaks a line at the top of his shop, and both are written per layer so each depth advances the reason the rift exists and why the Broker keeps selling.
 - Online play is built on Summer's dedicated-server model: the player runs `client/main.tscn`, the match runs headless from `authority/main.tscn`, and both load one network contract (`network/composition.tres`). The project declares `summer.build.json`, `world.json`, `runtime-manifest.json` and `source-domains.json`; the queue is `rift` for 1-4 players.
 - The authority picks the world seed and publishes it on the `rift.world` State stream; every client seeds its floor generator with `seed + layer * 9176` before building, so two players always stand in the same randomised rift.
 - Each player owns one pose group (`rift.motion`, key `p<seat>`) carrying entity, position and yaw. The authority checks every pose with an arena bound and a distance allowance refilled at 22 m/s, and refuses teleports; a refused pose snaps the owner back. Other players are observer projections that glide 100 ms behind, so remote movement stays smooth.
