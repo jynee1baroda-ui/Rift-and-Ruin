@@ -11,10 +11,13 @@ signal life_spent(amount: float)
 const BASE_MAX_HEALTH := 180.0
 const BASE_SPEED := 7.2
 const GRAVITY := 28.0
+const COMBAT_REGEN := 0.4
+const BLOODRUSH_TIME := 4.5
+const BLOODRUSH_MAX := 10
 
 const ABILITIES := [
-	{"name": "Blood Nova", "cost": 9.0, "cooldown": 3.2, "key": "1", "glyph": "NOVA", "desc": "Detonate your life force around you."},
-	{"name": "Crimson Lance", "cost": 5.0, "cooldown": 0.85, "key": "2", "glyph": "LANCE", "desc": "Hurl a piercing spear of blood."},
+	{"name": "Blood Nova", "cost": 6.0, "cooldown": 3.2, "key": "1", "glyph": "NOVA", "desc": "Detonate your life force around you."},
+	{"name": "Crimson Lance", "cost": 3.0, "cooldown": 0.85, "key": "2", "glyph": "LANCE", "desc": "Hurl a piercing spear of blood."},
 	{"name": "Sanguine Siphon", "cost": 0.0, "cooldown": 7.5, "key": "3", "glyph": "SIPHON", "desc": "Drain nearby foes and drink their life."},
 ]
 
@@ -24,7 +27,7 @@ var move_speed := BASE_SPEED
 var crit_chance := 0.06
 var crit_damage := 1.75
 var power := 1.0
-var regen := 0.55
+var regen := 2.1
 var life_cost_mult := 1.0
 var relic: Dictionary = {}
 
@@ -37,10 +40,13 @@ var dash_time := 0.0
 var dash_direction := Vector3.ZERO
 var invulnerable := 0.0
 var combat_timer := 0.0
+var calm_time := 0.0
 var cast_timer := 0.0
 var facing := 0.0
 var moving := false
 var in_lava := false
+var bloodrush := 0
+var bloodrush_timer := 0.0
 
 var model_root: Node3D
 var anim: AnimationPlayer
@@ -171,8 +177,17 @@ func _physics_process(delta: float) -> void:
 	invulnerable = maxf(0.0, invulnerable - delta)
 	cast_timer = maxf(0.0, cast_timer - delta)
 	combat_timer = maxf(0.0, combat_timer - delta)
-	if regen > 0.0 and combat_timer <= 0.0 and health < max_health:
-		heal(regen * delta)
+	if combat_timer <= 0.0:
+		calm_time = minf(calm_time + delta, 3.0)
+	else:
+		calm_time = 0.0
+	if bloodrush_timer > 0.0:
+		bloodrush_timer = maxf(0.0, bloodrush_timer - delta)
+		if bloodrush_timer <= 0.0:
+			bloodrush = 0
+	var rate := regen_now()
+	if rate > 0.0 and health < max_health:
+		heal(rate * delta)
 
 	if dash_time > 0.0:
 		dash_time -= delta
@@ -300,6 +315,22 @@ func try_ability(index: int) -> bool:
 	return true
 
 
+func add_bloodrush() -> void:
+	bloodrush = mini(bloodrush + 1, BLOODRUSH_MAX)
+	bloodrush_timer = BLOODRUSH_TIME
+
+
+func in_combat() -> bool:
+	return combat_timer > 0.0
+
+
+func regen_now() -> float:
+	var rate := COMBAT_REGEN
+	if combat_timer <= 0.0:
+		rate = regen * clampf(calm_time / 1.2, 0.2, 1.0)
+	return rate + 0.07 * float(bloodrush)
+
+
 func try_dash() -> bool:
 	if not alive or dash_cooldown > 0.0:
 		return false
@@ -342,6 +373,8 @@ func die() -> void:
 	if not alive:
 		return
 	alive = false
+	bloodrush = 0
+	bloodrush_timer = 0.0
 	health = 0.0
 	path.clear()
 	health_changed.emit(0.0, max_health)
@@ -364,6 +397,9 @@ func revive() -> void:
 	dash_cooldown = 0.0
 	dash_time = 0.0
 	cast_timer = 0.0
+	bloodrush = 0
+	bloodrush_timer = 0.0
+	calm_time = 0.0
 	if model_root != null:
 		model_root.rotation = Vector3.ZERO
 		model_root.position = Vector3.ZERO
@@ -385,7 +421,7 @@ func _recalculate() -> void:
 	move_speed = BASE_SPEED
 	crit_chance = 0.06
 	crit_damage = 1.75
-	regen = 0.55
+	regen = 2.1
 	life_cost_mult = 1.0
 	power = 1.0
 	if not relic.is_empty():
@@ -402,5 +438,5 @@ func _recalculate() -> void:
 
 func roll_damage(base: float) -> Array:
 	var crit := randf() < crit_chance
-	var amount := base * power * (crit_damage if crit else 1.0)
+	var amount := base * power * (1.0 + 0.035 * float(bloodrush)) * (crit_damage if crit else 1.0)
 	return [amount, crit]

@@ -3,6 +3,7 @@
 const CELL := 4.0
 const GRID := 17
 const CAMERA_OFFSET := Vector3(0.0, 16.2, 10.8)
+const RECORD_PATH := "user://rift_record.cfg"
 const HERO_DIR := "res://art/generated/blood_sorceress"
 const ROCK_PATH := "res://art/generated/basalt_rocks/3d_61c4c6fd5084468abe17b1bb_1794029018098.glb"
 const GATE_PATH := "res://art/generated/rift_gate/3d_de536d2e46e04f69aab95a43_1794029026993.glb"
@@ -50,12 +51,17 @@ var lava_warn_timer := 0.0
 var camera_shake := 0.0
 var rng := RandomNumberGenerator.new()
 var model_cache: Dictionary = {}
+var best_layer := 1
 var sfx: Dictionary = {}
 var sfx_pool: Array[AudioStreamPlayer] = []
 var sfx_index := 0
 var music_player: AudioStreamPlayer
 var ambient_player: AudioStreamPlayer
 var ember_emitter: GPUParticles3D
+var mouse_held := false
+var hold_timer := 0.0
+var last_move_target := Vector3(9999.0, 0.0, 9999.0)
+var map_timer := 0.0
 
 
 func _ready() -> void:
@@ -75,13 +81,17 @@ func _ready() -> void:
 	hud = GameHUD.new()
 	add_child(hud)
 	hud.equip_requested.connect(_on_equip_requested)
+	hud.ui_click.connect(_on_ui_click)
+	hud.ability_pressed.connect(_on_hud_ability_pressed)
+	hud.restart_pressed.connect(_restart_run)
 	_setup_audio()
 	_create_player()
 	_generate_floor()
 	camera.global_position = player.global_position + CAMERA_OFFSET
 	camera.look_at(player.global_position + Vector3(0.0, 1.0, 0.0), Vector3.UP)
-	hud.set_layer_info(layer, enemies.size(), total_enemies)
+	hud.set_layer_info(layer, enemies.size(), total_enemies, kills)
 	hud.set_relic({})
+	_load_record()
 
 
 func _create_player() -> void:
@@ -95,6 +105,22 @@ func _create_player() -> void:
 	player.health_changed.connect(_on_health_changed)
 	player.ability_used.connect(_on_ability_used)
 	player.life_spent.connect(_on_life_spent)
+
+
+func _load_record() -> void:
+	var cfg := ConfigFile.new()
+	if cfg.load(RECORD_PATH) == OK:
+		best_layer = maxi(1, int(cfg.get_value("record", "best_layer", 1)))
+	hud.set_record(best_layer)
+
+
+func _save_record() -> void:
+	if layer > best_layer:
+		best_layer = layer
+		var cfg := ConfigFile.new()
+		cfg.set_value("record", "best_layer", best_layer)
+		cfg.save(RECORD_PATH)
+	hud.set_record(best_layer)
 
 
 func _find_hero_scene() -> PackedScene:
@@ -193,12 +219,16 @@ func _generate_floor() -> void:
 	player.global_position = _cell_to_world(start_cell) + Vector3(0.0, 0.15, 0.0)
 	player.velocity = Vector3.ZERO
 	player.stop()
+	camera.global_position = _camera_desired()
+	camera.look_at(player.global_position + Vector3(0.0, 1.0, 0.0), Vector3.UP)
 	_spawn_packs()
 	_spawn_embers()
-	hud.set_layer_info(layer, enemies.size(), total_enemies)
+	hud.set_map_cells(walkable, bridge_cells, GRID)
+	hud.set_layer_info(layer, enemies.size(), total_enemies, kills)
 	hud.set_status("PACKS AWAKE")
 	hud.set_health(player.health, player.max_health)
 	hud.set_relic(player.relic)
+	map_timer = 0.0
 
 
 func _clear_floor() -> void:
@@ -546,7 +576,7 @@ func _build_ground() -> void:
 	var lava_inst := MeshInstance3D.new()
 	lava_inst.name = "Lava"
 	lava_inst.mesh = lava_mesh
-	lava_inst.material_override = _lava_material(0.34, 0.62)
+	lava_inst.material_override = _lava_material(0.42, 0.58)
 	lava_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	floor_root.add_child(lava_inst)
 	var sea := MeshInstance3D.new()
@@ -554,7 +584,7 @@ func _build_ground() -> void:
 	plane.size = Vector2(420, 420)
 	sea.mesh = plane
 	sea.position.y = -2.6
-	sea.material_override = _lava_material(0.3, 0.4)
+	sea.material_override = _lava_material(0.24, 0.34)
 	sea.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	floor_root.add_child(sea)
 	var body := StaticBody3D.new()
@@ -594,6 +624,9 @@ func _add_quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3, 
 func _stone_material() -> ShaderMaterial:
 	var mat := ShaderMaterial.new()
 	mat.shader = load("res://shaders/basalt.gdshader")
+	if ResourceLoader.exists(BASALT_TEX):
+		mat.set_shader_parameter("basalt_tex", load(BASALT_TEX))
+	mat.set_shader_parameter("tex_mix", 0.42)
 	mat.set_shader_parameter("seed", rng.randf() * 40.0)
 	mat.set_shader_parameter("plate_scale", 0.13)
 	mat.set_shader_parameter("glow_strength", 1.4)
@@ -603,7 +636,7 @@ func _stone_material() -> ShaderMaterial:
 func _lava_material(scale_value: float, glow: float) -> ShaderMaterial:
 	var mat := ShaderMaterial.new()
 	mat.shader = load("res://shaders/lava.gdshader")
-	mat.set_shader_parameter("pattern_scale", scale_value)
+	mat.set_shader_parameter("plate_scale", scale_value)
 	mat.set_shader_parameter("glow_strength", glow)
 	mat.set_shader_parameter("flow_speed", 0.08)
 	return mat
@@ -750,8 +783,8 @@ func _scatter_stone_props(rock_scene: PackedScene, pillar_scene: PackedScene, po
 
 func _add_fire(at: Vector3) -> void:
 	var particles := GPUParticles3D.new()
-	particles.amount = 26
-	particles.lifetime = 0.8
+	particles.amount = 34
+	particles.lifetime = 0.62
 	particles.preprocess = 0.6
 	particles.position = at
 	var proc := ParticleProcessMaterial.new()
@@ -759,11 +792,11 @@ func _add_fire(at: Vector3) -> void:
 	proc.emission_sphere_radius = 0.12
 	proc.direction = Vector3.UP
 	proc.spread = 12.0
-	proc.initial_velocity_min = 0.7
-	proc.initial_velocity_max = 1.6
+	proc.initial_velocity_min = 0.9
+	proc.initial_velocity_max = 2.1
 	proc.gravity = Vector3(0.0, 1.2, 0.0)
-	proc.scale_min = 0.25
-	proc.scale_max = 0.55
+	proc.scale_min = 0.1
+	proc.scale_max = 0.26
 	proc.color = Color(1.0, 0.55, 0.15, 0.9)
 	particles.process_material = proc
 	var quad := QuadMesh.new()
@@ -987,10 +1020,12 @@ func _enemy_bolt(from: Vector3, to: Vector3, damage: float) -> void:
 func _on_enemy_died(enemy: Enemy) -> void:
 	kills += 1
 	enemies.erase(enemy)
+	player.add_bloodrush()
 	play_sfx("death", -4.0)
 	FX.burst(fx_root, enemy.global_position + Vector3(0.0, 1.0, 0.0), Color(0.55, 0.12, 0.9, 0.9), 30, 6.0, 0.5, 0.8)
+	FX.ring(fx_root, player.global_position, Color(1.0, 0.35, 0.12, 0.35), 2.4, 0.4, 0.05)
 	_drop_loot(enemy)
-	hud.set_layer_info(layer, enemies.size(), total_enemies)
+	hud.set_layer_info(layer, enemies.size(), total_enemies, kills)
 	if enemies.is_empty():
 		_on_floor_cleared()
 
@@ -1003,7 +1038,7 @@ func _drop_loot(enemy: Enemy) -> void:
 		chance = 0.65
 	if rng.randf() < chance:
 		_spawn_item(enemy.global_position)
-	if rng.randf() < 0.32:
+	if rng.randf() < 0.45:
 		_spawn_life(enemy.global_position)
 
 
@@ -1021,7 +1056,7 @@ func _spawn_item(at: Vector3, force_rarity := "") -> void:
 func _spawn_life(at: Vector3) -> void:
 	var drop := LootDrop.new()
 	drop.is_life = true
-	drop.life_amount = 26.0
+	drop.life_amount = 34.0
 	entity_root.add_child(drop)
 	drop.global_position = at + Vector3(rng.randf_range(-0.6, 0.6), 0.2, rng.randf_range(-0.6, 0.6))
 	drop.picked.connect(_on_loot_picked)
@@ -1051,6 +1086,7 @@ func _on_equip_requested(item: Dictionary) -> void:
 func _on_floor_cleared() -> void:
 	hud.set_status("THE RIFT IS OPEN")
 	hud.toast("PACKS CLEARED", Color(1.0, 0.8, 0.35), 3.0)
+	player.heal(player.max_health * 0.2)
 	_open_portal()
 	if layer >= 2:
 		_spawn_item(player.global_position + Vector3(0.0, 0.0, 1.4), "legendary")
@@ -1198,33 +1234,45 @@ func _on_portal_entered(body: Node) -> void:
 
 
 func _next_layer() -> void:
+	_save_record()
+	hud.flash_transition()
 	portal_active = false
 	layer += 1
 	play_sfx("portal", -2.0, 0.02)
 	player.heal(player.max_health * 0.3)
 	FX.nova(fx_root, player.global_position, Color(0.75, 0.3, 1.0, 1.0), 6.0)
 	_generate_floor()
-	hud.toast("RIFT LAYER %d" % layer, Color(1.0, 0.72, 0.3), 2.6)
+	hud.toast("RIFT LAYER %d  ·  +%d%% ENEMY LIFE" % [layer, int(45.0 * float(layer - 1))], Color(1.0, 0.72, 0.3), 2.8)
+
+
+func _on_ui_click() -> void:
+	play_sfx("pickup", -11.0, 0.2)
 
 
 func begin_run() -> void:
 	if started:
 		return
+	get_tree().paused = false
 	started = true
 	run_active = true
 	hud.hide_title()
+	hud.show_body()
 	for enemy in enemies:
 		enemy.frozen = false
 	hud.toast("RIFT LAYER 1", Color(1.0, 0.72, 0.3), 2.4)
 
 
 func _restart_run() -> void:
+	get_tree().paused = false
+	mouse_held = false
+	hud.flash_transition()
 	layer = 1
 	kills = 0
 	run_active = true
 	started = true
 	hud.hide_death()
 	hud.hide_compare()
+	hud.show_body()
 	player.revive()
 	_generate_floor()
 	for enemy in enemies:
@@ -1249,13 +1297,13 @@ func _input(event: InputEvent) -> void:
 			_cast_dash()
 		elif key == KEY_ENTER or key == KEY_KP_ENTER:
 			hud._equip_pending()
-		elif key == KEY_ESCAPE:
-			hud.hide_compare()
 		elif key == KEY_R and not player.alive:
 			_restart_run()
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and not event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		mouse_held = false
 	if event is InputEventMouseButton and event.pressed:
 		if not started:
 			begin_run()
@@ -1264,6 +1312,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		if not run_active or not player.alive:
 			return
 		if event.button_index == MOUSE_BUTTON_LEFT:
+			mouse_held = true
+			hold_timer = 0.12
 			_left_click(event.position)
 		elif event.button_index == MOUSE_BUTTON_RIGHT:
 			player.set_aim(_aim_point(event.position))
@@ -1280,6 +1330,7 @@ func _left_click(screen_pos: Vector2) -> void:
 	var cell := _world_to_cell(point)
 	if _is_inside(cell) and not walkable.get(cell, false):
 		point = _cell_to_world(_nearest_walkable(cell))
+	last_move_target = point
 	player.move_along(find_path(player.global_position, point))
 	FX.ring(fx_root, point, Color(1.0, 0.55, 0.2, 0.5), 0.9, 0.35, 0.05)
 
@@ -1309,10 +1360,41 @@ func _enemy_under(screen_pos: Vector2) -> Enemy:
 	return null
 
 
+func _on_hud_ability_pressed(index: int) -> void:
+	if not started:
+		begin_run()
+	if not run_active or not player.alive:
+		return
+	if index >= 3:
+		_cast_dash()
+	else:
+		_cast_ability(index)
+
+
+func _refresh_map() -> void:
+	var foes: Array = []
+	var elites: Array = []
+	for enemy in enemies:
+		if not is_instance_valid(enemy) or enemy.dead:
+			continue
+		var enemy_cell := _world_to_cell(enemy.global_position)
+		if enemy.elite or enemy.boss:
+			elites.append(enemy_cell)
+		else:
+			foes.append(enemy_cell)
+	var gate := Vector2i(-99, -99)
+	if portal != null and is_instance_valid(portal):
+		gate = _world_to_cell(portal.global_position)
+	hud.update_map(_world_to_cell(player.global_position), foes, elites, gate, portal_active)
+
+
 func _cast_ability(index: int) -> void:
 	if not run_active or not player.alive:
 		return
-	player.try_ability(index)
+	if not player.try_ability(index):
+		if index < player.cooldowns.size() and player.cooldowns[index] <= 0.0:
+			hud.toast("NOT ENOUGH VITAE", Color(1.0, 0.34, 0.28), 1.1)
+			hud.flash_damage(0.2)
 
 
 func _cast_dash() -> void:
@@ -1437,11 +1519,12 @@ func _on_life_spent(amount: float) -> void:
 
 
 func _on_health_changed(current: float, maximum: float) -> void:
-	hud.set_health(current, maximum)
+	hud.set_health(current, maximum, player.regen_now(), player.in_combat())
 
 
 func _on_player_died() -> void:
 	run_active = false
+	_save_record()
 	hud.hide_compare()
 	play_sfx("death", 0.0, 0.05)
 	FX.burst(fx_root, player.global_position + Vector3(0.0, 1.0, 0.0), Color(0.9, 0.1, 0.12, 1.0), 60, 8.0, 0.6, 1.2)
@@ -1461,14 +1544,24 @@ func _process(delta: float) -> void:
 		return
 	var mouse := get_viewport().get_mouse_position()
 	player.set_aim(_aim_point(mouse))
-	hud.set_cooldowns(player.cooldowns, player.dash_cooldown)
+	var costs: Array = [player.ability_cost(0), player.ability_cost(1), player.ability_cost(2)]
+	hud.set_cooldowns(player.cooldowns, player.dash_cooldown, player.health, costs)
+	hud.set_bloodrush(player.bloodrush, player.bloodrush_timer / Player.BLOODRUSH_TIME)
+	hud.set_health(player.health, player.max_health, player.regen_now(), player.in_combat())
+	map_timer -= delta
+	if map_timer <= 0.0:
+		map_timer = 0.12
+		_refresh_map()
 	if portal_disc != null and is_instance_valid(portal_disc):
 		var flat_cam := Vector3(camera.global_position.x, portal_disc.global_position.y, camera.global_position.z)
 		if flat_cam.distance_to(portal_disc.global_position) > 0.2:
 			portal_disc.look_at(flat_cam, Vector3.UP)
 	_update_camera(delta)
 	if not run_active or not player.alive:
+		mouse_held = false
 		return
+	_hold_to_move(delta)
+	_pull_loot(delta)
 	hazard_timer -= delta
 	if hazard_timer <= 0.0:
 		hazard_timer = maxf(2.4, 7.0 - 0.5 * float(layer - 1)) * rng.randf_range(0.8, 1.3)
@@ -1487,15 +1580,51 @@ func _process(delta: float) -> void:
 	lava_warn_timer = maxf(0.0, lava_warn_timer - 0.5)
 
 
+func _hold_to_move(delta: float) -> void:
+	if not mouse_held:
+		return
+	hold_timer -= delta
+	if hold_timer > 0.0:
+		return
+	hold_timer = 0.1
+	var mouse := get_viewport().get_mouse_position()
+	var point := _aim_point(mouse)
+	var cell := _world_to_cell(point)
+	if _is_inside(cell) and not walkable.get(cell, false):
+		point = _cell_to_world(_nearest_walkable(cell))
+	if point.distance_to(last_move_target) < 1.1:
+		return
+	last_move_target = point
+	player.move_along(find_path(player.global_position, point))
+
+
+func _pull_loot(delta: float) -> void:
+	for child in entity_root.get_children():
+		if not (child is LootDrop):
+			continue
+		var drop := child as LootDrop
+		var to_player := player.global_position - drop.global_position
+		to_player.y = 0.0
+		var dist := to_player.length()
+		if dist < 0.2 or dist > 6.5:
+			continue
+		drop.global_position += to_player.normalized() * minf(11.0 * delta, dist)
+
+
 func _update_camera(delta: float) -> void:
-	var desired := player.global_position + CAMERA_OFFSET
-	var limit := float(GRID) * CELL * 0.5 - 7.0
-	desired.x = clampf(desired.x, -limit, limit)
-	desired.z = clampf(desired.z, -limit, limit)
+	var desired := _camera_desired()
 	camera.global_position = camera.global_position.lerp(desired, clampf(delta * 6.5, 0.0, 1.0))
 	camera_shake = maxf(0.0, camera_shake - delta * 1.8)
 	var jitter := Vector3(rng.randf_range(-1.0, 1.0), rng.randf_range(-1.0, 1.0), 0.0) * camera_shake * 0.6
 	camera.look_at(player.global_position + Vector3(0.0, 1.0, 0.0) + jitter, Vector3.UP)
+
+
+func _camera_desired() -> Vector3:
+	var desired := player.global_position + CAMERA_OFFSET
+	var limit := float(GRID) * CELL * 0.5 - 7.0
+	desired.x = clampf(desired.x, -limit, limit)
+	desired.z = clampf(desired.z, -limit, limit)
+	return desired
 
 
 func _spawn_hazard() -> void:

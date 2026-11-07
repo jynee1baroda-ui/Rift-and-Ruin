@@ -1,9 +1,9 @@
 ﻿shader_type spatial;
 render_mode unshaded, cull_disabled, shadows_disabled;
 
-uniform vec4 crust_color : source_color = vec4(0.26, 0.07, 0.025, 1.0);
-uniform vec4 hot_color : source_color = vec4(0.95, 0.26, 0.02, 1.0);
-uniform vec4 core_color : source_color = vec4(0.98, 0.6, 0.14, 1.0);
+uniform vec4 crust_color : source_color = vec4(0.085, 0.028, 0.022, 1.0);
+uniform vec4 hot_color : source_color = vec4(1.0, 0.35, 0.03, 1.0);
+uniform vec4 core_color : source_color = vec4(1.0, 0.74, 0.26, 1.0);
 uniform float flow_speed = 0.035;
 uniform float plate_scale = 1.15;
 uniform float glow_strength = 1.0;
@@ -72,9 +72,9 @@ void fragment() {
 	float molten = smoothstep(0.46, 0.82, fbm_lava(world.xz * 0.09 + flow * 2.0));
 	float heat = smoothstep(0.22, 0.95, seam * 0.9 + wobble * 0.18 + molten * 0.55);
 	float core = smoothstep(0.7, 1.0, heat);
-	vec3 col = mix(crust_color.rgb, hot_color.rgb, clamp(0.1 + heat * 0.85, 0.0, 1.0));
-	col = mix(col, core_color.rgb, core * 0.3);
-	col += hot_color.rgb * molten * 0.22;
+	vec3 col = mix(crust_color.rgb, hot_color.rgb, clamp(0.03 + heat * 0.94, 0.0, 1.0));
+	col = mix(col, core_color.rgb, core * 0.35);
+	col += hot_color.rgb * molten * heat * 0.35;
 	float pulse = 0.78 + 0.22 * sin(TIME * 0.7 + hash21(floor(p)) * 6.283);
-	ALBEDO = col * (0.7 + (heat * 0.75 + core * 0.25 + molten * 0.2) * glow_strength * pulse);
+	ALBEDO = col * (0.55 + (heat * 0.85 + core * 0.3) * glow_strength * pulse);
 }
