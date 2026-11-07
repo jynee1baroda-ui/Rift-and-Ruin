@@ -1865,9 +1865,14 @@ func _on_shop_buy(index: int) -> void:
 		play_sfx("hit", -9.0, 0.1)
 		return
 	var kind := String(offer.get("kind", ""))
-	if kind == "relic" and player.relics.size() >= Player.MAX_RELICS:
-		hud.toast("RELICS FULL  -  REMOVE ONE FIRST", Color(1.0, 0.4, 0.3), 2.2)
-		return
+	if kind == "relic":
+		var has_room := player.relics.size() < Player.MAX_RELICS
+		for owned in player.relics:
+			if owned.is_empty():
+				has_room = true
+		if not has_room:
+			hud.toast("RELICS FULL  -  REMOVE ONE FIRST", Color(1.0, 0.4, 0.3), 2.2)
+			return
 	coins -= price
 	shop_offers.remove_at(index)
 	hud.set_coins(coins, true)
