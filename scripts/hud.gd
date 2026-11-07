@@ -338,11 +338,11 @@ func _build_top() -> void:
 	layer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(layer_label)
 	var wave_gap := Control.new()
-	wave_gap.custom_minimum_size = Vector2(0, 2)
+	wave_gap.custom_minimum_size = Vector2(0, 5)
 	wave_gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_child(wave_gap)
 	var wave_holder := Control.new()
-	wave_holder.custom_minimum_size = Vector2(0, 5)
+	wave_holder.custom_minimum_size = Vector2(0, 6)
 	wave_holder.clip_contents = true
 	wave_holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_child(wave_holder)
@@ -352,7 +352,7 @@ func _build_top() -> void:
 	wave_bar.max_value = 100.0
 	wave_bar.value = 0.0
 	var wave_bg := StyleBoxFlat.new()
-	wave_bg.bg_color = Color(0.1, 0.03, 0.03, 0.8)
+	wave_bg.bg_color = Color(0.08, 0.025, 0.03, 0.9)
 	wave_bg.set_corner_radius_all(2)
 	var wave_grad := Gradient.new()
 	wave_grad.set_color(0, Color(0.5, 0.12, 0.05, 1.0))
