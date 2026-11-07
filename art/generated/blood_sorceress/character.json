@@ -1,0 +1,142 @@
+{
+  "id": "character-21b6bea9-674a-43b0-b6b4-4395cb04e0e0",
+  "rig": {
+    "path": "res://art/generated/blood_sorceress/rig.glb",
+    "assetId": "21b6bea9-674a-43b0-b6b4-4395cb04e0e0",
+    "fileUrl": "https://res.cloudinary.com/dol86wsz1/raw/upload/v1794029771/summer_3d/character_21b6bea9-674a-43b0-b6b4-4395cb04e0e0_runtime_1794029770003_59mpqour.glb",
+    "sourceFileUrl": "https://res.cloudinary.com/dol86wsz1/raw/upload/v1794029760/summer_3d/rig_image-to-3d-1rdtpba-animation-batch_1794029758657_tj2qudgm.glb",
+    "artifactFingerprint": "publicId:summer_3d/character_21b6bea9-674a-43b0-b6b4-4395cb04e0e0_runtime_1794029770003_59mpqour.glb"
+  },
+  "status": "ready",
+  "version": 2,
+  "provider": {
+    "mode": "managed",
+    "name": "fal",
+    "rigTaskId": "01a1b47c-2008-7096-98d7-cbe41648fcd5"
+  },
+  "animations": [
+    {
+      "id": "animation-21b6bea9-674a-43b0-b6b4-4395cb04e0e0-11",
+      "loop": true,
+      "name": "Idle",
+      "path": "res://art/generated/blood_sorceress/rig.glb",
+      "assetId": "506f2aea-2b22-4a21-96c6-41ba597fbe47",
+      "fileUrl": "https://res.cloudinary.com/dol86wsz1/raw/upload/v1794029764/summer_animations/animation_image-to-3d-1rdtpba-11_1794029763118_0n4azmld.glb",
+      "actionId": 11,
+      "description": "Idle animation for Blood Sorceress.",
+      "semanticRole": "idle",
+      "artifactFingerprint": "assetId:506f2aea-2b22-4a21-96c6-41ba597fbe47"
+    },
+    {
+      "id": "animation-21b6bea9-674a-43b0-b6b4-4395cb04e0e0-1",
+      "loop": true,
+      "name": "Walk",
+      "path": "res://art/generated/blood_sorceress/rig.glb",
+      "assetId": "5a9814b0-fbf6-4865-a3f2-bf38e15a6dba",
+      "fileUrl": "https://res.cloudinary.com/dol86wsz1/raw/upload/v1794029764/summer_animations/animation_image-to-3d-1rdtpba-1_1794029763085_1if9qcf9.glb",
+      "actionId": 1,
+      "description": "Walk animation for Blood Sorceress.",
+      "semanticRole": "walk",
+      "artifactFingerprint": "assetId:5a9814b0-fbf6-4865-a3f2-bf38e15a6dba"
+    },
+    {
+      "id": "animation-21b6bea9-674a-43b0-b6b4-4395cb04e0e0-15",
+      "loop": true,
+      "name": "Run",
+      "path": "res://art/generated/blood_sorceress/rig.glb",
+      "assetId": "c79739f8-de78-43e3-b4a8-c8b5e87c0574",
+      "fileUrl": "https://res.cloudinary.com/dol86wsz1/raw/upload/v1794029764/summer_animations/animation_image-to-3d-1rdtpba-15_1794029763064_ufnu2f1x.glb",
+      "actionId": 15,
+      "description": "Run animation for Blood Sorceress.",
+      "semanticRole": "run",
+      "artifactFingerprint": "assetId:c79739f8-de78-43e3-b4a8-c8b5e87c0574"
+    },
+    {
+      "id": "animation-21b6bea9-674a-43b0-b6b4-4395cb04e0e0-4",
+      "loop": false,
+      "name": "Attack",
+      "path": "res://art/generated/blood_sorceress/rig.glb",
+      "assetId": "1d898e0b-5973-4d74-b727-7cdb8ca0e618",
+      "fileUrl": "https://res.cloudinary.com/dol86wsz1/raw/upload/v1794029764/summer_animations/animation_image-to-3d-1rdtpba-4_1794029762945_eciwlohn.glb",
+      "actionId": 4,
+      "description": "Attack animation for Blood Sorceress.",
+      "semanticRole": "attack",
+      "artifactFingerprint": "assetId:1d898e0b-5973-4d74-b727-7cdb8ca0e618"
+    },
+    {
+      "id": "animation-21b6bea9-674a-43b0-b6b4-4395cb04e0e0-125",
+      "loop": false,
+      "name": "Charged_Spell_Cast",
+      "path": "res://art/generated/blood_sorceress/rig.glb",
+      "assetId": "82be15ce-bea2-4d86-85d9-19299b3a6bc9",
+      "fileUrl": "https://res.cloudinary.com/dol86wsz1/raw/upload/v1794029764/summer_animations/animation_image-to-3d-1rdtpba-125_1794029763109_yv1uz213.glb",
+      "actionId": 125,
+      "description": "Charged_Spell_Cast animation for Blood Sorceress.",
+      "semanticRole": "custom",
+      "artifactFingerprint": "assetId:82be15ce-bea2-4d86-85d9-19299b3a6bc9"
+    }
+  ],
+  "characterId": "21b6bea9-674a-43b0-b6b4-4395cb04e0e0",
+  "displayName": "Blood Sorceress",
+  "forwardAxis": "-Z",
+  "directoryName": "blood_sorceress_21b6bea9",
+  "runtimeBundle": {
+    "clips": [
+      "Idle",
+      "Walk",
+      "Run",
+      "Attack",
+      "Charged_Spell_Cast"
+    ],
+    "fileUrl": "https://res.cloudinary.com/dol86wsz1/raw/upload/v1794029771/summer_3d/character_21b6bea9-674a-43b0-b6b4-4395cb04e0e0_runtime_1794029770003_59mpqour.glb",
+    "publicId": "summer_3d/character_21b6bea9-674a-43b0-b6b4-4395cb04e0e0_runtime_1794029770003_59mpqour.glb",
+    "validation": {
+      "ok": true,
+      "clips": [
+        {
+          "name": "Idle",
+          "channels": 66,
+          "duration": 1.9
+        },
+        {
+          "name": "Walk",
+          "channels": 66,
+          "duration": 1
+        },
+        {
+          "name": "Run",
+          "channels": 66,
+          "duration": 0.833
+        },
+        {
+          "name": "Attack",
+          "channels": 66,
+          "duration": 2.833
+        },
+        {
+          "name": "Charged_Spell_Cast",
+          "channels": 66,
+          "duration": 2.7
+        }
+      ],
+      "errors": [],
+      "sizeBytes": 16831952
+    },
+    "skeletonFingerprint": "j0neuw"
+  },
+  "rootYawRadians": 3.141592653589793,
+  "unriggedSource": {
+    "assetId": "21b6bea9-674a-43b0-b6b4-4395cb04e0e0",
+    "fileUrl": "https://res.cloudinary.com/dol86wsz1/raw/upload/v1794029302/summer_3d/3d_21b6bea9674a43b0b6b44395_1794029300625.glb"
+  },
+  "scaleMultiplier": 1,
+  "sourceForwardAxis": "+Z",
+  "groundOffsetMeters": 0,
+  "targetHeightMeters": 1.75,
+  "skeletonFingerprint": "j0neuw",
+  "packageRevision": "sha256:d5bfc06f43897c3ad51f5204a36b330621be3644d6a107c0269f5974bf603dfd",
+  "normalization": {
+    "targetHeightMeters": 1.75,
+    "forwardAxis": "-Z"
+  }
+}

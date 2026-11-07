@@ -1,0 +1,93 @@
+﻿[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/game.gd" id="1_game"]
+
+[sub_resource type="ProceduralSkyMaterial" id="sky_mat"]
+sky_top_color = Color(0.015, 0.008, 0.035, 1)
+sky_horizon_color = Color(0.3, 0.085, 0.045, 1)
+sky_curve = 0.13
+sky_energy_multiplier = 0.9
+ground_bottom_color = Color(0.015, 0.006, 0.006, 1)
+ground_horizon_color = Color(0.34, 0.09, 0.04, 1)
+ground_curve = 0.08
+sun_angle_max = 26.0
+
+[sub_resource type="Sky" id="sky_main"]
+sky_material = SubResource("sky_mat")
+
+[sub_resource type="Environment" id="env_main"]
+background_mode = 2
+sky = SubResource("sky_main")
+ambient_light_source = 2
+ambient_light_color = Color(0.23, 0.15, 0.22, 1)
+ambient_light_energy = 0.27
+reflected_light_source = 2
+tonemap_mode = 4
+tonemap_exposure = 1.14
+tonemap_white = 6.0
+ssao_enabled = true
+ssao_radius = 1.4
+ssao_intensity = 1.6
+glow_enabled = true
+glow_intensity = 0.8
+glow_strength = 1.0
+glow_bloom = 0.1
+glow_blend_mode = 1
+glow_hdr_threshold = 1.1
+fog_enabled = true
+fog_light_color = Color(0.26, 0.09, 0.05, 1)
+fog_light_energy = 0.25
+fog_density = 0.0045
+fog_sky_affect = 0.25
+volumetric_fog_enabled = true
+volumetric_fog_density = 0.0055
+volumetric_fog_albedo = Color(0.42, 0.28, 0.32, 1)
+volumetric_fog_emission = Color(0.2, 0.06, 0.02, 1)
+volumetric_fog_emission_energy = 0.3
+volumetric_fog_gi_inject = 0.4
+volumetric_fog_ambient_inject = 0.2
+volumetric_fog_length = 90.0
+adjustment_enabled = true
+adjustment_contrast = 1.06
+adjustment_saturation = 1.12
+
+[node name="Main" type="Node3D"]
+script = ExtResource("1_game")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("env_main")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+rotation_degrees = Vector3(-52, -32, 0)
+light_color = Color(1, 0.92, 0.84, 1)
+light_energy = 2.0
+shadow_enabled = true
+directional_shadow_max_distance = 95.0
+shadow_blur = 1.4
+light_angular_distance = 1.2
+
+[node name="RimLight" type="DirectionalLight3D" parent="."]
+rotation_degrees = Vector3(-18, 148, 0)
+light_color = Color(0.55, 0.42, 0.95, 1)
+light_energy = 0.78
+shadow_enabled = false
+
+[node name="FillLight" type="DirectionalLight3D" parent="."]
+rotation_degrees = Vector3(-38, 0, 0)
+light_color = Color(0.72, 0.74, 0.95, 1)
+light_energy = 0.55
+shadow_enabled = false
+
+[node name="ArenaLight" type="OmniLight3D" parent="."]
+position = Vector3(0, 9, 0)
+light_color = Color(1, 0.48, 0.18, 1)
+light_energy = 0.8
+omni_range = 95.0
+shadow_enabled = false
+
+[node name="Camera3D" type="Camera3D" parent="."]
+position = Vector3(0, 24, 19)
+fov = 40.0
+near = 0.1
+far = 520.0
+current = true
