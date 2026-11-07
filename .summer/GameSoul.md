@@ -5,7 +5,7 @@ An isometric, click-to-move action RPG in a volcanic wasteland split by lava rif
 
 ## Look
 - Palette: near-black basalt and dark violet shadow, broken by amber, crimson and electric gold.
-- Ground: fractured basalt plates using the generated cracked-lava basalt texture over the procedural plate shader. Lava rivers cut the arena into islands joined by narrow stone bridges. Lava is a living hazard, not decoration.
+- Ground: fractured basalt plates using the generated cracked-lava texture at three scales over the procedural plate shader. The texture reads as rock grain and pits, dark plate seams read as bevels, and amber veins glow only inside low-frequency hot zones, so most of the floor stays dark basalt. Trench side walls are darkened so they never read as glowing slabs. Lava rivers cut the arena into islands joined by narrow stone bridges.
 - Lighting: warm key light, violet fill from above, volcanic fog and volumetric haze, strong bloom on magical seams and lava.
 - Ability VFX read as hard-edged blood-red rings, discs and ember bursts.
 - UI: dark stone plates with amber borders, grainy gradient backdrop, crimson vitae, gold legendary text, Cinzel display face. The vitae bar has a smoothed fill, an orange damage trail and a live REGEN readout. Each ability card shows its life cost and can be clicked to cast.
@@ -26,6 +26,11 @@ An isometric, click-to-move action RPG in a volcanic wasteland split by lava rif
 3. Killing drops colour-coded relics and life orbs. Walking over a relic shows a stat comparison card; click the card (or Enter) to bind it to the single relic slot.
 4. Clearing every pack opens a rift gate. Stepping into it starts the next layer: more enemies, more HP and damage, better rarity odds.
 5. Death ends the run and shows the layer reached; R revives at layer 1 keeping the relics.
+
+## Rift Boons (per-layer progression)
+- Clearing every pack opens the gate and deals three boons; click one or press 1-3 before you descend.
+- Blood Fury +15% ability damage, Deep Vitae +40 max vitae and a heal, Quickened Blood -15% cooldowns, Sanguine Flow +0.9 regen/s, Gilded Hour +30% relic drop chance, Crimson Stride +8% move speed.
+- Boons stack for the whole run and reset on death/restart.
 
 ## Classes and Abilities
 Only the Blood Sorceress is playable.
@@ -50,6 +55,13 @@ Only the Blood Sorceress is playable.
 - The deepest rift layer reached is saved and shown on the title and death screens.
 - Relic drops are click-to-claim and never auto-equip; the loadout window opens on the claim.
 
+## Settings (SET button top right, Esc closes)
+- Audio: master, music, ambience and effects volumes; changes save instantly to user://settings.cfg.
+- Video: fullscreen, vsync, brightness, camera distance, frame rate cap.
+- Gameplay: screen shake, damage numbers, enemy health bars, hold-mouse-to-move, rift modifier chips.
+- Interface: HUD scale, rift minimap, announcement toasts.
+- RESET DEFAULTS restores the defaults; the window resizes to fit each tab.
+
 ## Relics (three slots, families and synergetic rites)
 - Three relic slots. Any family stacks at most twice, so builds are 2 + 1 or 1 + 1 + 1.
 - Families: Blood (damage, life), Ember (crit), Rift (speed, regen, Riftstep).
@@ -70,6 +82,7 @@ Only the Blood Sorceress is playable.
 - Three active ability slots plus a movement dash.
 
 ## Tech Map
+- `scripts/settings.gd` - GameSettings: defaults, load/save to user://settings.cfg, reset.
 - `res://main.tscn` — WorldEnvironment, sun/rim/fill lights, camera, game root.
 - `scripts/game.gd` — floor generation, mesh building, spawning, combat resolution, loot, portal, HUD wiring.
 - `scripts/player.gd` — Blood Sorceress movement, life-cost abilities, stats and relic effects.

@@ -139,6 +139,8 @@ static func nova(parent: Node, global_pos: Vector3, color: Color, radius := 4.0)
 static func damage_number(parent: Node, global_pos: Vector3, amount: float, crit := false, color := Color(1.0, 0.82, 0.42)) -> void:
 	if parent == null or not parent.is_inside_tree():
 		return
+	if not bool(GameSettings.get_value("damage_numbers")):
+		return
 	var label := Label3D.new()
 	label.text = str(int(round(amount)))
 	label.font_size = 72 if crit else 48

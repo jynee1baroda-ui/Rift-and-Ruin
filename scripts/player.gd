@@ -32,6 +32,7 @@ var crit_damage := 1.75
 var power := 1.0
 var regen := BASE_REGEN
 var life_cost_mult := 1.0
+var cooldown_mult := 1.0
 var relics: Array = []
 var dash_cooldown_base := 2.2
 var move_direct := Vector3.ZERO
@@ -322,7 +323,7 @@ func try_ability(index: int) -> bool:
 	var aim := aim_point
 	if (aim - global_position).length_squared() > 0.01:
 		_face_direction((aim - global_position), 1.0)
-	cooldowns[index] = float(ABILITIES[index].cooldown)
+	cooldowns[index] = float(ABILITIES[index].cooldown) * cooldown_mult
 	var cost := ability_cost(index)
 	if cost > 0.0:
 		health = maxf(1.0, health - cost)

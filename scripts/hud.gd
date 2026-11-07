@@ -8,6 +8,8 @@ signal start_pressed
 signal ui_click
 signal ability_pressed(index: int)
 signal restart_pressed
+signal settings_changed
+signal boon_chosen(key: String)
 
 const INK := Color(0.035, 0.025, 0.045, 0.92)
 const AMBER := Color(1.0, 0.72, 0.28)
@@ -32,6 +34,8 @@ var ghost_shown := 100.0
 var damage_flash := 0.0
 var layer_label: Label
 var theme_label: Label
+var mod_row: HBoxContainer
+var current_mods: Array = []
 var wave_label: Label
 var wave_bar: ProgressBar
 var slots: Array = []
@@ -49,6 +53,18 @@ var relic_rows: Array = []
 var relics: Array = []
 var relic_tab := "relics"
 var relic_opened_ms := 0
+var minimap_panel: Panel
+var settings_window: PanelContainer
+var settings_tabs: HBoxContainer
+var settings_body: VBoxContainer
+var settings_tab := "audio"
+var settings_open := false
+var settings_was_paused := false
+var boon_panel: PanelContainer
+var boon_shade: ColorRect
+var boon_cards: HBoxContainer
+var boons_open := false
+var boon_keys: Array = []
 var vignette: TextureRect
 var death_panel: PanelContainer
 var death_stats: Label
@@ -232,11 +248,16 @@ func _build() -> void:
 	_build_title()
 	_build_pause_button()
 	_build_pause()
+	_build_settings_button()
+	_build_settings_window()
+	_build_boon_panel()
 	_build_fade()
+	_apply_ui_settings()
 
 
 func _build_minimap() -> void:
 	var panel := Panel.new()
+	minimap_panel = panel
 	panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	panel.offset_left = 26.0
 	panel.offset_top = 24.0
@@ -387,6 +408,11 @@ func _build_top() -> void:
 	theme_label = _label("", 12, MUTED)
 	theme_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(theme_label)
+	mod_row = HBoxContainer.new()
+	mod_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	mod_row.add_theme_constant_override("separation", 12)
+	mod_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(mod_row)
 	var wave_gap := Control.new()
 	wave_gap.custom_minimum_size = Vector2(0, 5)
 	wave_gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -880,6 +906,7 @@ func _build_title() -> void:
 		"SPACE  RIFTSTEP    slide over lava",
 		"TAB  relic loadout   ·   click a glowing drop to claim it",
 		"Click ground to walk  ·  click skill cards to cast  ·  ESC pauses",
+		"SET (top right)  -  audio, video, gameplay and interface options",
 		"Clear every pack, step into the rift, go deeper.",
 	]
 	for line in lines:
@@ -941,6 +968,8 @@ func _build_pause() -> void:
 		"TAB   relic loadout and synergies",
 		"CLICK A SKILL CARD   cast without a hotkey",
 		"MOUSE WHEEL   camera zoom",
+		"FLOOR CLEARED   claim a rift boon (1 - 3)",
+		"SET   audio, video, gameplay, interface",
 		"ESC   close card / pause",
 	]
 	for line in lines:
@@ -960,8 +989,22 @@ func _build_pause() -> void:
 	resume.add_theme_stylebox_override("hover", _stylebox(Color(0.2, 0.08, 0.07, 0.98), Color(0.9, 0.55, 0.2, 1.0), 1))
 	resume.add_theme_stylebox_override("pressed", _stylebox(Color(0.3, 0.1, 0.08, 1.0), Color(1.0, 0.7, 0.3, 1.0), 1))
 	resume.button_down.connect(toggle_pause)
+	var options := Button.new()
+	options.text = "OPTIONS"
+	options.custom_minimum_size = Vector2(200, 44)
+	options.add_theme_font_size_override("font_size", 18)
+	options.add_theme_color_override("font_color", AMBER)
+	options.add_theme_color_override("font_hover_color", Color(1.0, 0.92, 0.72))
+	options.add_theme_stylebox_override("normal", _stylebox(Color(0.1, 0.04, 0.05, 0.95), Color(0.5, 0.28, 0.1, 1.0), 1))
+	options.add_theme_stylebox_override("hover", _stylebox(Color(0.2, 0.08, 0.07, 0.98), Color(0.9, 0.55, 0.2, 1.0), 1))
+	options.add_theme_stylebox_override("pressed", _stylebox(Color(0.3, 0.1, 0.08, 1.0), Color(1.0, 0.7, 0.3, 1.0), 1))
+	options.pressed.connect(open_settings)
 	var center := CenterContainer.new()
-	center.add_child(resume)
+	var buttons := HBoxContainer.new()
+	buttons.add_theme_constant_override("separation", 12)
+	buttons.add_child(resume)
+	buttons.add_child(options)
+	center.add_child(buttons)
 	box.add_child(center)
 
 
@@ -983,6 +1026,343 @@ func _build_pause_button() -> void:
 	btn.add_theme_stylebox_override("hover", _stylebox(Color(0.13, 0.06, 0.05, 0.92), Color(0.95, 0.62, 0.24, 1.0), 1))
 	btn.button_down.connect(toggle_pause)
 	body.add_child(btn)
+
+
+func _build_settings_button() -> void:
+	var btn := Button.new()
+	btn.text = "SET"
+	btn.tooltip_text = "Settings"
+	btn.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	btn.anchor_left = 1.0
+	btn.anchor_right = 1.0
+	btn.offset_left = -114.0
+	btn.offset_right = -72.0
+	btn.offset_top = 24.0
+	btn.offset_bottom = 64.0
+	btn.add_theme_font_size_override("font_size", 13)
+	btn.add_theme_color_override("font_color", AMBER)
+	btn.add_theme_color_override("font_hover_color", Color(1.0, 0.9, 0.65))
+	btn.add_theme_stylebox_override("normal", _stylebox(Color(0.05, 0.02, 0.04, 0.72), Color(0.42, 0.27, 0.12, 0.9), 1))
+	btn.add_theme_stylebox_override("hover", _stylebox(Color(0.13, 0.06, 0.05, 0.92), Color(0.95, 0.62, 0.24, 1.0), 1))
+	btn.pressed.connect(open_settings)
+	root.add_child(btn)
+
+
+func _build_settings_window() -> void:
+	settings_window = PanelContainer.new()
+	settings_window.set_anchors_preset(Control.PRESET_CENTER)
+	settings_window.anchor_left = 0.5
+	settings_window.anchor_right = 0.5
+	settings_window.anchor_top = 0.5
+	settings_window.anchor_bottom = 0.5
+	settings_window.offset_left = -340.0
+	settings_window.offset_right = 340.0
+	settings_window.offset_top = -192.0
+	settings_window.offset_bottom = 192.0
+	settings_window.add_theme_stylebox_override("panel", _stylebox(Color(0.035, 0.02, 0.04, 0.98), Color(0.55, 0.34, 0.14, 1.0), 2, 4))
+	settings_window.visible = false
+	settings_window.mouse_filter = Control.MOUSE_FILTER_STOP
+	root.add_child(settings_window)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 10)
+	settings_window.add_child(box)
+	var header := HBoxContainer.new()
+	header.add_theme_constant_override("separation", 8)
+	box.add_child(header)
+	settings_tabs = HBoxContainer.new()
+	settings_tabs.add_theme_constant_override("separation", 6)
+	header.add_child(settings_tabs)
+	for entry in [["AUDIO", "audio"], ["VIDEO", "video"], ["GAMEPLAY", "gameplay"], ["INTERFACE", "interface"]]:
+		settings_tabs.add_child(_settings_tab_button(String(entry[0]), String(entry[1])))
+	var spacer := Control.new()
+
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(spacer)
+	var close := Button.new()
+	close.text = "ESC"
+	close.custom_minimum_size = Vector2(58, 30)
+	close.add_theme_font_size_override("font_size", 12)
+	close.add_theme_color_override("font_color", MUTED)
+	close.add_theme_color_override("font_hover_color", AMBER)
+	close.add_theme_stylebox_override("normal", _stylebox(Color(0.05, 0.03, 0.04, 0.9), Color(0.24, 0.16, 0.12, 1.0), 1))
+	close.add_theme_stylebox_override("hover", _stylebox(Color(0.13, 0.06, 0.05, 0.95), Color(0.9, 0.55, 0.2, 1.0), 1))
+	close.pressed.connect(close_settings)
+	header.add_child(close)
+	settings_body = VBoxContainer.new()
+	settings_body.add_theme_constant_override("separation", 6)
+	settings_body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	box.add_child(settings_body)
+
+
+func open_settings() -> void:
+	if settings_window == null:
+		return
+	settings_open = true
+	settings_window.visible = true
+	settings_was_paused = get_tree().paused
+	get_tree().paused = true
+	_build_settings_body()
+
+
+func _build_boon_panel() -> void:
+	boon_shade = ColorRect.new()
+	boon_shade.color = Color(0.02, 0.0, 0.02, 0.66)
+	boon_shade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	boon_shade.mouse_filter = Control.MOUSE_FILTER_STOP
+	boon_shade.visible = false
+	root.add_child(boon_shade)
+	boon_panel = PanelContainer.new()
+	boon_panel.set_anchors_preset(Control.PRESET_CENTER)
+	boon_panel.anchor_left = 0.5
+	boon_panel.anchor_right = 0.5
+	boon_panel.anchor_top = 0.5
+	boon_panel.anchor_bottom = 0.5
+	boon_panel.offset_left = -430.0
+	boon_panel.offset_right = 430.0
+	boon_panel.offset_top = -168.0
+	boon_panel.offset_bottom = 168.0
+	boon_panel.add_theme_stylebox_override("panel", _stylebox(Color(0.03, 0.012, 0.03, 0.97), Color(0.62, 0.36, 0.14, 1.0), 2, 4))
+	boon_panel.visible = false
+	boon_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	root.add_child(boon_panel)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 12)
+	boon_panel.add_child(box)
+	var title := _label("THE RIFT YIELDS", 34, AMBER)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(title)
+	var sub := _label("Claim one boon. It holds until you fall.", 14, MUTED)
+	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(sub)
+	boon_cards = HBoxContainer.new()
+	boon_cards.alignment = BoxContainer.ALIGNMENT_CENTER
+	boon_cards.add_theme_constant_override("separation", 18)
+	box.add_child(boon_cards)
+	var hint := _label("Click a boon, or press 1 - 3.", 12, MUTED)
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(hint)
+
+
+func _boon_card(entry: Dictionary) -> Button:
+	var col: Color = entry.get("color", AMBER)
+	var btn := Button.new()
+	btn.text = "%s\n\n%s" % [str(entry.get("name", "BOON")), str(entry.get("text", ""))]
+	btn.custom_minimum_size = Vector2(250, 132)
+	btn.add_theme_font_size_override("font_size", 16)
+	btn.add_theme_color_override("font_color", BONE)
+	btn.add_theme_color_override("font_hover_color", col)
+	btn.add_theme_stylebox_override("normal", _stylebox(Color(0.07, 0.03, 0.05, 0.96), col, 2, 4))
+	btn.add_theme_stylebox_override("hover", _stylebox(Color(0.16, 0.07, 0.06, 0.99), col.lightened(0.3), 2, 4))
+	btn.add_theme_stylebox_override("pressed", _stylebox(Color(0.24, 0.1, 0.08, 1.0), col.lightened(0.45), 2, 4))
+	btn.pressed.connect(func() -> void: _choose_boon(String(entry.get("key", ""))))
+	return btn
+
+
+func show_boons(list: Array) -> void:
+	if boon_panel == null:
+		return
+	for child in boon_cards.get_children():
+		child.queue_free()
+	boon_keys.clear()
+	for entry in list:
+		if typeof(entry) != TYPE_DICTIONARY:
+			continue
+		boon_keys.append(String(entry.get("key", "")))
+		boon_cards.add_child(_boon_card(entry))
+	boon_panel.visible = true
+	boon_shade.visible = true
+	boons_open = true
+	get_tree().paused = true
+	pause_shade.visible = false
+	pause_panel.visible = false
+	boon_panel.modulate.a = 0.0
+	var tween := create_tween()
+	tween.tween_property(boon_panel, "modulate:a", 1.0, 0.22)
+	ui_click.emit()
+
+
+func _choose_boon(key: String) -> void:
+	if not boons_open:
+		return
+	boons_open = false
+	boon_panel.visible = false
+	boon_shade.visible = false
+	get_tree().paused = false
+	boon_chosen.emit(key)
+
+
+func hide_boons() -> void:
+	if boon_panel == null:
+		return
+	boons_open = false
+	boon_panel.visible = false
+	if boon_shade != null:
+		boon_shade.visible = false
+
+
+func close_settings() -> void:
+	if settings_window == null:
+		return
+	settings_open = false
+	settings_window.visible = false
+	get_tree().paused = settings_was_paused
+
+
+func _select_settings_tab(tab: String) -> void:
+	settings_tab = tab
+	_build_settings_body()
+
+
+func _settings_tab_button(text: String, tab: String) -> Button:
+	var btn := Button.new()
+	btn.text = text
+	btn.custom_minimum_size = Vector2(126, 32)
+	btn.add_theme_font_size_override("font_size", 14)
+	btn.add_theme_color_override("font_color", MUTED)
+	btn.add_theme_color_override("font_hover_color", AMBER)
+	btn.add_theme_color_override("font_pressed_color", GOLD)
+	btn.add_theme_stylebox_override("normal", _stylebox(Color(0.06, 0.03, 0.05, 0.92), Color(0.24, 0.16, 0.12, 1.0), 1))
+	btn.add_theme_stylebox_override("hover", _stylebox(Color(0.14, 0.07, 0.06, 0.96), Color(0.7, 0.45, 0.16, 1.0), 1))
+	btn.add_theme_stylebox_override("pressed", _stylebox(Color(0.2, 0.09, 0.07, 1.0), Color(1.0, 0.65, 0.25, 1.0), 1))
+	btn.set_meta("tab", tab)
+	btn.pressed.connect(_select_settings_tab.bind(tab))
+	return btn
+
+
+func _settings_row(label_text: String) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	var name_label := _label(label_text, 15, BONE, false)
+	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(name_label)
+	return row
+
+
+func _add_slider(label_text: String, key: String, minv: float, maxv: float, step: float, suffix := "") -> void:
+	var row := _settings_row(label_text)
+	var value := float(GameSettings.get_value(key))
+	var slider := HSlider.new()
+	slider.custom_minimum_size = Vector2(210, 26)
+	slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	slider.min_value = minv
+	slider.max_value = maxv
+	slider.step = step
+	slider.value = value
+	var value_label := _label(_format_value(value, key, suffix), 13, GOLD, false)
+	value_label.custom_minimum_size = Vector2(96, 0)
+	value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	row.add_child(slider)
+	row.add_child(value_label)
+	settings_body.add_child(row)
+	slider.value_changed.connect(func(v: float) -> void:
+		GameSettings.set_value(key, v)
+		GameSettings.save_all()
+		value_label.text = _format_value(v, key, suffix)
+		_apply_ui_settings()
+		settings_changed.emit()
+	)
+
+
+func _add_toggle(label_text: String, key: String) -> void:
+	var row := _settings_row(label_text)
+	var check := CheckButton.new()
+	check.button_pressed = bool(GameSettings.get_value(key))
+	check.custom_minimum_size = Vector2(210, 30)
+	check.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(check)
+	settings_body.add_child(row)
+	check.toggled.connect(func(on: bool) -> void:
+		GameSettings.set_value(key, on)
+		GameSettings.save_all()
+		_apply_ui_settings()
+		settings_changed.emit()
+	)
+
+
+func _format_value(value: float, key: String, suffix: String) -> String:
+	if key == "fps_cap":
+		return "UNLIMITED" if value <= 0.0 else "%d FPS" % int(value)
+	if key == "brightness" or key == "camera_zoom" or key == "hud_scale":
+		return "%d%%" % int(round(value * 100.0))
+	return "%d%s" % [int(round(value * 100.0)), suffix]
+
+
+func _build_settings_body() -> void:
+	if settings_body == null:
+		return
+	_clear_children(settings_body)
+	if settings_tabs != null:
+		for btn in settings_tabs.get_children():
+			if btn is Button:
+				var active := String(btn.get_meta("tab", "")) == settings_tab
+				btn.add_theme_color_override("font_color", GOLD if active else MUTED)
+				btn.add_theme_stylebox_override("normal", _stylebox(
+					Color(0.16, 0.07, 0.05, 0.96) if active else Color(0.06, 0.03, 0.05, 0.92),
+					Color(0.95, 0.6, 0.22, 1.0) if active else Color(0.24, 0.16, 0.12, 1.0), 1))
+	match settings_tab:
+		"audio":
+			settings_body.add_child(_label("Audio is applied immediately.", 12, MUTED, false))
+			_add_slider("Master Volume", "master", 0.0, 1.0, 0.05, "%")
+			_add_slider("Music Volume", "music", 0.0, 1.0, 0.05, "%")
+			_add_slider("Ambience", "ambience", 0.0, 1.0, 0.05, "%")
+			_add_slider("Effects Volume", "sfx", 0.0, 1.0, 0.05, "%")
+		"video":
+			settings_body.add_child(_label("Display and camera.", 12, MUTED, false))
+			_add_toggle("Fullscreen", "fullscreen")
+			_add_toggle("Vertical Sync", "vsync")
+			_add_slider("Brightness", "brightness", 0.75, 1.35, 0.05, "%")
+			_add_slider("Camera Distance", "camera_zoom", 0.8, 1.3, 0.05, "%")
+			_add_slider("Frame Rate Cap", "fps_cap", 0.0, 240.0, 30.0, " FPS")
+		"gameplay":
+			settings_body.add_child(_label("Combat and controls.", 12, MUTED, false))
+			_add_toggle("Screen Shake", "shake")
+			_add_toggle("Damage Numbers", "damage_numbers")
+			_add_toggle("Enemy Health Bars", "enemy_health")
+			_add_toggle("Hold Mouse to Move", "hold_move")
+			_add_toggle("Show Rift Modifiers", "modifiers")
+		"interface":
+			settings_body.add_child(_label("HUD and readouts.", 12, MUTED, false))
+			_add_slider("HUD Scale", "hud_scale", 0.85, 1.15, 0.05, "%")
+			_add_toggle("Rift Minimap", "minimap")
+			_add_toggle("Announcement Toasts", "toasts")
+	var footer := HBoxContainer.new()
+	footer.add_theme_constant_override("separation", 8)
+	settings_body.add_child(footer)
+	var reset := Button.new()
+	reset.text = "RESET DEFAULTS"
+	reset.custom_minimum_size = Vector2(170, 34)
+	reset.add_theme_font_size_override("font_size", 13)
+	reset.add_theme_color_override("font_color", CRIMSON)
+	reset.add_theme_color_override("font_hover_color", Color(1.0, 0.75, 0.65))
+	reset.add_theme_stylebox_override("normal", _stylebox(Color(0.08, 0.03, 0.04, 0.95), Color(0.45, 0.18, 0.14, 1.0), 1))
+	reset.add_theme_stylebox_override("hover", _stylebox(Color(0.16, 0.06, 0.05, 0.98), Color(0.95, 0.45, 0.25, 1.0), 1))
+	reset.pressed.connect(reset_settings)
+	footer.add_child(reset)
+	if settings_window != null:
+		var panel_height: float = settings_body.get_combined_minimum_size().y + 78.0
+		panel_height = clampf(panel_height, 300.0, 560.0)
+		settings_window.offset_top = -panel_height * 0.5
+		settings_window.offset_bottom = panel_height * 0.5
+
+
+func reset_settings() -> void:
+	GameSettings.reset_all()
+	_apply_ui_settings()
+	settings_changed.emit()
+	_build_settings_body()
+
+
+func _apply_ui_settings() -> void:
+	if root != null:
+		var scale_value := float(GameSettings.get_value("hud_scale"))
+		root.scale = Vector2.ONE * scale_value
+		root.pivot_offset = root.get_viewport_rect().size * 0.5
+	if minimap_panel != null:
+		minimap_panel.visible = bool(GameSettings.get_value("minimap"))
+	if toast_box != null:
+		toast_box.visible = bool(GameSettings.get_value("toasts"))
+	if mod_row != null:
+		mod_row.visible = bool(GameSettings.get_value("modifiers")) and not current_mods.is_empty()
 
 
 func _build_fade() -> void:
@@ -1009,8 +1389,17 @@ func set_record(best: int) -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if boons_open:
+		if event is InputEventKey and event.pressed and not event.echo:
+			var index: int = event.keycode - KEY_1
+			if index >= 0 and index < boon_keys.size():
+				_choose_boon(String(boon_keys[index]))
+				get_viewport().set_input_as_handled()
+		return
 	if event is InputEventKey and event.pressed and not event.echo and (event.keycode == KEY_ESCAPE or event.keycode == KEY_P):
-		if relic_window.visible:
+		if settings_open:
+			close_settings()
+		elif relic_window.visible:
 			close_relic_window()
 		elif not death_panel.visible:
 			toggle_pause()
@@ -1062,6 +1451,38 @@ func set_layer_info(layer: int, remaining: int, total: int, kills := 0) -> void:
 func set_theme_name(text: String) -> void:
 	if theme_label != null:
 		theme_label.text = text
+
+
+func set_modifiers(list: Array) -> void:
+	current_mods = list.duplicate()
+	if mod_row == null:
+		return
+	for child in mod_row.get_children():
+		child.queue_free()
+	for entry in list:
+		if typeof(entry) != TYPE_DICTIONARY:
+			continue
+		var chip := PanelContainer.new()
+		chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var style := StyleBoxFlat.new()
+		style.bg_color = Color(0.10, 0.03, 0.05, 0.72)
+		style.border_color = Color(entry.get("color", GOLD))
+		style.set_border_width_all(1)
+		style.set_corner_radius_all(3)
+		style.content_margin_left = 8
+		style.content_margin_right = 8
+		style.content_margin_top = 2
+		style.content_margin_bottom = 2
+		chip.add_theme_stylebox_override("panel", style)
+		var label := Label.new()
+		label.text = str(entry.get("name", "MODIFIER"))
+		label.add_theme_font_size_override("font_size", 11)
+		label.add_theme_color_override("font_color", Color(entry.get("color", GOLD)))
+		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		chip.add_child(label)
+		chip.tooltip_text = str(entry.get("text", ""))
+		mod_row.add_child(chip)
+	mod_row.visible = bool(GameSettings.get_value("modifiers")) and not list.is_empty()
 
 
 func set_boss(name_text: String, ratio: float, active: bool) -> void:

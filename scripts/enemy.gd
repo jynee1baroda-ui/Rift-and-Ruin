@@ -276,7 +276,7 @@ func take_damage(amount: float, crit := false) -> void:
 	if dead:
 		return
 	health -= amount
-	hp_root.visible = true
+	hp_root.visible = bool(GameSettings.get_value("enemy_health"))
 	_update_hp_bar()
 	FX.damage_number(get_parent(), global_position + Vector3(0.0, 1.9, 0.0), amount, crit, Color(1.0, 0.9, 0.5) if crit else Color(1.0, 0.78, 0.42))
 	if health <= 0.0:

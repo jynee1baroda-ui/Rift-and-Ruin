@@ -29,6 +29,23 @@ const THEMES := [
 	{"name": "CINDER CHASM", "density": 0.68, "rivers": 1, "pools": 2, "decor": 0.7, "fog": Color(0.13, 0.03, 0.03), "ambient": Color(0.34, 0.16, 0.14)},
 ]
 
+const MODIFIERS := [
+	{"key": "frenzied", "name": "FRENZIED", "text": "Enemies move 20% faster", "color": Color(1.0, 0.5, 0.2)},
+	{"key": "brutal", "name": "BRUTAL", "text": "Enemies deal 25% more damage", "color": Color(1.0, 0.3, 0.25)},
+	{"key": "gilded", "name": "GILDED", "text": "Richer relic drops", "color": Color(1.0, 0.85, 0.35)},
+	{"key": "unstable", "name": "UNSTABLE", "text": "Lava erupts more often", "color": Color(1.0, 0.45, 0.15)},
+	{"key": "swarming", "name": "SWARMING", "text": "Bigger monster packs", "color": Color(0.85, 0.45, 1.0)},
+]
+
+const BOONS := [
+	{"key": "fury", "name": "BLOOD FURY", "text": "+15% ability damage", "color": Color(1.0, 0.32, 0.26)},
+	{"key": "vitality", "name": "DEEP VITAE", "text": "+40 max vitae and a full heal", "color": Color(1.0, 0.46, 0.56)},
+	{"key": "haste", "name": "QUICKENED BLOOD", "text": "-15% ability cooldowns", "color": Color(1.0, 0.8, 0.3)},
+	{"key": "regen", "name": "SANGUINE FLOW", "text": "+0.9 vitae regen per second", "color": Color(0.86, 0.38, 0.92)},
+	{"key": "fortune", "name": "GILDED HOUR", "text": "+30% relic drop chance", "color": Color(1.0, 0.86, 0.42)},
+	{"key": "swift", "name": "CRIMSON STRIDE", "text": "+8% move speed", "color": Color(0.52, 0.82, 1.0)},
+]
+
 @onready var camera: Camera3D = $Camera3D
 @onready var sun: DirectionalLight3D = $Sun
 @onready var world_env: WorldEnvironment = $WorldEnvironment
@@ -74,6 +91,8 @@ var hold_timer := 0.0
 var last_move_target := Vector3(9999.0, 0.0, 9999.0)
 var map_timer := 0.0
 var theme: Dictionary = {}
+var active_mods: Array = []
+var boon_luck := 0.0
 var boss_enemy: Enemy
 var music_tracks: Array = []
 var boss_tracks: Array = []
@@ -84,6 +103,8 @@ var camera_focus := Vector3.ZERO
 
 func _ready() -> void:
 	rng.randomize()
+	GameSettings.load_all()
+	Engine.max_fps = int(GameSettings.get_value("fps_cap"))
 	world_root = Node3D.new()
 	world_root.name = "World"
 	add_child(world_root)
@@ -104,7 +125,10 @@ func _ready() -> void:
 	hud.ui_click.connect(_on_ui_click)
 	hud.ability_pressed.connect(_on_hud_ability_pressed)
 	hud.restart_pressed.connect(_restart_run)
+	hud.settings_changed.connect(_apply_settings)
+	hud.boon_chosen.connect(_on_boon_chosen)
 	_setup_audio()
+	_apply_settings()
 	_create_player()
 	_generate_floor()
 	camera.global_position = player.global_position + CAMERA_OFFSET
@@ -239,17 +263,50 @@ func _load_sfx(key: String, path: String) -> void:
 func play_sfx(key: String, volume_db := 0.0, pitch_variation := 0.08) -> void:
 	if not sfx.has(key):
 		return
+	var sfx_level := maxf(0.0001, float(GameSettings.get_value("sfx")))
 	var p := sfx_pool[sfx_index % sfx_pool.size()]
 	sfx_index += 1
 	p.stream = sfx[key]
-	p.volume_db = volume_db
+	p.volume_db = volume_db + linear_to_db(sfx_level)
 	p.pitch_scale = 1.0 + rng.randf_range(-pitch_variation, pitch_variation)
 	p.play()
 
 
+func _apply_settings() -> void:
+	var master := clampf(float(GameSettings.get_value("master")), 0.0, 1.0)
+	AudioServer.set_bus_mute(0, master <= 0.001)
+	AudioServer.set_bus_volume_db(0, linear_to_db(maxf(master, 0.0001)))
+	if music_player != null:
+		var music_level := maxf(0.0001, float(GameSettings.get_value("music")))
+		music_player.volume_db = -9.0 + linear_to_db(music_level)
+	if ambient_player != null:
+		var amb_level := maxf(0.0001, float(GameSettings.get_value("ambience")))
+		ambient_player.volume_db = -16.0 + linear_to_db(amb_level)
+	Engine.max_fps = int(GameSettings.get_value("fps_cap"))
+	var fullscreen := bool(GameSettings.get_value("fullscreen"))
+	var mode := DisplayServer.window_get_mode()
+	if fullscreen and mode != DisplayServer.WINDOW_MODE_FULLSCREEN:
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
+	elif not fullscreen and mode == DisplayServer.WINDOW_MODE_FULLSCREEN:
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+	var vsync := bool(GameSettings.get_value("vsync"))
+	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if vsync else DisplayServer.VSYNC_DISABLED)
+	_apply_brightness()
+
+
+func _apply_brightness() -> void:
+	if world_env == null or world_env.environment == null:
+		return
+	var env := world_env.environment
+	env.adjustment_enabled = true
+	env.adjustment_brightness = float(GameSettings.get_value("brightness"))
+
+
 func _generate_floor() -> void:
 	_clear_floor()
+	hud.hide_boons()
 	theme = THEMES[(layer - 1) % THEMES.size()]
+	_roll_modifiers()
 	portal = null
 	portal_area = null
 	portal_disc = null
@@ -257,7 +314,7 @@ func _generate_floor() -> void:
 	boss_enemy = null
 	enemies.clear()
 	kills = 0
-	hazard_timer = 7.5
+	hazard_timer = 7.5 * (0.7 if has_mod("unstable") else 1.0)
 	_apply_theme()
 	_make_layout()
 	_build_ground()
@@ -273,12 +330,36 @@ func _generate_floor() -> void:
 	hud.set_map_cells(walkable, bridge_cells, GRID)
 	hud.set_layer_info(layer, enemies.size(), total_enemies, kills)
 	hud.set_theme_name(String(theme.get("name", "RIFT")))
+	hud.set_modifiers(active_mods)
 	hud.set_status("PACKS AWAKE")
 	hud.set_health(player.health, player.max_health)
 	hud.set_relics(player.relics)
 	hud.set_boss("", 0.0, false)
 	play_music(layer % 5 == 0)
 	map_timer = 0.0
+
+
+func _roll_modifiers() -> void:
+	active_mods.clear()
+	var pool := MODIFIERS.duplicate()
+	var count := 1
+	if layer >= 6:
+		count = 2
+	if layer >= 11:
+		count = 3
+	for i in count:
+		if pool.is_empty():
+			break
+		var pick: Dictionary = pool[rng.randi() % pool.size()]
+		pool.erase(pick)
+		active_mods.append(pick)
+
+
+func has_mod(key: String) -> bool:
+	for mod in active_mods:
+		if String(mod.get("key", "")) == key:
+			return true
+	return false
 
 
 func _apply_theme() -> void:
@@ -637,17 +718,17 @@ func _build_ground() -> void:
 			var j10 := _corner_jitter(2 * x + 1, 2 * y - 1)
 			var j11 := _corner_jitter(2 * x + 1, 2 * y + 1)
 			var j01 := _corner_jitter(2 * x - 1, 2 * y + 1)
-			var c0 := Vector3(center.x - half + j00.x, 0.0, center.z - half + j00.y)
-			var c1 := Vector3(center.x + half + j10.x, 0.0, center.z - half + j10.y)
-			var c2 := Vector3(center.x + half + j11.x, 0.0, center.z + half + j11.y)
-			var c3 := Vector3(center.x - half + j01.x, 0.0, center.z + half + j01.y)
+			var c0 := Vector3(center.x - half + j00.x, j00.x * 0.045, center.z - half + j00.y)
+			var c1 := Vector3(center.x + half + j10.x, j10.y * 0.045, center.z - half + j10.y)
+			var c2 := Vector3(center.x + half + j11.x, j11.x * 0.045, center.z + half + j11.y)
+			var c3 := Vector3(center.x - half + j01.x, j01.y * 0.045, center.z + half + j01.y)
 			var is_bridge := bridge_cells.has(cell)
-			var shade := 0.85 + local_rng.randf() * 0.4
+			var shade := 0.94 + local_rng.randf() * 0.12
 			var tint := Color(shade, shade * 0.95, shade * 0.93)
 			if is_bridge:
 				tint = Color(shade * 1.25, shade * 1.12, shade * 1.0)
-			var dark_tint := Color(tint.r * 0.45, tint.g * 0.4, tint.b * 0.4)
-			_add_quad(stone, c0, c1, c2, c3, Vector3.UP, tint, 0.11)
+			var dark_tint := Color(tint.r * 0.45, tint.g * 0.4, tint.b * 0.4, 0.16)
+			_add_quad(stone, c0, c1, c2, c3, Vector3.UP, tint, 0.30)
 			var lip := 0.16
 			var corners := [c0, c1, c2, c3]
 			var normals := [Vector3(0, 0, -1), Vector3(1, 0, 0), Vector3(0, 0, 1), Vector3(-1, 0, 0)]
@@ -659,14 +740,14 @@ func _build_ground() -> void:
 				var depth := 1.2 if not walkable.get(next_cell, false) else lip
 				var ab := Vector3(a.x, -depth, a.z)
 				var bb := Vector3(b.x, -depth, b.z)
-				_add_quad(stone, a, b, bb, ab, normals[e], dark_tint, 0.11)
+				_add_quad(stone, a, b, bb, ab, normals[e], dark_tint, 0.20)
 				if is_bridge and not walkable.get(next_cell, false):
 					var rail := 0.24
 					var ra := Vector3(a.x, 0.0, a.z)
 					var rb := Vector3(b.x, 0.0, b.z)
 					var rt := Vector3(a.x, rail, a.z)
 					var ru := Vector3(b.x, rail, b.z)
-					_add_quad(stone, ra, rb, ru, rt, normals[e], Color(0.55, 0.4, 0.28), 0.2)
+					_add_quad(stone, ra, rb, ru, rt, normals[e], Color(0.55, 0.4, 0.28, 0.35), 0.2)
 	var stone_mesh := stone.commit()
 	var ground := MeshInstance3D.new()
 	ground.name = "Stone"
@@ -1049,7 +1130,7 @@ func _spawn_packs() -> void:
 						near.append(cell)
 			if not near.is_empty():
 				center = near[rng.randi() % near.size()]
-		var size := rng.randi_range(3, 6)
+		var size := rng.randi_range(3, 6) + (2 if has_mod("swarming") else 0)
 		for i in size:
 			var cell := _nearby_walkable(center)
 			_spawn_enemy(_pick_kind(p == pack_count - 1), cell)
@@ -1094,10 +1175,14 @@ func _spawn_enemy(kind_key: String, cell: Vector2i) -> Enemy:
 	var base: Dictionary = KINDS.get(kind_key, KINDS["wolf"]).duplicate()
 	var health_scale := 1.0 + 0.30 * float(layer - 1)
 	var damage_scale := 1.0 + 0.13 * float(layer - 1)
+	if has_mod("brutal"):
+		damage_scale *= 1.25
 	if bool(base.get("boss", false)):
 		health_scale = 1.0 + 0.34 * float(layer - 1)
 	base.health = float(base.health) * health_scale
 	base.damage = float(base.damage) * damage_scale
+	if has_mod("frenzied"):
+		base.speed = float(base.speed) * 1.2
 	var enemy := Enemy.new()
 	entity_root.add_child(enemy)
 	var model := _get_model(DUNGEON_DIR + String(base.file))
@@ -1185,12 +1270,18 @@ func _on_enemy_died(enemy: Enemy) -> void:
 
 func _drop_loot(enemy: Enemy) -> void:
 	var chance := 0.26 + 0.03 * float(layer)
+	if has_mod("gilded"):
+		chance *= 1.35
+	chance *= 1.0 + boon_luck
 	if enemy.boss:
 		chance = 1.0
 	elif enemy.elite:
 		chance = 0.8
 	if rng.randf() < chance:
-		_spawn_item(enemy.global_position)
+		var force := ""
+		if has_mod("gilded") and rng.randf() < 0.3:
+			force = "rare"
+		_spawn_item(enemy.global_position, force)
 	if rng.randf() < 0.45:
 		_spawn_life(enemy.global_position)
 
@@ -1395,6 +1486,52 @@ func _open_portal() -> void:
 	play_sfx("portal", 0.0, 0.03)
 	FX.ring(fx_root, pos, Color(1.0, 0.55, 0.2, 0.9), 9.0, 1.2, 0.08)
 	FX.burst(fx_root, pos + Vector3(0.0, 1.5, 0.0), Color(1.0, 0.5, 0.2, 1.0), 60, 10.0, 0.7, 1.4, -2.0)
+	_offer_boons()
+
+
+func _offer_boons() -> void:
+	if player == null or not player.alive or not run_active:
+		return
+	var pool := BOONS.duplicate()
+	var picked: Array = []
+	for i in 3:
+		if pool.is_empty():
+			break
+		var index := rng.randi() % pool.size()
+		picked.append(pool[index])
+		pool.remove_at(index)
+	hud.show_boons(picked)
+
+
+func _on_boon_chosen(key: String) -> void:
+	if player == null or not player.alive:
+		return
+	var claimed := ""
+	match key:
+		"fury":
+			player.power *= 1.15
+			claimed = "BLOOD FURY"
+		"vitality":
+			player.max_health += 40.0
+			player.heal(40.0)
+			claimed = "DEEP VITAE"
+		"haste":
+			player.cooldown_mult = maxf(0.4, player.cooldown_mult * 0.85)
+			claimed = "QUICKENED BLOOD"
+		"regen":
+			player.regen += 0.9
+			claimed = "SANGUINE FLOW"
+		"fortune":
+			boon_luck += 0.3
+			claimed = "GILDED HOUR"
+		"swift":
+			player.move_speed *= 1.08
+			claimed = "CRIMSON STRIDE"
+		_:
+			return
+	play_sfx("pickup", -2.0, 0.05)
+	FX.ring(fx_root, player.global_position, Color(1.0, 0.6, 0.25, 0.8), 5.0, 0.7, 0.06)
+	hud.toast("%s  CLAIMED" % claimed, Color(1.0, 0.8, 0.35), 2.4)
 
 
 func _on_portal_entered(body: Node) -> void:
@@ -1434,7 +1571,9 @@ func begin_run() -> void:
 func _restart_run() -> void:
 	get_tree().paused = false
 	mouse_held = false
+	boon_luck = 0.0
 	hud.flash_transition()
+	hud.hide_boons()
 	layer = 1
 	kills = 0
 	run_active = true
@@ -1731,6 +1870,7 @@ func _on_player_died() -> void:
 	run_active = false
 	hud.set_boss("", 0.0, false)
 	_save_record()
+	hud.hide_boons()
 	hud.close_relic_window()
 	hud.close_relic_window()
 	play_sfx("death", 0.0, 0.05)
@@ -1741,6 +1881,8 @@ func _on_player_died() -> void:
 
 
 func _shake(amount: float) -> void:
+	if not bool(GameSettings.get_value("shake")):
+		return
 	camera_shake = maxf(camera_shake, amount)
 
 
@@ -1772,6 +1914,8 @@ func _process(delta: float) -> void:
 	hazard_timer -= delta
 	if hazard_timer <= 0.0:
 		hazard_timer = maxf(2.4, 7.0 - 0.5 * float(layer - 1)) * rng.randf_range(0.8, 1.3)
+		if has_mod("unstable"):
+			hazard_timer *= 0.7
 		_spawn_hazard()
 	lava_timer -= delta
 	if lava_timer <= 0.0:
@@ -1789,6 +1933,8 @@ func _process(delta: float) -> void:
 
 func _hold_to_move(delta: float) -> void:
 	if not mouse_held:
+		return
+	if not bool(GameSettings.get_value("hold_move")):
 		return
 	hold_timer -= delta
 	if hold_timer > 0.0:
@@ -1851,7 +1997,7 @@ func _update_camera(delta: float) -> void:
 
 
 func _camera_desired() -> Vector3:
-	var desired := camera_focus + CAMERA_OFFSET * camera_zoom
+	var desired := camera_focus + CAMERA_OFFSET * camera_zoom * float(GameSettings.get_value("camera_zoom"))
 	var limit := float(GRID) * CELL * 0.5 - 7.0
 	desired.x = clampf(desired.x, -limit, limit)
 	desired.z = clampf(desired.z, -limit, limit)
