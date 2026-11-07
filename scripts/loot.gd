@@ -16,13 +16,18 @@ var settled := false
 func _ready() -> void:
 	var shape := CollisionShape3D.new()
 	var sphere := SphereShape3D.new()
-	sphere.radius = 2.0
+	sphere.radius = 2.0 if is_life else 1.35
 	shape.shape = sphere
 	add_child(shape)
-	collision_layer = 0
-	collision_mask = 2
-	monitoring = true
-	body_entered.connect(_on_body_entered)
+	if is_life:
+		collision_layer = 0
+		collision_mask = 2
+		monitoring = true
+		body_entered.connect(_on_body_entered)
+	else:
+		collision_layer = 8
+		collision_mask = 0
+		monitoring = false
 	gem = Node3D.new()
 	add_child(gem)
 	if is_life:
@@ -54,27 +59,27 @@ func _build_item_gem() -> void:
 	color = item.get("color", Color.WHITE)
 	var mesh_inst := MeshInstance3D.new()
 	var prism := PrismMesh.new()
-	prism.size = Vector3(0.34, 0.5, 0.34)
+	prism.size = Vector3(0.56, 0.8, 0.56)
 	mesh_inst.mesh = prism
 	mesh_inst.material_override = FX.glow_material(Color(color.r, color.g, color.b, 0.95), false)
 	mesh_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	gem.add_child(mesh_inst)
 	var core := MeshInstance3D.new()
 	var sphere := SphereMesh.new()
-	sphere.radius = 0.16
-	sphere.height = 0.32
+	sphere.radius = 0.24
+	sphere.height = 0.48
 	core.mesh = sphere
 	core.material_override = FX.glow_material(Color(color.r, color.g, color.b, 0.9))
 	core.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	gem.add_child(core)
 	var beam := MeshInstance3D.new()
 	var cylinder := CylinderMesh.new()
-	cylinder.top_radius = 0.08
-	cylinder.bottom_radius = 0.2
-	cylinder.height = 2.6
+	cylinder.top_radius = 0.1
+	cylinder.bottom_radius = 0.26
+	cylinder.height = 3.0
 	cylinder.radial_segments = 12
 	beam.mesh = cylinder
-	beam.material_override = FX.glow_material(Color(color.r, color.g, color.b, 0.035))
+	beam.material_override = FX.glow_material(Color(color.r, color.g, color.b, 0.055))
 	beam.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	beam.position.y = 1.3
 	add_child(beam)
@@ -85,11 +90,22 @@ func _build_item_gem() -> void:
 	light.shadow_enabled = false
 	light.position.y = 0.6
 	add_child(light)
+	var marker := MeshInstance3D.new()
+	var ring_mesh := TorusMesh.new()
+	ring_mesh.inner_radius = 0.62
+	ring_mesh.outer_radius = 0.78
+	ring_mesh.rings = 32
+	ring_mesh.ring_segments = 4
+	marker.mesh = ring_mesh
+	marker.material_override = FX.glow_material(Color(color.r, color.g, color.b, 0.6))
+	marker.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	marker.position.y = 0.06
+	add_child(marker)
 	gem.position.y = 0.55
 	label = Label3D.new()
-	label.text = String(item.get("name", "Relic"))
-	label.font_size = 34
-	label.pixel_size = 0.0026
+	label.text = "%s  ·  CLICK" % String(item.get("name", "Relic"))
+	label.font_size = 44
+	label.pixel_size = 0.0032
 	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	label.modulate = color
 	label.outline_size = 10

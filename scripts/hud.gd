@@ -1,7 +1,9 @@
 class_name GameHUD
 extends CanvasLayer
 
-signal equip_requested(item: Dictionary)
+signal equip_requested(item: Dictionary, slot: int)
+signal unequip_requested(slot: int)
+signal discard_requested
 signal start_pressed
 signal ui_click
 signal ability_pressed(index: int)
@@ -14,6 +16,9 @@ const BONE := Color(0.90, 0.86, 0.79)
 const MUTED := Color(0.62, 0.56, 0.56)
 const GOLD := Color(1.0, 0.83, 0.35)
 const DISPLAY_FONT := "res://fonts/cinzel.ttf"
+const ICON_NOVA := "res://art/generated/icon_nova/img-f4afbd64-b344-4c4f-a17c-5b062341cf23-1794037296460-0_1794037296461_2fben6it.png"
+const ICON_LANCE := "res://art/generated/icon_lance/img-f4afbd64-b344-4c4f-a17c-5b062341cf23-1794037334226-0_1794037334226_0jajynkv.png"
+const ICON_SIPHON := "res://art/generated/icon_siphon/img-f4afbd64-b344-4c4f-a17c-5b062341cf23-1794037347430-0_1794037347430_d38c0j6p.png"
 
 var root: Control
 var body: Control
@@ -26,17 +31,24 @@ var health_shown := 100.0
 var ghost_shown := 100.0
 var damage_flash := 0.0
 var layer_label: Label
+var theme_label: Label
 var wave_label: Label
 var wave_bar: ProgressBar
 var slots: Array = []
 var bloodrush_label: Label
 var bloodrush_bar: ProgressBar
-var relic_name: Label
 var relic_stats: Label
 var toast_box: VBoxContainer
-var compare_panel: PanelContainer
-var compare_box: VBoxContainer
-var compare_hint: Label
+var relic_window: PanelContainer
+var relic_tabs: HBoxContainer
+var relic_body: VBoxContainer
+var boss_panel: PanelContainer
+var boss_name: Label
+var boss_bar: ProgressBar
+var relic_rows: Array = []
+var relics: Array = []
+var relic_tab := "relics"
+var relic_opened_ms := 0
 var vignette: TextureRect
 var death_panel: PanelContainer
 var death_stats: Label
@@ -47,9 +59,9 @@ var record_layer := 1
 var pause_panel: PanelContainer
 var pause_shade: ColorRect
 var fade_rect: ColorRect
+var ability_flash_rect: ColorRect
 var status_label: Label
 var pending_item: Dictionary = {}
-var compare_shown_ms := 0
 var vignette_alpha := 0.0
 var low_health := 0.0
 var display_font: FontFile
@@ -128,6 +140,23 @@ class VitaeBar extends Control:
 		draw_rect(full, Color(0.52, 0.18, 0.13, 0.95), false, 1.0)
 
 
+class RelicGem extends Control:
+	var gem_color := Color(0.5, 0.5, 0.5)
+
+	func _draw() -> void:
+		var center := size * 0.5
+		var radius := minf(size.x, size.y) * 0.5
+		var pts := PackedVector2Array([
+			center + Vector2(0.0, -radius),
+			center + Vector2(radius, 0.0),
+			center + Vector2(0.0, radius),
+			center + Vector2(-radius, 0.0),
+		])
+		draw_colored_polygon(pts, gem_color)
+		pts.append(pts[0])
+		draw_polyline(pts, gem_color.lightened(0.45), 1.0)
+
+
 func _ready() -> void:
 	layer = 10
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -183,6 +212,7 @@ func _build() -> void:
 	add_child(root)
 	_build_backdrop()
 	_build_vignette()
+	_build_ability_flash()
 	body = Control.new()
 	body.name = "RunHUD"
 	body.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -192,11 +222,12 @@ func _build() -> void:
 	root.add_child(body)
 	_build_minimap()
 	_build_top()
+	_build_boss()
 	_build_health()
 	_build_abilities()
 	_build_relic()
 	_build_toasts()
-	_build_compare()
+	_build_relic_window()
 	_build_death()
 	_build_title()
 	_build_pause_button()
@@ -323,6 +354,22 @@ func _build_vignette() -> void:
 	root.add_child(vignette)
 
 
+func _build_ability_flash() -> void:
+	ability_flash_rect = ColorRect.new()
+	ability_flash_rect.color = Color(1.0, 0.2, 0.15, 0.0)
+	ability_flash_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ability_flash_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(ability_flash_rect)
+
+
+func flash_ability(color: Color) -> void:
+	if ability_flash_rect == null:
+		return
+	ability_flash_rect.color = Color(color.r, color.g, color.b, 0.16)
+	var tween := create_tween()
+	tween.tween_property(ability_flash_rect, "color:a", 0.0, 0.4).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+
+
 func _build_top() -> void:
 	var box := VBoxContainer.new()
 	box.set_anchors_preset(Control.PRESET_CENTER_TOP)
@@ -337,6 +384,9 @@ func _build_top() -> void:
 	layer_label = _label("RIFT LAYER 1", 34, AMBER)
 	layer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(layer_label)
+	theme_label = _label("", 12, MUTED)
+	theme_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(theme_label)
 	var wave_gap := Control.new()
 	wave_gap.custom_minimum_size = Vector2(0, 5)
 	wave_gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -374,9 +424,53 @@ func _build_top() -> void:
 	status_label = _label("", 20, GOLD)
 	status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(status_label)
-	var controls_hint := _label("LMB MOVE / ATTACK  ·  RMB LANCE  ·  1 2 3 CAST  ·  SPACE RIFTSTEP  ·  CLICK LOOT", 12, MUTED)
+	var controls_hint := _label("WASD MOVE  ·  LMB ATTACK  ·  RMB LANCE  ·  1 2 3 CAST  ·  SPACE RIFTSTEP  ·  TAB RELICS", 12, MUTED)
 	controls_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(controls_hint)
+
+
+func _build_boss() -> void:
+	boss_panel = PanelContainer.new()
+	boss_panel.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	boss_panel.anchor_left = 0.5
+	boss_panel.anchor_right = 0.5
+	boss_panel.offset_left = -270.0
+	boss_panel.offset_right = 270.0
+	boss_panel.offset_top = 196.0
+	boss_panel.offset_bottom = 250.0
+	boss_panel.add_theme_stylebox_override("panel", _stylebox(Color(0.05, 0.012, 0.02, 0.92), Color(0.62, 0.14, 0.1, 1.0), 1))
+	boss_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	boss_panel.visible = false
+	body.add_child(boss_panel)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 2)
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	boss_panel.add_child(box)
+	boss_name = _label("RIFT WARDEN", 17, Color(1.0, 0.55, 0.35))
+	boss_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(boss_name)
+	boss_bar = ProgressBar.new()
+	boss_bar.custom_minimum_size = Vector2(0, 12)
+	boss_bar.show_percentage = false
+	boss_bar.max_value = 100.0
+	boss_bar.value = 100.0
+	var bg := StyleBoxFlat.new()
+	bg.bg_color = Color(0.08, 0.02, 0.02, 0.95)
+	bg.set_corner_radius_all(2)
+	var grad := Gradient.new()
+	grad.set_color(0, Color(0.55, 0.05, 0.03, 1.0))
+	grad.set_color(1, Color(1.0, 0.35, 0.12, 1.0))
+	var tex := GradientTexture2D.new()
+	tex.gradient = grad
+	tex.fill_from = Vector2(0.0, 0.5)
+	tex.fill_to = Vector2(1.0, 0.5)
+	tex.width = 128
+	tex.height = 8
+	var fill := StyleBoxTexture.new()
+	fill.texture = tex
+	boss_bar.add_theme_stylebox_override("background", bg)
+	boss_bar.add_theme_stylebox_override("fill", fill)
+	box.add_child(boss_bar)
 
 
 func _build_health() -> void:
@@ -459,7 +553,9 @@ func _build_abilities() -> void:
 	row.add_theme_constant_override("separation", 10)
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_child(row)
-	for ability in Player.ABILITIES:
+	var icon_paths := [ICON_NOVA, ICON_LANCE, ICON_SIPHON]
+	for ability_index in Player.ABILITIES.size():
+		var ability: Dictionary = Player.ABILITIES[ability_index]
 		var panel := Panel.new()
 		panel.custom_minimum_size = Vector2(150, 62)
 		panel.add_theme_stylebox_override("panel", _stylebox(INK, Color(0.3, 0.16, 0.12, 1.0), 1))
@@ -479,12 +575,28 @@ func _build_abilities() -> void:
 		var key_label := _label(String(ability.key), 13, AMBER)
 		key_label.position = Vector2(8, 3)
 		panel.add_child(key_label)
-		var name_label := _label(String(ability.glyph), 17, BONE)
-		name_label.position = Vector2(8, 20)
+		var icon_path := String(icon_paths[ability_index])
+		if ResourceLoader.exists(icon_path):
+			var icon_box := Control.new()
+			icon_box.position = Vector2(8, 21)
+			icon_box.size = Vector2(36, 36)
+			icon_box.custom_minimum_size = Vector2(36, 36)
+			icon_box.clip_contents = true
+			icon_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			panel.add_child(icon_box)
+			var icon := TextureRect.new()
+			icon.texture = load(icon_path)
+			icon.set_anchors_preset(Control.PRESET_FULL_RECT)
+			icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+			icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			icon_box.add_child(icon)
+		var name_label := _label(String(ability.glyph), 15, BONE)
+		name_label.position = Vector2(50, 8)
 		panel.add_child(name_label)
 		var cost := float(ability.cost)
 		var cost_label := _label("FREE" if cost <= 0.0 else "%d VITAE" % int(cost), 11, CRIMSON)
-		cost_label.position = Vector2(8, 42)
+		cost_label.position = Vector2(50, 28)
 		panel.add_child(cost_label)
 		var cd_label := _label("", 20, GOLD)
 		cd_label.anchor_left = 1.0
@@ -560,23 +672,36 @@ func _build_relic() -> void:
 	panel.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	panel.anchor_left = 1.0
 	panel.anchor_right = 1.0
-	panel.offset_left = -276.0
+	panel.offset_left = -300.0
 	panel.offset_right = -26.0
-	panel.offset_top = -142.0
+	panel.offset_top = -158.0
 	panel.offset_bottom = -26.0
-	panel.add_theme_stylebox_override("panel", _stylebox(Color(0.03, 0.02, 0.04, 0.86), Color(0.34, 0.22, 0.14, 1.0), 1))
-	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_theme_stylebox_override("panel", _stylebox(Color(0.03, 0.02, 0.04, 0.9), Color(0.34, 0.22, 0.14, 1.0), 1))
+	panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	panel.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	panel.gui_input.connect(_on_relic_panel_input)
 	body.add_child(panel)
 	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 2)
+	box.add_theme_constant_override("separation", 3)
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.add_child(box)
-	var title := _label("RELIC", 12, MUTED)
+	var title := _label("RELIC LOADOUT   ·   TAB", 11, MUTED)
 	box.add_child(title)
-	relic_name = _label("Empty Binding", 17, BONE)
-	relic_name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	box.add_child(relic_name)
-	relic_stats = _label("", 12, MUTED)
+	for i in Player.MAX_RELICS:
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 7)
+		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		box.add_child(row)
+		var gem := RelicGem.new()
+		gem.custom_minimum_size = Vector2(13, 13)
+		gem.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		gem.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_child(gem)
+		var name_label := _label("Empty", 14, MUTED)
+		name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		row.add_child(name_label)
+		relic_rows.append({"gem": gem, "name": name_label})
+	relic_stats = _label("Click a glowing drop to claim", 11, MUTED)
 	relic_stats.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(relic_stats)
 
@@ -588,33 +713,82 @@ func _build_toasts() -> void:
 	toast_box.anchor_right = 0.5
 	toast_box.offset_left = -300.0
 	toast_box.offset_right = 300.0
-	toast_box.offset_top = 150.0
+	toast_box.offset_top = 262.0
 	toast_box.alignment = BoxContainer.ALIGNMENT_CENTER
 	toast_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	body.add_child(toast_box)
 
 
-func _build_compare() -> void:
-	compare_panel = PanelContainer.new()
-	compare_panel.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	compare_panel.anchor_left = 1.0
-	compare_panel.anchor_right = 1.0
-	compare_panel.offset_left = -318.0
-	compare_panel.offset_right = -26.0
-	compare_panel.offset_top = -374.0
-	compare_panel.offset_bottom = -196.0
-	compare_panel.add_theme_stylebox_override("panel", _stylebox(Color(0.04, 0.025, 0.045, 0.96), Color(0.5, 0.3, 0.1, 1.0), 2))
-	compare_panel.visible = false
-	compare_panel.mouse_filter = Control.MOUSE_FILTER_STOP
-	compare_panel.gui_input.connect(_on_compare_input)
-	root.add_child(compare_panel)
-	compare_box = VBoxContainer.new()
-	compare_box.add_theme_constant_override("separation", 3)
-	compare_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	compare_panel.add_child(compare_box)
-	compare_hint = _label("CLICK TO EQUIP  ·  ENTER  ·  ESC TO DISCARD", 11, MUTED)
-	compare_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	compare_box.add_child(compare_hint)
+func _build_relic_window() -> void:
+	relic_window = PanelContainer.new()
+	relic_window.set_anchors_preset(Control.PRESET_CENTER)
+	relic_window.anchor_left = 0.5
+	relic_window.anchor_right = 0.5
+	relic_window.anchor_top = 0.5
+	relic_window.anchor_bottom = 0.5
+	relic_window.offset_left = -320.0
+	relic_window.offset_right = 320.0
+	relic_window.offset_top = -238.0
+	relic_window.offset_bottom = 238.0
+	relic_window.add_theme_stylebox_override("panel", _stylebox(Color(0.035, 0.02, 0.04, 0.97), Color(0.55, 0.34, 0.14, 1.0), 2, 4))
+	relic_window.visible = false
+	relic_window.mouse_filter = Control.MOUSE_FILTER_STOP
+	root.add_child(relic_window)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 8)
+	relic_window.add_child(box)
+	var header := HBoxContainer.new()
+	header.add_theme_constant_override("separation", 8)
+	box.add_child(header)
+	relic_tabs = HBoxContainer.new()
+	relic_tabs.add_theme_constant_override("separation", 6)
+	header.add_child(relic_tabs)
+	relic_tabs.add_child(_tab_button("RELICS", "relics"))
+	relic_tabs.add_child(_tab_button("SYNERGY", "synergy"))
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(spacer)
+	var close := Button.new()
+	close.text = "ESC"
+	close.custom_minimum_size = Vector2(58, 30)
+	close.add_theme_font_size_override("font_size", 12)
+	close.add_theme_color_override("font_color", MUTED)
+	close.add_theme_color_override("font_hover_color", AMBER)
+	close.add_theme_stylebox_override("normal", _stylebox(Color(0.05, 0.03, 0.04, 0.9), Color(0.24, 0.16, 0.12, 1.0), 1))
+	close.add_theme_stylebox_override("hover", _stylebox(Color(0.13, 0.06, 0.05, 0.95), Color(0.9, 0.55, 0.2, 1.0), 1))
+	close.pressed.connect(close_relic_window)
+	header.add_child(close)
+	relic_body = VBoxContainer.new()
+	relic_body.add_theme_constant_override("separation", 5)
+	relic_body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	box.add_child(relic_body)
+
+
+func _tab_button(text: String, tab: String) -> Button:
+	var btn := Button.new()
+	btn.text = text
+	btn.custom_minimum_size = Vector2(126, 32)
+	btn.add_theme_font_size_override("font_size", 15)
+	btn.add_theme_color_override("font_color", MUTED)
+	btn.add_theme_color_override("font_hover_color", AMBER)
+	btn.add_theme_color_override("font_pressed_color", GOLD)
+	btn.add_theme_stylebox_override("normal", _stylebox(Color(0.06, 0.03, 0.05, 0.92), Color(0.24, 0.16, 0.12, 1.0), 1))
+	btn.add_theme_stylebox_override("hover", _stylebox(Color(0.14, 0.07, 0.06, 0.96), Color(0.7, 0.45, 0.16, 1.0), 1))
+	btn.add_theme_stylebox_override("pressed", _stylebox(Color(0.2, 0.09, 0.07, 1.0), Color(1.0, 0.65, 0.25, 1.0), 1))
+	btn.set_meta("tab", tab)
+	btn.pressed.connect(_select_tab.bind(tab))
+	return btn
+
+
+func _select_tab(tab: String) -> void:
+	relic_tab = tab
+	_refresh_relic_window()
+
+
+func _on_relic_panel_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
+		toggle_relic_window()
+		get_viewport().set_input_as_handled()
 
 
 func _build_death() -> void:
@@ -680,15 +854,15 @@ func _build_title() -> void:
 	box.anchor_bottom = 0.5
 	box.offset_left = -380.0
 	box.offset_right = 380.0
-	box.offset_top = -190.0
-	box.offset_bottom = 190.0
+	box.offset_top = -215.0
+	box.offset_bottom = 215.0
 	box.alignment = BoxContainer.ALIGNMENT_CENTER
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	title_panel.add_child(box)
-	title_label = _label("RIFT & RUIN", 92, AMBER)
+	title_label = _label("RIFT & RUIN", 84, AMBER)
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(title_label)
-	var sub := _label("THE BLOOD SORCERESS", 22, CRIMSON)
+	var sub := _label("THE BLOOD SORCERESS", 20, CRIMSON)
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(sub)
 	record_label = _label("DEEPEST RIFT  ·  LAYER 1", 14, MUTED)
@@ -699,16 +873,17 @@ func _build_title() -> void:
 	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_child(spacer)
 	var lines := [
-		"Click to move. Click a demon to lance it.",
+		"WASD to move. Click a demon to lance it.",
 		"1  BLOOD NOVA      detonate your life force",
 		"2  CRIMSON LANCE   pierce the pack",
 		"3  SANGUINE SIPHON drink their wounds closed",
 		"SPACE  RIFTSTEP    slide over lava",
-		"HOLD LEFT MOUSE to run  ·  click a skill card to cast  ·  ESC pauses",
+		"TAB  relic loadout   ·   click a glowing drop to claim it",
+		"Click ground to walk  ·  click skill cards to cast  ·  ESC pauses",
 		"Clear every pack, step into the rift, go deeper.",
 	]
 	for line in lines:
-		var l := _label(line, 17, BONE)
+		var l := _label(line, 15, BONE)
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		box.add_child(l)
 	var spacer2 := Control.new()
@@ -720,11 +895,6 @@ func _build_title() -> void:
 	title_panel.modulate.a = 0.0
 	var fade := create_tween()
 	fade.tween_property(title_panel, "modulate:a", 1.0, 0.7)
-
-
-func _on_compare_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		_equip_pending()
 
 
 func _build_pause() -> void:
@@ -761,14 +931,16 @@ func _build_pause() -> void:
 	spacer.custom_minimum_size = Vector2(0, 8)
 	box.add_child(spacer)
 	var lines := [
-		"CLICK / HOLD       move",
+		"WASD / ARROWS      move",
+		"CLICK GROUND       walk there",
 		"CLICK A FOE        crimson lance",
 		"1   BLOOD NOVA     6 vitae",
 		"2   CRIMSON LANCE  3 vitae",
 		"3   SANGUINE SIPHON free",
 		"SPACE   RIFTSTEP   dash over lava",
+		"TAB   relic loadout and synergies",
 		"CLICK A SKILL CARD   cast without a hotkey",
-		"CLICK LOOT CARD or ENTER   equip relic",
+		"MOUSE WHEEL   camera zoom",
 		"ESC   close card / pause",
 	]
 	for line in lines:
@@ -838,8 +1010,8 @@ func set_record(best: int) -> void:
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo and (event.keycode == KEY_ESCAPE or event.keycode == KEY_P):
-		if compare_panel.visible:
-			hide_compare()
+		if relic_window.visible:
+			close_relic_window()
 		elif not death_panel.visible:
 			toggle_pause()
 		get_viewport().set_input_as_handled()
@@ -857,17 +1029,6 @@ func toggle_pause() -> void:
 	pause_shade.visible = paused
 	pause_panel.visible = paused
 	ui_click.emit()
-
-
-func _equip_pending() -> void:
-	if pending_item.is_empty():
-		return
-	if Time.get_ticks_msec() - compare_shown_ms < 400:
-		return
-	var item := pending_item
-	pending_item = {}
-	compare_panel.visible = false
-	equip_requested.emit(item)
 
 
 func set_health(current: float, maximum: float, regen_rate := -1.0, in_combat := false) -> void:
@@ -896,6 +1057,21 @@ func set_layer_info(layer: int, remaining: int, total: int, kills := 0) -> void:
 		if total > 0:
 			cleared = clampf(float(total - remaining) / float(total), 0.0, 1.0)
 		wave_bar.value = cleared * 100.0
+
+
+func set_theme_name(text: String) -> void:
+	if theme_label != null:
+		theme_label.text = text
+
+
+func set_boss(name_text: String, ratio: float, active: bool) -> void:
+	if boss_panel == null:
+		return
+	boss_panel.visible = active
+	if not active:
+		return
+	boss_name.text = name_text
+	boss_bar.value = clampf(ratio, 0.0, 1.0) * 100.0
 
 
 func set_status(text: String) -> void:
@@ -961,20 +1137,279 @@ func set_cooldowns(cooldowns: Array, dash_cooldown: float, health := 0.0, costs:
 		slot["was_cd"] = cd > 0.05
 
 
-func set_relic(item: Dictionary) -> void:
-	if item.is_empty():
-		relic_name.text = "Empty Binding"
-		relic_name.add_theme_color_override("font_color", MUTED)
-		relic_stats.text = "Walk over a relic to compare."
-		return
-	relic_name.text = String(item.get("name", "Relic"))
-	relic_name.add_theme_color_override("font_color", item.get("color", BONE))
+func set_relics(list: Array) -> void:
+	relics = list.duplicate()
+	for i in relic_rows.size():
+		var row: Dictionary = relic_rows[i]
+		var item: Dictionary = relics[i] if i < relics.size() else {}
+		var name_label: Label = row.name
+		var gem: RelicGem = row.gem
+		if item.is_empty():
+			name_label.text = "%d   empty" % (i + 1)
+			name_label.add_theme_color_override("font_color", Color(0.42, 0.38, 0.4))
+			gem.gem_color = Color(0.24, 0.2, 0.22)
+		else:
+			var family := String(item.get("family", "blood"))
+			var family_name := String(ItemDB.FAMILIES.get(family, {}).get("name", ""))
+			name_label.text = "%d   %s  ·  %s" % [i + 1, String(item.get("name", "Relic")), family_name]
+			name_label.add_theme_color_override("font_color", item.get("color", BONE))
+			gem.gem_color = ItemDB.FAMILIES.get(family, {}).get("color", Color(0.8, 0.5, 0.2))
+		gem.queue_redraw()
+	if relic_stats != null:
+		relic_stats.text = _synergy_summary()
+	if relic_window != null and relic_window.visible:
+		_refresh_relic_window()
+
+
+func _family_count(family: String) -> int:
+	var count := 0
+	for item in relics:
+		if not item.is_empty() and String(item.get("family", "")) == family:
+			count += 1
+	return count
+
+
+func _can_fit(item: Dictionary, slot: int) -> bool:
+	if slot < 0 or slot >= Player.MAX_RELICS:
+		return false
+	var family := String(item.get("family", "blood"))
+	var count := 0
+	for i in relics.size():
+		if i == slot:
+			continue
+		if not relics[i].is_empty() and String(relics[i].get("family", "")) == family:
+			count += 1
+	return count < Player.FAMILY_STACK_LIMIT
+
+
+func _synergy_summary() -> String:
 	var parts: Array = []
-	for line in ItemDB.mod_lines(item):
-		parts.append(String(line.text))
-	if String(item.get("unique", "")) != "":
-		parts.append(String(item.get("unique_text", "")))
-	relic_stats.text = "\n".join(parts)
+	for family in ["blood", "ember", "rift"]:
+		if _family_count(family) >= 2:
+			parts.append(String(ItemDB.FAMILIES[family].name).to_upper() + " RITE")
+	var filled := 0
+	for family in ["blood", "ember", "rift"]:
+		if _family_count(family) > 0:
+			filled += 1
+	if filled >= 3:
+		parts.append("BLOODMOON TRIAD")
+	if parts.is_empty():
+		return "No rite active  ·  stack 2 of one family"
+	return "  ·  ".join(parts)
+
+
+func offer_relic(item: Dictionary) -> void:
+	pending_item = item
+	relic_tab = "relics"
+	if relic_window == null:
+		return
+	relic_window.visible = true
+	relic_window.modulate.a = 1.0
+	relic_opened_ms = Time.get_ticks_msec()
+	_refresh_relic_window()
+
+
+func open_relic_window() -> void:
+	if relic_window == null:
+		return
+	relic_window.visible = true
+	relic_window.modulate.a = 1.0
+	relic_opened_ms = Time.get_ticks_msec()
+	_refresh_relic_window()
+
+
+func close_relic_window() -> void:
+	pending_item = {}
+	if relic_window != null:
+		relic_window.visible = false
+
+
+func toggle_relic_window() -> void:
+	if relic_window == null:
+		return
+	if relic_window.visible:
+		close_relic_window()
+	else:
+		pending_item = {}
+		open_relic_window()
+
+
+func is_relic_window_open() -> bool:
+	return relic_window != null and relic_window.visible
+
+
+func equip_pending_best() -> void:
+	if pending_item.is_empty():
+		return
+	for i in Player.MAX_RELICS:
+		if _can_fit(pending_item, i):
+			_pick_slot(i)
+			return
+	toast("FAMILY STACK FULL", Color(1.0, 0.4, 0.3), 1.6)
+
+
+func _pick_slot(slot: int) -> void:
+	if Time.get_ticks_msec() - relic_opened_ms < 350:
+		return
+	if pending_item.is_empty():
+		return
+	var item := pending_item
+	pending_item = {}
+	equip_requested.emit(item, slot)
+
+
+func _remove_slot(slot: int) -> void:
+	if Time.get_ticks_msec() - relic_opened_ms < 300:
+		return
+	unequip_requested.emit(slot)
+
+
+func _discard() -> void:
+	if Time.get_ticks_msec() - relic_opened_ms < 300:
+		return
+	pending_item = {}
+	discard_requested.emit()
+
+
+func _clear_children(container: Node) -> void:
+	for child in container.get_children():
+		container.remove_child(child)
+		child.queue_free()
+
+
+func _refresh_relic_window() -> void:
+	if relic_body == null:
+		return
+	_clear_children(relic_body)
+	if relic_tabs != null:
+		for btn in relic_tabs.get_children():
+			if btn is Button:
+				var active := String(btn.get_meta("tab", "")) == relic_tab
+				btn.add_theme_color_override("font_color", GOLD if active else MUTED)
+				btn.add_theme_stylebox_override("normal", _stylebox(
+					Color(0.16, 0.07, 0.05, 0.96) if active else Color(0.06, 0.03, 0.05, 0.92),
+					Color(0.95, 0.6, 0.22, 1.0) if active else Color(0.24, 0.16, 0.12, 1.0), 1))
+	if relic_tab == "synergy":
+		_build_synergy_body()
+	else:
+		_build_relic_body()
+
+
+func _build_relic_body() -> void:
+	if not pending_item.is_empty():
+		var item := pending_item
+		var family := String(item.get("family", "blood"))
+		var family_def: Dictionary = ItemDB.FAMILIES.get(family, ItemDB.FAMILIES["blood"])
+		var headline := _label("%s" % String(item.get("name", "Relic")), 24, item.get("color", BONE))
+		relic_body.add_child(headline)
+		var sub := _label("%s  ·  %s FAMILY" % [String(item.get("rarity_name", "")).to_upper(), String(family_def.name).to_upper()], 12, family_def.color)
+		relic_body.add_child(sub)
+		var unique := String(item.get("unique_text", ""))
+		if unique != "":
+			var u := _label(unique, 14, GOLD)
+			u.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			relic_body.add_child(u)
+		for line in ItemDB.mod_lines(item):
+			relic_body.add_child(_label(String(line.text), 15, BONE, false))
+		relic_body.add_child(_label("BIND TO SLOT   (max %d per family)" % Player.FAMILY_STACK_LIMIT, 11, MUTED))
+		var slot_row := HBoxContainer.new()
+		slot_row.add_theme_constant_override("separation", 8)
+		relic_body.add_child(slot_row)
+		for i in Player.MAX_RELICS:
+			var btn := Button.new()
+			btn.text = "SLOT %d" % (i + 1)
+			btn.custom_minimum_size = Vector2(104, 36)
+			btn.add_theme_font_size_override("font_size", 14)
+			btn.add_theme_color_override("font_color", AMBER)
+			btn.add_theme_color_override("font_hover_color", Color(1.0, 0.92, 0.72))
+			btn.add_theme_stylebox_override("normal", _stylebox(Color(0.1, 0.04, 0.05, 0.95), Color(0.5, 0.28, 0.1, 1.0), 1))
+			btn.add_theme_stylebox_override("hover", _stylebox(Color(0.2, 0.08, 0.07, 0.98), Color(0.9, 0.55, 0.2, 1.0), 1))
+			btn.add_theme_stylebox_override("pressed", _stylebox(Color(0.3, 0.1, 0.08, 1.0), Color(1.0, 0.7, 0.3, 1.0), 1))
+			btn.disabled = not _can_fit(item, i)
+			btn.pressed.connect(_pick_slot.bind(i))
+			slot_row.add_child(btn)
+		var discard := Button.new()
+		discard.text = "DISCARD"
+		discard.custom_minimum_size = Vector2(104, 36)
+		discard.add_theme_font_size_override("font_size", 13)
+		discard.add_theme_color_override("font_color", MUTED)
+		discard.add_theme_stylebox_override("normal", _stylebox(Color(0.05, 0.03, 0.04, 0.9), Color(0.24, 0.16, 0.12, 1.0), 1))
+		discard.pressed.connect(_discard)
+		slot_row.add_child(discard)
+		relic_body.add_child(HSeparator.new())
+	else:
+		var hint := _label("No relic in hand. Click a glowing drop on the floor to claim it.", 14, MUTED)
+		hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		relic_body.add_child(hint)
+		relic_body.add_child(HSeparator.new())
+	var title := _label("EQUIPPED", 12, MUTED)
+	relic_body.add_child(title)
+	for i in Player.MAX_RELICS:
+		var item: Dictionary = relics[i] if i < relics.size() else {}
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		relic_body.add_child(row)
+		var gem := RelicGem.new()
+		gem.custom_minimum_size = Vector2(14, 14)
+		gem.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(gem)
+		var text := "%d   empty" % (i + 1)
+		var color := Color(0.45, 0.4, 0.42)
+		if not item.is_empty():
+			var family := String(item.get("family", "blood"))
+			gem.gem_color = ItemDB.FAMILIES.get(family, {}).get("color", Color(0.8, 0.5, 0.2))
+			text = "%d   %s  ·  %s" % [i + 1, String(item.get("name", "Relic")), String(ItemDB.FAMILIES.get(family, {}).get("name", ""))]
+			color = item.get("color", BONE)
+		else:
+			gem.gem_color = Color(0.24, 0.2, 0.22)
+		var label := _label(text, 15, color, false)
+		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(label)
+		var remove := Button.new()
+		remove.text = "REMOVE"
+		remove.custom_minimum_size = Vector2(90, 28)
+		remove.add_theme_font_size_override("font_size", 11)
+		remove.add_theme_color_override("font_color", MUTED)
+		remove.disabled = item.is_empty()
+		remove.add_theme_stylebox_override("normal", _stylebox(Color(0.05, 0.03, 0.04, 0.9), Color(0.24, 0.16, 0.12, 1.0), 1))
+		remove.add_theme_stylebox_override("hover", _stylebox(Color(0.14, 0.06, 0.05, 0.95), Color(0.85, 0.45, 0.2, 1.0), 1))
+		remove.pressed.connect(_remove_slot.bind(i))
+		row.add_child(remove)
+
+
+func _build_synergy_body() -> void:
+	var intro := _label("Two relics of one family unlock its rite. One of each unlocks the triad.", 13, MUTED)
+	intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	relic_body.add_child(intro)
+	for family in ["blood", "ember", "rift"]:
+		var def: Dictionary = ItemDB.FAMILIES[family]
+		var count := _family_count(family)
+		var active := count >= 2
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		relic_body.add_child(row)
+		var gem := RelicGem.new()
+		gem.custom_minimum_size = Vector2(14, 14)
+		gem.gem_color = def.color if active else def.color.darkened(0.5)
+		gem.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(gem)
+		var title := _label("%s RITE   %d / 2" % [String(def.name).to_upper(), count], 16, def.color if active else MUTED, false)
+		title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(title)
+		row.add_child(_label("ACTIVE" if active else "NEEDS 2", 12, GOLD if active else Color(0.4, 0.36, 0.38), false))
+		relic_body.add_child(_label(String(def.rite), 13, BONE if active else Color(0.52, 0.48, 0.5), false))
+	var families := 0
+	for family in ["blood", "ember", "rift"]:
+		if _family_count(family) > 0:
+			families += 1
+	var triad_row := HBoxContainer.new()
+	triad_row.add_theme_constant_override("separation", 8)
+	relic_body.add_child(triad_row)
+	var triad_title := _label("BLOODMOON TRIAD   %d / 3" % families, 16, GOLD if families >= 3 else MUTED, false)
+	triad_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	triad_row.add_child(triad_title)
+	triad_row.add_child(_label("ACTIVE" if families >= 3 else "NEEDS 1 OF EACH", 12, GOLD if families >= 3 else Color(0.4, 0.36, 0.38), false))
+	relic_body.add_child(_label(ItemDB.TRIAD_TEXT, 13, BONE if families >= 3 else Color(0.52, 0.48, 0.5), false))
 
 
 func toast(text: String, color := AMBER, duration := 2.6) -> void:
@@ -996,49 +1431,6 @@ func toast(text: String, color := AMBER, duration := 2.6) -> void:
 func flash_damage(strength := 1.0) -> void:
 	vignette_alpha = minf(1.0, maxf(vignette_alpha, 0.55 * strength))
 	damage_flash = minf(1.0, damage_flash + 0.45 * strength)
-
-
-func show_compare(item: Dictionary, equipped: Dictionary) -> void:
-	pending_item = item
-	compare_shown_ms = Time.get_ticks_msec()
-	for child in compare_box.get_children():
-		if child != compare_hint:
-			compare_box.remove_child(child)
-			child.queue_free()
-	var title := _label("%s  ·  %s RELIC" % [String(item.get("name", "")), String(item.get("rarity_name", "")).to_upper()], 20, item.get("color", BONE))
-	compare_box.add_child(title)
-	var accent: Color = item.get("color", Color(0.5, 0.3, 0.1))
-	compare_panel.add_theme_stylebox_override("panel", _stylebox(Color(0.04, 0.025, 0.045, 0.96), accent, 2))
-	var unique := String(item.get("unique_text", ""))
-	if unique != "":
-		var u := _label(unique, 14, GOLD)
-		u.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		compare_box.add_child(u)
-	var lines := ItemDB.mod_lines(item)
-	for line in lines:
-		var key := String(line.key)
-		var new_value := float(line.value)
-		var old_value := ItemDB.total(equipped, key)
-		var delta := new_value - old_value
-		var text := String(line.text)
-		if not equipped.is_empty():
-			if absf(delta) >= 0.05:
-				text += "   (%s%s)" % ["+" if delta > 0.0 else "", str(snappedf(delta, 0.1))]
-		var color := Color(0.72, 0.95, 0.6) if delta > 0.0 else (Color(1.0, 0.45, 0.4) if delta < 0.0 else MUTED)
-		if equipped.is_empty():
-			color = BONE
-		var l := _label(text, 15, color, false)
-		compare_box.add_child(l)
-	compare_box.move_child(compare_hint, compare_box.get_child_count() - 1)
-	compare_panel.visible = true
-	compare_panel.modulate.a = 0.0
-	var tween := compare_panel.create_tween()
-	tween.tween_property(compare_panel, "modulate:a", 1.0, 0.14)
-
-
-func hide_compare() -> void:
-	pending_item = {}
-	compare_panel.visible = false
 
 
 func show_death(layer_reached: int, kills: int, relic_name_text: String) -> void:
@@ -1076,8 +1468,6 @@ func _process(delta: float) -> void:
 	if title_label != null and title_panel.visible:
 		var glow := 0.9 + 0.1 * sin(Time.get_ticks_msec() / 620.0)
 		title_label.modulate = Color(glow, glow, glow, 1.0)
-	if compare_panel.visible and Time.get_ticks_msec() - compare_shown_ms > 10000:
-		hide_compare()
 	var pulse := 0.0
 	if low_health > 0.0:
 		pulse = 0.22 + 0.12 * sin(Time.get_ticks_msec() / 220.0)

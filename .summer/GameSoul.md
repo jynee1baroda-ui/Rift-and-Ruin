@@ -14,17 +14,18 @@ An isometric, click-to-move action RPG in a volcanic wasteland split by lava rif
 
 ## Feel
 - Every spell costs health, but the price is sustainable: Nova 6, Lance 3, Siphon free.
-- Vitae regenerates 2.1/s out of combat (ramping in over a second) and 0.4/s while fighting. Kills build Bloodrush.
+- Vitae is 220 base and regenerates 2.4/s out of combat (ramping in over a second) and 0.5/s while fighting. Kills build Bloodrush.
+- Movement is WASD first (camera relative); clicking the ground still walks there, clicking a foe lances it, mouse wheel zooms.
 - Lava plates burn; eruptions telegraph and explode. Standing still is punished.
-- The camera sits high enough to read the next bridge and the lava river ahead, with the hero lit clearly at the centre.
+- The camera leans lower and closer than before, drifts toward your aim, and eases between positions.
 - Packs aggro at 13 m, so fights are deliberate and readable instead of a screen-wide swarm.
 
 ## Core Loop (implemented)
-1. Random connected cave layout of stone plates over lava; rivers and pools are carved through it, a river always cuts the ground north of the spawn, and the disconnected islands are rejoined with narrow stone bridges.
-2. Packs of cultists, wolves, crawlers and slingers spawn away from the player. From layer 2 a Hushed Prophet boss joins.
+1. Random connected cave layout of stone plates over lava, chosen from four floor themes that cycle: ASHEN CAUSEWAY, MOLTEN WARRENS, SUNKEN CATHEDRAL, CINDER CHASM. Each changes land density, river and pool count, props, fog and ambient colour. Lava spits are filled in, the gate scar leaves a land gap, and bridges are widened.
+2. Packs of cultists, wolves, bats, crawlers, slingers and alphas spawn away from the player. Every 5th layer is a boss floor: the Hushed Prophet or the Brood Mother with two brutes, a boss bar, boss music and triple loot.
 3. Killing drops colour-coded relics and life orbs. Walking over a relic shows a stat comparison card; click the card (or Enter) to bind it to the single relic slot.
 4. Clearing every pack opens a rift gate. Stepping into it starts the next layer: more enemies, more HP and damage, better rarity odds.
-5. Death ends the run and shows the layer reached; R revives at layer 1 keeping the relic.
+5. Death ends the run and shows the layer reached; R revives at layer 1 keeping the relics.
 
 ## Classes and Abilities
 Only the Blood Sorceress is playable.
@@ -39,17 +40,24 @@ Only the Blood Sorceress is playable.
 - Stacks reset on death, so the damage spike is tied to keeping the clear going.
 
 ## Quality of Life
-- Hold left mouse to keep walking; release to stop.
+- WASD / arrows move; hold left mouse to keep walking; release to stop.
 - Loot within 6.5 m is pulled into the player.
 - Esc or P pauses (Resume button too), and the pause panel lists every control.
 - Skill cards can be clicked to cast; the Riftstep card included.
 - A thin rift-clear bar under the layer title tracks packs cleared.
 - The death screen has a DESCEND AGAIN button, not just the R hotkey.
-- A relic comparison card auto-dismisses after 10 s and closes on death.
 - Clearing a floor restores 20% vitae before the rift opens.
 - The deepest rift layer reached is saved and shown on the title and death screens.
+- Relic drops are click-to-claim and never auto-equip; the loadout window opens on the claim.
 
-## Legendary Relics (one slot, they change how a skill works)
+## Relics (three slots, families and synergetic rites)
+- Three relic slots. Any family stacks at most twice, so builds are 2 + 1 or 1 + 1 + 1.
+- Families: Blood (damage, life), Ember (crit), Rift (speed, regen, Riftstep).
+- Two of one family unlocks its rite: Blood +18% damage and +8 life; Ember +8% crit and +30% crit damage; Rift +10% speed, +1.2 regen, Riftstep -0.5 s. One of each unlocks the Bloodmoon Triad (+6% damage, +5% life, -10% spell cost).
+- TAB opens the loadout window with RELICS and SYNERGY tabs. Click a glowing drop on the floor to claim it, then bind it to a slot.
+- Legendary relics change a skill: Bloodmoon Crown (free, wider Nova), Riftfang Diadem (triple piercing Lance), Sanguine Chalice (double Siphon), Emberwake Sigil (burning Riftstep).
+
+## Legendary Relics (they change how a skill works)
 - Bloodmoon Crown: Blood Nova costs no life and is 55% wider.
 - Riftfang Diadem: Crimson Lance pierces and fires three lances.
 - Sanguine Chalice: Sanguine Siphon drains and heals twice as much.

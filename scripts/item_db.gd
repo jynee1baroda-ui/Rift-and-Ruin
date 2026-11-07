@@ -5,10 +5,28 @@ const SLOT_NAME := "Relic"
 
 const RARITIES := [
 	{"key": "common", "name": "Common", "color": Color(0.80, 0.78, 0.74), "mods": 1, "weight": 44.0},
-	{"key": "magic", "name": "Magic", "color": Color(0.34, 0.62, 1.0), "mods": 2, "weight": 30.0},
-	{"key": "rare", "name": "Rare", "color": Color(1.0, 0.83, 0.28), "mods": 3, "weight": 18.0},
-	{"key": "legendary", "name": "Legendary", "color": Color(1.0, 0.42, 0.10), "mods": 2, "weight": 8.0},
+	{"key": "magic", "name": "Magic", "color": Color(0.34, 0.62, 1.0), "mods": 2, "weight": 32.0},
+	{"key": "rare", "name": "Rare", "color": Color(1.0, 0.83, 0.28), "mods": 3, "weight": 22.0},
+	{"key": "legendary", "name": "Legendary", "color": Color(1.0, 0.42, 0.10), "mods": 2, "weight": 11.0},
 ]
+
+const FAMILIES := {
+	"blood": {"name": "Blood", "color": Color(0.95, 0.22, 0.24), "rite": "+18% spell damage, +8 max life"},
+	"ember": {"name": "Ember", "color": Color(1.0, 0.56, 0.14), "rite": "+8% crit chance, +30% crit damage"},
+	"rift": {"name": "Rift", "color": Color(0.64, 0.5, 1.0), "rite": "+10% move speed, +1.2 life/s, Riftstep -0.5s"},
+}
+
+const TRIAD_TEXT := "one relic of each family: +6% spell damage, +5% max life, -10% spell cost"
+
+const MOD_FAMILY := {
+	"power": "blood", "vitality": "blood", "regen": "blood",
+	"crit": "ember", "crit_damage": "ember", "life_cost": "ember",
+	"move_speed": "rift",
+}
+
+const UNIQUE_FAMILY := {
+	"nova_free": "blood", "lance_triple": "rift", "siphon_greater": "blood", "dash_burn": "ember",
+}
 
 const MODS := {
 	"power": {"label": "Spell Damage", "suffix": "%", "min": 6.0, "max": 17.0, "decimals": 0},
@@ -47,6 +65,7 @@ static func make_item(layer: int, rng: RandomNumberGenerator, force_rarity := ""
 		"unique_text": "",
 		"ilvl": layer,
 		"name": "",
+		"family": "blood",
 	}
 	if rarity.key == "legendary":
 		var unique: Dictionary = UNIQUES[rng.randi() % UNIQUES.size()]
@@ -71,6 +90,12 @@ static func make_item(layer: int, rng: RandomNumberGenerator, force_rarity := ""
 		else:
 			value = snappedf(value, 0.1)
 		item.mods[key] = value
+	var family := String(UNIQUE_FAMILY.get(item.unique, ""))
+	if family == "":
+		for key in item.mods.keys():
+			family = String(MOD_FAMILY.get(String(key), "blood"))
+			break
+	item["family"] = family
 	return item
 
 
@@ -81,9 +106,9 @@ static func _roll_rarity(layer: int, rng: RandomNumberGenerator) -> Dictionary:
 		var def: Dictionary = RARITIES[i]
 		var weight: float = def.weight
 		if def.key != "common":
-			weight += float(layer - 1) * 4.0
+			weight += float(layer - 1) * 5.0
 		else:
-			weight = maxf(8.0, weight - float(layer - 1) * 6.0)
+			weight = maxf(5.0, weight - float(layer - 1) * 8.0)
 		weights.append(weight)
 		total += weight
 	var roll := rng.randf() * total

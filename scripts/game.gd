@@ -2,25 +2,36 @@
 
 const CELL := 4.0
 const GRID := 17
-const CAMERA_OFFSET := Vector3(0.0, 16.2, 10.8)
+const CAMERA_OFFSET := Vector3(0.0, 13.6, 10.6)
 const RECORD_PATH := "user://rift_record.cfg"
 const HERO_DIR := "res://art/generated/blood_sorceress"
 const ROCK_PATH := "res://art/generated/basalt_rocks/3d_61c4c6fd5084468abe17b1bb_1794029018098.glb"
 const GATE_PATH := "res://art/generated/rift_gate/3d_de536d2e46e04f69aab95a43_1794029026993.glb"
-const BASALT_TEX := "res://art/generated/basalt_texture/img-f4afbd64-b344-4c4f-a17c-5b062341cf23-1794028912343-0_1794028912343_c4ay4u2t.png"
+const BASALT_TEX := "res://art/generated/basalt_v2/img-f4afbd64-b344-4c4f-a17c-5b062341cf23-1794037284380-0_1794037284380_vzb0pgdi.png"
 const DUNGEON_DIR := "res://assets/library/dungeon/"
 
 const KINDS := {
-	"wolf": {"key": "wolf", "name": "Gloam Wolf", "file": "gloam-wolf.glb", "health": 40.0, "damage": 8.0, "speed": 5.0, "range": 2.0, "interval": 1.5, "windup": 0.45, "scale": 1.0},
-	"crawler": {"key": "crawler", "name": "Cave Crawler", "file": "cave-crawler.glb", "health": 26.0, "damage": 6.0, "speed": 5.6, "range": 1.5, "interval": 1.1, "windup": 0.3, "scale": 1.7},
-	"acolyte": {"key": "acolyte", "name": "Hushed Acolyte", "file": "hushed-acolyte.glb", "health": 56.0, "damage": 10.0, "speed": 4.0, "range": 2.1, "interval": 1.8, "windup": 0.55, "scale": 1.0},
-	"slinger": {"key": "slinger", "name": "Hushed Slinger", "file": "hushed-slinger.glb", "health": 46.0, "damage": 7.0, "speed": 3.8, "range": 9.0, "interval": 2.4, "windup": 0.65, "scale": 1.0, "ranged": true},
-	"brute": {"key": "brute", "name": "Hushed Brute", "file": "hushed-brute.glb", "health": 150.0, "damage": 19.0, "speed": 3.4, "range": 2.7, "interval": 2.4, "windup": 0.85, "scale": 1.0, "elite": true},
-	"prophet": {"key": "prophet", "name": "Hushed Prophet", "file": "hushed-prophet.glb", "health": 240.0, "damage": 22.0, "speed": 3.1, "range": 3.2, "interval": 2.6, "windup": 0.9, "scale": 1.0, "boss": true},
+	"wolf": {"key": "wolf", "name": "Gloam Wolf", "file": "gloam-wolf.glb", "health": 46.0, "damage": 8.0, "speed": 5.0, "range": 2.0, "interval": 1.5, "windup": 0.45, "scale": 1.0},
+	"crawler": {"key": "crawler", "name": "Cave Crawler", "file": "cave-crawler.glb", "health": 30.0, "damage": 6.0, "speed": 5.6, "range": 1.5, "interval": 1.1, "windup": 0.3, "scale": 1.7},
+	"bat": {"key": "bat", "name": "Hollow Bat", "file": "hollow-bat.glb", "health": 24.0, "damage": 5.0, "speed": 6.4, "range": 1.7, "interval": 1.1, "windup": 0.25, "scale": 1.3},
+	"acolyte": {"key": "acolyte", "name": "Hushed Acolyte", "file": "hushed-acolyte.glb", "health": 62.0, "damage": 10.0, "speed": 4.0, "range": 2.1, "interval": 1.8, "windup": 0.55, "scale": 1.0},
+	"slinger": {"key": "slinger", "name": "Hushed Slinger", "file": "hushed-slinger.glb", "health": 50.0, "damage": 7.0, "speed": 3.8, "range": 9.0, "interval": 2.4, "windup": 0.65, "scale": 1.0, "ranged": true},
+	"alpha": {"key": "alpha", "name": "Gloam Alpha", "file": "gloam-alpha.glb", "health": 120.0, "damage": 15.0, "speed": 5.6, "range": 2.3, "interval": 1.7, "windup": 0.5, "scale": 1.15, "elite": true},
+	"brute": {"key": "brute", "name": "Hushed Brute", "file": "hushed-brute.glb", "health": 190.0, "damage": 22.0, "speed": 3.4, "range": 2.7, "interval": 2.4, "windup": 0.85, "scale": 1.0, "elite": true},
+	"prophet": {"key": "prophet", "name": "The Hushed Prophet", "file": "hushed-prophet.glb", "health": 460.0, "damage": 24.0, "speed": 3.1, "range": 3.2, "interval": 2.6, "windup": 0.9, "scale": 1.05, "boss": true},
+	"brood": {"key": "brood", "name": "The Brood Mother", "file": "brood-mother-boss.glb", "health": 520.0, "damage": 26.0, "speed": 3.3, "range": 3.6, "interval": 2.1, "windup": 0.75, "scale": 1.0, "boss": true},
 }
+
+const THEMES := [
+	{"name": "ASHEN CAUSEWAY", "density": 0.76, "rivers": 1, "pools": 1, "decor": 1.0, "fog": Color(0.10, 0.035, 0.05), "ambient": Color(0.30, 0.18, 0.22)},
+	{"name": "MOLTEN WARRENS", "density": 0.72, "rivers": 2, "pools": 1, "decor": 0.8, "fog": Color(0.18, 0.06, 0.03), "ambient": Color(0.36, 0.2, 0.16)},
+	{"name": "SUNKEN CATHEDRAL", "density": 0.74, "rivers": 1, "pools": 1, "decor": 1.5, "fog": Color(0.07, 0.06, 0.13), "ambient": Color(0.24, 0.22, 0.42)},
+	{"name": "CINDER CHASM", "density": 0.68, "rivers": 1, "pools": 2, "decor": 0.7, "fog": Color(0.13, 0.03, 0.03), "ambient": Color(0.34, 0.16, 0.14)},
+]
 
 @onready var camera: Camera3D = $Camera3D
 @onready var sun: DirectionalLight3D = $Sun
+@onready var world_env: WorldEnvironment = $WorldEnvironment
 
 var hud: GameHUD
 var player: Player
@@ -62,6 +73,12 @@ var mouse_held := false
 var hold_timer := 0.0
 var last_move_target := Vector3(9999.0, 0.0, 9999.0)
 var map_timer := 0.0
+var theme: Dictionary = {}
+var boss_enemy: Enemy
+var music_tracks: Array = []
+var boss_tracks: Array = []
+var camera_zoom := 1.0
+var camera_focus := Vector3.ZERO
 
 
 func _ready() -> void:
@@ -81,6 +98,8 @@ func _ready() -> void:
 	hud = GameHUD.new()
 	add_child(hud)
 	hud.equip_requested.connect(_on_equip_requested)
+	hud.unequip_requested.connect(_on_unequip_requested)
+	hud.discard_requested.connect(_on_discard_requested)
 	hud.ui_click.connect(_on_ui_click)
 	hud.ability_pressed.connect(_on_hud_ability_pressed)
 	hud.restart_pressed.connect(_restart_run)
@@ -90,7 +109,7 @@ func _ready() -> void:
 	camera.global_position = player.global_position + CAMERA_OFFSET
 	camera.look_at(player.global_position + Vector3(0.0, 1.0, 0.0), Vector3.UP)
 	hud.set_layer_info(layer, enemies.size(), total_enemies, kills)
-	hud.set_relic({})
+	hud.set_relics(player.relics)
 	_load_record()
 
 
@@ -150,13 +169,12 @@ func _setup_audio() -> void:
 		add_child(p)
 		sfx_pool.append(p)
 	music_player = AudioStreamPlayer.new()
-	music_player.volume_db = -11.0
+	music_player.volume_db = -9.0
 	add_child(music_player)
 	music_player.finished.connect(_restart_music)
-	var music_path := _find_audio("res://audio/music")
-	if music_path != "":
-		music_player.stream = load(music_path)
-		music_player.play()
+	music_tracks = _music_list("res://audio/music") + _music_list("res://audio/generated/metal_combat")
+	boss_tracks = _music_list("res://audio/generated/metal_boss")
+	play_music(false)
 	ambient_player = AudioStreamPlayer.new()
 	ambient_player.volume_db = -16.0
 	add_child(ambient_player)
@@ -176,6 +194,27 @@ func _find_audio(dir_path: String) -> String:
 		if ext == "mp3" or ext == "wav" or ext == "ogg":
 			return dir_path.path_join(file)
 	return ""
+
+
+func _music_list(dir_path: String) -> Array:
+	var list: Array = []
+	var dir := DirAccess.open(dir_path)
+	if dir == null:
+		return list
+	for file in dir.get_files():
+		var ext := String(file).get_extension().to_lower()
+		if ext == "mp3" or ext == "wav" or ext == "ogg":
+			list.append(dir_path.path_join(file))
+	return list
+
+
+func play_music(boss: bool) -> void:
+	var list := boss_tracks if boss and not boss_tracks.is_empty() else music_tracks
+	if list.is_empty():
+		return
+	var path := String(list[rng.randi() % list.size()])
+	music_player.stream = load(path)
+	music_player.play()
 
 
 func _restart_music() -> void:
@@ -206,29 +245,48 @@ func play_sfx(key: String, volume_db := 0.0, pitch_variation := 0.08) -> void:
 
 func _generate_floor() -> void:
 	_clear_floor()
+	theme = THEMES[(layer - 1) % THEMES.size()]
 	portal = null
 	portal_area = null
 	portal_disc = null
 	portal_active = false
+	boss_enemy = null
 	enemies.clear()
 	kills = 0
 	hazard_timer = 7.5
+	_apply_theme()
 	_make_layout()
 	_build_ground()
 	_build_decor()
 	player.global_position = _cell_to_world(start_cell) + Vector3(0.0, 0.15, 0.0)
 	player.velocity = Vector3.ZERO
 	player.stop()
+	camera_focus = player.global_position
 	camera.global_position = _camera_desired()
-	camera.look_at(player.global_position + Vector3(0.0, 1.0, 0.0), Vector3.UP)
+	camera.look_at(camera_focus + Vector3(0.0, 1.0, 0.0), Vector3.UP)
 	_spawn_packs()
 	_spawn_embers()
 	hud.set_map_cells(walkable, bridge_cells, GRID)
 	hud.set_layer_info(layer, enemies.size(), total_enemies, kills)
+	hud.set_theme_name(String(theme.get("name", "RIFT")))
 	hud.set_status("PACKS AWAKE")
 	hud.set_health(player.health, player.max_health)
-	hud.set_relic(player.relic)
+	hud.set_relics(player.relics)
+	hud.set_boss("", 0.0, false)
+	play_music(layer % 5 == 0)
 	map_timer = 0.0
+
+
+func _apply_theme() -> void:
+	var fog: Color = theme.get("fog", Color(0.1, 0.04, 0.05))
+	var ambient: Color = theme.get("ambient", Color(0.3, 0.2, 0.24))
+	if world_env != null and world_env.environment != null:
+		var env := world_env.environment
+		env.fog_light_color = fog
+		env.ambient_light_color = ambient
+		env.fog_enabled = true
+	if sun != null:
+		sun.light_color = Color(1.0, 0.86, 0.78).lerp(fog.lightened(0.35), 0.45)
 
 
 func _clear_floor() -> void:
@@ -246,7 +304,7 @@ func _make_layout() -> void:
 			walkable[Vector2i(x, y)] = false
 	start_cell = Vector2i(GRID / 2, GRID / 2)
 	walkable[start_cell] = true
-	var target_density := maxf(0.40, 0.54 - 0.04 * float(layer - 1))
+	var target_density := float(theme.get("density", 0.66))
 	var target := int(float(GRID * GRID) * target_density)
 	var directions := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
 	var pos := start_cell
@@ -286,20 +344,55 @@ func _make_layout() -> void:
 					if rng.randf() < 0.85:
 						walkable[Vector2i(x, y)] = true
 	walkable[start_cell] = true
-	var rivers := 2 + mini(2, layer)
+	var rivers := int(theme.get("rivers", 1))
 	for i in rivers:
 		if i == 0:
 			_carve_river(false, 1, clampi(start_cell.x + 3, 3, GRID - 4))
 		else:
 			_carve_river(i % 2 == 0, 1 if rng.randf() < 0.7 else 2)
-	var pools := 2 + mini(2, layer)
+	var pools := int(theme.get("pools", 1))
 	for i in pools:
 		_carve_pool()
+	_fill_lava_spits()
 	_clear_start_pad()
 	_carve_gate_river()
 	_ensure_connected()
+	_widen_bridges()
 	_rebuild_grid()
 	_compute_distances()
+
+
+func _fill_lava_spits() -> void:
+	var spits: Array = []
+	for cell in walkable.keys():
+		if walkable[cell]:
+			continue
+		if cell.x <= 1 or cell.y <= 1 or cell.x >= GRID - 2 or cell.y >= GRID - 2:
+			continue
+		var open := 0
+		for dir in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+			if walkable.get(cell + dir, false):
+				open += 1
+		if open >= 3:
+			spits.append(cell)
+	for cell in spits:
+		walkable[cell] = true
+
+
+func _widen_bridges() -> void:
+	var extra: Array = []
+	for cell in bridge_cells.keys():
+		for dir in [Vector2i(1, 0), Vector2i(0, 1)]:
+			var side: Vector2i = cell + dir
+			if side.x <= 1 or side.y <= 1 or side.x >= GRID - 2 or side.y >= GRID - 2:
+				continue
+			if walkable.get(side, false):
+				continue
+			if rng.randf() < 0.65:
+				extra.append(side)
+	for cell in extra:
+		walkable[cell] = true
+		bridge_cells[cell] = true
 
 
 
@@ -345,9 +438,13 @@ func _clear_start_pad() -> void:
 
 func _carve_gate_river() -> void:
 	var row := start_cell.y - 3
+	var gap := rng.randi_range(3, GRID - 6)
 	for x in range(2, GRID - 2):
-		walkable[Vector2i(x, row)] = false
-		if rng.randf() < 0.28:
+		if absi(x - gap) <= 1:
+			continue
+		if rng.randf() < 0.82:
+			walkable[Vector2i(x, row)] = false
+		if rng.randf() < 0.12:
 			walkable[Vector2i(x, row - 1)] = false
 
 
@@ -626,7 +723,7 @@ func _stone_material() -> ShaderMaterial:
 	mat.shader = load("res://shaders/basalt.gdshader")
 	if ResourceLoader.exists(BASALT_TEX):
 		mat.set_shader_parameter("basalt_tex", load(BASALT_TEX))
-	mat.set_shader_parameter("tex_mix", 0.42)
+	mat.set_shader_parameter("tex_mix", 0.62)
 	mat.set_shader_parameter("seed", rng.randf() * 40.0)
 	mat.set_shader_parameter("plate_scale", 0.13)
 	mat.set_shader_parameter("glow_strength", 1.4)
@@ -646,6 +743,9 @@ func _build_decor() -> void:
 	var rock_scene := _get_model(ROCK_PATH)
 	var pillar_scene := _get_model(DUNGEON_DIR + "pillar-01.glb")
 	var pot_scene := _get_model(DUNGEON_DIR + "pot.glb")
+	var decor_mult := float(theme.get("decor", 1.0))
+	if String(theme.get("name", "")) == "SUNKEN CATHEDRAL":
+		pot_scene = _get_model(DUNGEON_DIR + "coffin.glb")
 	var gate_cell := _portal_cell()
 	for x in GRID:
 		for y in GRID:
@@ -657,17 +757,17 @@ func _build_decor() -> void:
 			var center := _cell_to_world(cell)
 			var rim := _touches_walkable(cell)
 			var roll := rng.randf()
-			if rock_scene != null and roll < (0.2 if rim else 0.1):
+			if rock_scene != null and roll < minf(0.9, (0.2 if rim else 0.1) * decor_mult):
 				var size := rng.randf_range(1.8, 3.6) if rim else rng.randf_range(1.4, 3.4)
 				var rock := _spawn_model(rock_scene, size, floor_root, center + Vector3(rng.randf_range(-1, 1), -1.0, rng.randf_range(-1, 1)), rng.randf_range(0, 360))
 				if rock != null:
 					_apply_rock_material(rock, 1.4)
-			elif pillar_scene != null and roll < (0.26 if rim else 0.16):
+			elif pillar_scene != null and roll < minf(0.9, (0.26 if rim else 0.16) * decor_mult):
 				var pillar := _spawn_model(pillar_scene, rng.randf_range(2.8, 5.5), floor_root, center + Vector3(0, -1.0, 0), rng.randf_range(0, 60))
 				if pillar != null:
 					pillar.rotate_x(deg_to_rad(rng.randf_range(-6, 6)))
 					_apply_rock_material(pillar, 1.8)
-			elif pot_scene != null and roll < 0.245:
+			elif pot_scene != null and roll < minf(0.92, 0.245 * maxf(1.0, decor_mult)):
 				var pot := _spawn_model(pot_scene, 0.9, floor_root, center + Vector3(rng.randf_range(-0.8, 0.8), -0.3, rng.randf_range(-0.8, 0.8)), rng.randf_range(0, 360))
 				if pot != null:
 					_apply_rock_material(pot, 2.2)
@@ -920,6 +1020,7 @@ func _apply_rock_material(root: Node3D, scale_value: float) -> void:
 
 func _spawn_packs() -> void:
 	total_enemies = 0
+	var boss_floor := layer % 5 == 0
 	var candidates: Array = []
 	for cell in walkable.keys():
 		if not walkable[cell]:
@@ -928,7 +1029,7 @@ func _spawn_packs() -> void:
 			candidates.append(cell)
 	if candidates.is_empty():
 		candidates.append(start_cell)
-	var pack_count := 3 + mini(3, layer - 1)
+	var pack_count := 2 if boss_floor else 3 + mini(3, layer - 1)
 	for p in pack_count:
 		var center: Vector2i = candidates[rng.randi() % candidates.size()]
 		if p == 0:
@@ -944,13 +1045,18 @@ func _spawn_packs() -> void:
 						near.append(cell)
 			if not near.is_empty():
 				center = near[rng.randi() % near.size()]
-		var size := rng.randi_range(3, 5)
+		var size := rng.randi_range(3, 6)
 		for i in size:
 			var cell := _nearby_walkable(center)
 			_spawn_enemy(_pick_kind(p == pack_count - 1), cell)
-	if layer >= 2:
+	if boss_floor:
 		var boss_cell := _nearby_walkable(candidates[rng.randi() % candidates.size()])
-		_spawn_enemy("prophet", boss_cell)
+		var boss_kind := "prophet" if (layer / 5) % 2 == 1 else "brood"
+		boss_enemy = _spawn_enemy(boss_kind, boss_cell)
+		for i in 2:
+			_spawn_enemy("brute", _nearby_walkable(boss_cell + Vector2i(rng.randi_range(-2, 2), rng.randi_range(-2, 2))))
+	elif layer >= 2 and rng.randf() < 0.45:
+		_spawn_enemy("alpha", _nearby_walkable(candidates[rng.randi() % candidates.size()]))
 	total_enemies = enemies.size()
 
 
@@ -965,28 +1071,27 @@ func _nearby_walkable(center: Vector2i) -> Vector2i:
 func _pick_kind(last_pack: bool) -> String:
 	var roll := rng.randf()
 	if layer == 1:
-		if roll < 0.5:
+		if roll < 0.42:
 			return "wolf"
-		if roll < 0.85:
+		if roll < 0.72:
 			return "acolyte"
-		return "crawler"
-	if last_pack and roll < 0.35:
+		if roll < 0.88:
+			return "crawler"
+		return "bat"
+	if last_pack and roll < 0.28:
 		return "brute"
-	if roll < 0.3:
-		return "wolf"
-	if roll < 0.55:
-		return "acolyte"
-	if roll < 0.72:
-		return "slinger"
-	if roll < 0.9:
-		return "crawler"
-	return "brute"
+	var table := ["wolf", "acolyte", "bat", "slinger", "crawler", "wolf", "acolyte"]
+	if layer % 5 == 4:
+		table = ["brute", "acolyte", "slinger", "wolf", "brute", "crawler", "acolyte"]
+	return String(table[rng.randi() % table.size()])
 
 
-func _spawn_enemy(kind_key: String, cell: Vector2i) -> void:
+func _spawn_enemy(kind_key: String, cell: Vector2i) -> Enemy:
 	var base: Dictionary = KINDS.get(kind_key, KINDS["wolf"]).duplicate()
-	var health_scale := 1.0 + 0.45 * float(layer - 1)
-	var damage_scale := 1.0 + 0.25 * float(layer - 1)
+	var health_scale := 1.0 + 0.30 * float(layer - 1)
+	var damage_scale := 1.0 + 0.13 * float(layer - 1)
+	if bool(base.get("boss", false)):
+		health_scale = 1.0 + 0.34 * float(layer - 1)
 	base.health = float(base.health) * health_scale
 	base.damage = float(base.damage) * damage_scale
 	var enemy := Enemy.new()
@@ -999,6 +1104,46 @@ func _spawn_enemy(kind_key: String, cell: Vector2i) -> void:
 	enemies.append(enemy)
 	FX.burst(fx_root, enemy.global_position + Vector3(0.0, 1.0, 0.0), Color(0.65, 0.2, 1.0, 0.95), 22, 5.0, 0.4, 0.6)
 	FX.ring(fx_root, enemy.global_position, Color(0.7, 0.25, 1.0, 0.7), 1.8, 0.5, 0.05)
+	_style_enemy(enemy, base)
+	return enemy
+
+
+func _style_enemy(enemy: Enemy, kind: Dictionary) -> void:
+	var is_boss := bool(kind.get("boss", false))
+	var is_elite := bool(kind.get("elite", false))
+	if not is_boss and not is_elite:
+		return
+	var color := Color(1.0, 0.42, 0.12) if is_boss else Color(1.0, 0.62, 0.2)
+	var ring := MeshInstance3D.new()
+	var torus := TorusMesh.new()
+	torus.inner_radius = 0.95 if is_boss else 0.7
+	torus.outer_radius = 1.12 if is_boss else 0.82
+	torus.rings = 40
+	torus.ring_segments = 4
+	ring.mesh = torus
+	ring.material_override = FX.glow_material(Color(color.r, color.g, color.b, 0.5))
+	ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	ring.position.y = 0.07
+	enemy.add_child(ring)
+	var light := OmniLight3D.new()
+	light.light_color = color
+	light.light_energy = 2.2 if is_boss else 1.2
+	light.omni_range = 6.0 if is_boss else 3.6
+	light.shadow_enabled = false
+	light.position.y = 1.4
+	enemy.add_child(light)
+	if enemy.model_root == null:
+		return
+	var tint := StandardMaterial3D.new()
+	tint.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	tint.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	tint.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	tint.albedo_color = Color(color.r, color.g, color.b, 0.10 if not is_boss else 0.16)
+	tint.disable_receive_shadows = true
+	for node in enemy.model_root.find_children("*", "MeshInstance3D", true, false):
+		var mesh := node as MeshInstance3D
+		if mesh != null:
+			mesh.material_overlay = tint
 
 
 func _enemy_bolt(from: Vector3, to: Vector3, damage: float) -> void:
@@ -1020,6 +1165,10 @@ func _enemy_bolt(from: Vector3, to: Vector3, damage: float) -> void:
 func _on_enemy_died(enemy: Enemy) -> void:
 	kills += 1
 	enemies.erase(enemy)
+	if enemy == boss_enemy:
+		boss_enemy = null
+		hud.set_boss("", 0.0, false)
+		hud.toast("RIFT WARDEN SLAIN", Color(1.0, 0.6, 0.2), 3.0)
 	player.add_bloodrush()
 	play_sfx("death", -4.0)
 	FX.burst(fx_root, enemy.global_position + Vector3(0.0, 1.0, 0.0), Color(0.55, 0.12, 0.9, 0.9), 30, 6.0, 0.5, 0.8)
@@ -1031,11 +1180,11 @@ func _on_enemy_died(enemy: Enemy) -> void:
 
 
 func _drop_loot(enemy: Enemy) -> void:
-	var chance := 0.18 + 0.02 * float(layer)
+	var chance := 0.26 + 0.03 * float(layer)
 	if enemy.boss:
 		chance = 1.0
 	elif enemy.elite:
-		chance = 0.65
+		chance = 0.8
 	if rng.randf() < chance:
 		_spawn_item(enemy.global_position)
 	if rng.randf() < 0.45:
@@ -1070,17 +1219,29 @@ func _on_loot_picked(drop: LootDrop) -> void:
 		play_sfx("pickup", -6.0)
 		return
 	play_sfx("pickup", -2.0)
-	hud.show_compare(drop.item, player.relic)
+	hud.offer_relic(drop.item)
 	hud.toast("%s RELIC" % String(drop.item.get("rarity_name", "")).to_upper(), drop.item.get("color", Color.WHITE), 2.0)
 
 
-func _on_equip_requested(item: Dictionary) -> void:
-
-	player.equip(item)
-	hud.set_relic(item)
-	hud.toast("RELIC BOUND", Color(1.0, 0.55, 0.2), 2.0)
+func _on_equip_requested(item: Dictionary, slot: int) -> void:
+	if not player.equip_slot(slot, item):
+		hud.toast("FAMILY STACK FULL  ·  MAX 2", Color(1.0, 0.4, 0.3), 1.8)
+		return
+	hud.set_relics(player.relics)
+	hud.close_relic_window()
+	hud.toast("RELIC BOUND  ·  SLOT %d" % (slot + 1), Color(1.0, 0.55, 0.2), 2.0)
 	play_sfx("cast", -4.0, 0.12)
 	FX.ring(fx_root, player.global_position, Color(1.0, 0.6, 0.2, 0.9), 3.0, 0.6, 0.06)
+
+
+func _on_unequip_requested(slot: int) -> void:
+	player.unequip_slot(slot)
+	hud.set_relics(player.relics)
+	play_sfx("pickup", -12.0, 0.2)
+
+
+func _on_discard_requested() -> void:
+	hud.close_relic_window()
 
 
 func _on_floor_cleared() -> void:
@@ -1088,7 +1249,11 @@ func _on_floor_cleared() -> void:
 	hud.toast("PACKS CLEARED", Color(1.0, 0.8, 0.35), 3.0)
 	player.heal(player.max_health * 0.2)
 	_open_portal()
-	if layer >= 2:
+	if layer % 5 == 0:
+		_spawn_item(player.global_position + Vector3(0.0, 0.0, 1.6), "legendary")
+		_spawn_item(player.global_position + Vector3(-1.8, 0.0, 1.0), "legendary")
+		_spawn_item(player.global_position + Vector3(1.8, 0.0, 0.6), "rare")
+	elif layer >= 2:
 		_spawn_item(player.global_position + Vector3(0.0, 0.0, 1.4), "legendary")
 		_spawn_item(player.global_position + Vector3(1.6, 0.0, 1.0), "rare")
 	else:
@@ -1271,7 +1436,7 @@ func _restart_run() -> void:
 	run_active = true
 	started = true
 	hud.hide_death()
-	hud.hide_compare()
+	hud.close_relic_window()
 	hud.show_body()
 	player.revive()
 	_generate_floor()
@@ -1296,12 +1461,21 @@ func _input(event: InputEvent) -> void:
 		elif key == KEY_SPACE:
 			_cast_dash()
 		elif key == KEY_ENTER or key == KEY_KP_ENTER:
-			hud._equip_pending()
+			hud.equip_pending_best()
+		elif key == KEY_TAB:
+			hud.toggle_relic_window()
 		elif key == KEY_R and not player.alive:
 			_restart_run()
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed:
+		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
+			camera_zoom = maxf(0.78, camera_zoom - 0.07)
+			return
+		if event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			camera_zoom = minf(1.4, camera_zoom + 0.07)
+			return
 	if event is InputEventMouseButton and not event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		mouse_held = false
 	if event is InputEventMouseButton and event.pressed:
@@ -1321,6 +1495,11 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _left_click(screen_pos: Vector2) -> void:
+	var drop := _loot_under(screen_pos)
+	if drop != null:
+		_on_loot_picked(drop)
+		drop.queue_free()
+		return
 	var enemy := _enemy_under(screen_pos)
 	if enemy != null:
 		player.set_aim(enemy.global_position)
@@ -1360,6 +1539,22 @@ func _enemy_under(screen_pos: Vector2) -> Enemy:
 	return null
 
 
+func _loot_under(screen_pos: Vector2) -> LootDrop:
+	var from := camera.project_ray_origin(screen_pos)
+	var dir := camera.project_ray_normal(screen_pos)
+	var query := PhysicsRayQueryParameters3D.create(from, from + dir * 200.0)
+	query.collision_mask = 8
+	query.collide_with_areas = true
+	query.collide_with_bodies = false
+	var result := get_world_3d().direct_space_state.intersect_ray(query)
+	if result.is_empty():
+		return null
+	var collider = result.get("collider")
+	if collider is LootDrop:
+		return collider
+	return null
+
+
 func _on_hud_ability_pressed(index: int) -> void:
 	if not started:
 		begin_run()
@@ -1386,6 +1581,9 @@ func _refresh_map() -> void:
 	if portal != null and is_instance_valid(portal):
 		gate = _world_to_cell(portal.global_position)
 	hud.update_map(_world_to_cell(player.global_position), foes, elites, gate, portal_active)
+	if boss_enemy != null and is_instance_valid(boss_enemy) and not boss_enemy.dead:
+		var ratio := boss_enemy.health / maxf(boss_enemy.max_health, 1.0)
+		hud.set_boss(boss_enemy.display_name, ratio, true)
 
 
 func _cast_ability(index: int) -> void:
@@ -1403,7 +1601,7 @@ func _cast_dash() -> void:
 	if player.try_dash():
 		FX.burst(fx_root, player.global_position + Vector3(0.0, 0.6, 0.0), Color(1.0, 0.2, 0.15, 0.9), 20, 4.0, 0.35, 0.5)
 		play_sfx("cast", -6.0, 0.2)
-		if String(player.relic.get("unique", "")) == "dash_burn":
+		if player.has_unique("dash_burn"):
 			_dash_burn()
 
 
@@ -1426,16 +1624,19 @@ func _on_ability_used(index: int, aim: Vector3) -> void:
 	match index:
 		0:
 			_blood_nova()
+			hud.flash_ability(Color(1.0, 0.22, 0.12))
 		1:
 			_crimson_lance(aim)
+			hud.flash_ability(Color(1.0, 0.35, 0.3))
 		2:
 			_siphon()
+			hud.flash_ability(Color(0.8, 0.3, 1.0))
 	play_sfx("cast", -1.0, 0.1)
 
 
 func _blood_nova() -> void:
 	var radius := 4.6
-	if String(player.relic.get("unique", "")) == "nova_free":
+	if player.has_unique("nova_free"):
 		radius *= 1.55
 	var center := player.global_position
 	FX.nova(fx_root, center, Color(1.0, 0.13, 0.1, 1.0), radius)
@@ -1459,7 +1660,7 @@ func _crimson_lance(aim: Vector3) -> void:
 	if dir.length() < 0.2:
 		dir = Vector3(sin(player.facing), 0.0, cos(player.facing))
 	dir = dir.normalized()
-	var triple := String(player.relic.get("unique", "")) == "lance_triple"
+	var triple := player.has_unique("lance_triple")
 	var count := 3 if triple else 1
 	for i in count:
 		var angle := 0.0
@@ -1479,7 +1680,7 @@ func _crimson_lance(aim: Vector3) -> void:
 
 
 func _siphon() -> void:
-	var greater := String(player.relic.get("unique", "")) == "siphon_greater"
+	var greater := player.has_unique("siphon_greater")
 	var damage_per_tick := 9.0 if greater else 7.0
 	var heal_factor := 0.34 if greater else 0.2
 	var radius := 7.5
@@ -1524,14 +1725,14 @@ func _on_health_changed(current: float, maximum: float) -> void:
 
 func _on_player_died() -> void:
 	run_active = false
+	hud.set_boss("", 0.0, false)
 	_save_record()
-	hud.hide_compare()
+	hud.close_relic_window()
+	hud.close_relic_window()
 	play_sfx("death", 0.0, 0.05)
 	FX.burst(fx_root, player.global_position + Vector3(0.0, 1.0, 0.0), Color(0.9, 0.1, 0.12, 1.0), 60, 8.0, 0.6, 1.2)
 	FX.nova(fx_root, player.global_position, Color(0.9, 0.12, 0.1, 1.0), 5.0)
-	var relic_name := "None"
-	if not player.relic.is_empty():
-		relic_name = String(player.relic.get("name", "None"))
+	var relic_name := player.relic_names()
 	hud.show_death(layer, kills, relic_name)
 
 
@@ -1544,6 +1745,7 @@ func _process(delta: float) -> void:
 		return
 	var mouse := get_viewport().get_mouse_position()
 	player.set_aim(_aim_point(mouse))
+	_update_move_input()
 	var costs: Array = [player.ability_cost(0), player.ability_cost(1), player.ability_cost(2)]
 	hud.set_cooldowns(player.cooldowns, player.dash_cooldown, player.health, costs)
 	hud.set_bloodrush(player.bloodrush, player.bloodrush_timer / Player.BLOODRUSH_TIME)
@@ -1559,6 +1761,7 @@ func _process(delta: float) -> void:
 	_update_camera(delta)
 	if not run_active or not player.alive:
 		mouse_held = false
+		player.set_move_direct(Vector3.ZERO)
 		return
 	_hold_to_move(delta)
 	_pull_loot(delta)
@@ -1598,6 +1801,26 @@ func _hold_to_move(delta: float) -> void:
 	player.move_along(find_path(player.global_position, point))
 
 
+func _update_move_input() -> void:
+	var input := Vector2.ZERO
+	if Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP):
+		input.y -= 1.0
+	if Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN):
+		input.y += 1.0
+	if Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT):
+		input.x -= 1.0
+	if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT):
+		input.x += 1.0
+	if input.length_squared() < 0.01:
+		player.set_move_direct(Vector3.ZERO)
+		return
+	var cam_basis := camera.global_transform.basis
+	var forward := Vector3(-cam_basis.z.x, 0.0, -cam_basis.z.z).normalized()
+	var right := Vector3(cam_basis.x.x, 0.0, cam_basis.x.z).normalized()
+	var direction := forward * -input.y + right * input.x
+	player.set_move_direct(direction.normalized())
+
+
 func _pull_loot(delta: float) -> void:
 	for child in entity_root.get_children():
 		if not (child is LootDrop):
@@ -1606,21 +1829,25 @@ func _pull_loot(delta: float) -> void:
 		var to_player := player.global_position - drop.global_position
 		to_player.y = 0.0
 		var dist := to_player.length()
-		if dist < 0.2 or dist > 6.5:
+		var stop := 1.0 if drop.is_life else 2.2
+		if dist <= stop or dist > 6.5:
 			continue
-		drop.global_position += to_player.normalized() * minf(11.0 * delta, dist)
+		drop.global_position += to_player.normalized() * minf(9.0 * delta, dist - stop)
 
 
 func _update_camera(delta: float) -> void:
+	var aim := player.aim_point
+	var look := player.global_position + (aim - player.global_position).limit_length(4.0) * 0.10
+	camera_focus = camera_focus.lerp(look, clampf(delta * 3.2, 0.0, 1.0))
 	var desired := _camera_desired()
-	camera.global_position = camera.global_position.lerp(desired, clampf(delta * 6.5, 0.0, 1.0))
+	camera.global_position = camera.global_position.lerp(desired, clampf(delta * 4.6, 0.0, 1.0))
 	camera_shake = maxf(0.0, camera_shake - delta * 1.8)
 	var jitter := Vector3(rng.randf_range(-1.0, 1.0), rng.randf_range(-1.0, 1.0), 0.0) * camera_shake * 0.6
-	camera.look_at(player.global_position + Vector3(0.0, 1.0, 0.0) + jitter, Vector3.UP)
+	camera.look_at(camera_focus + Vector3(0.0, 1.0, 0.0) + jitter, Vector3.UP)
 
 
 func _camera_desired() -> Vector3:
-	var desired := player.global_position + CAMERA_OFFSET
+	var desired := camera_focus + CAMERA_OFFSET * camera_zoom
 	var limit := float(GRID) * CELL * 0.5 - 7.0
 	desired.x = clampf(desired.x, -limit, limit)
 	desired.z = clampf(desired.z, -limit, limit)

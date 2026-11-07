@@ -8,12 +8,15 @@ signal damaged(amount: float)
 signal healed(amount: float)
 signal life_spent(amount: float)
 
-const BASE_MAX_HEALTH := 180.0
+const BASE_MAX_HEALTH := 220.0
 const BASE_SPEED := 7.2
 const GRAVITY := 28.0
-const COMBAT_REGEN := 0.4
+const BASE_REGEN := 2.4
+const COMBAT_REGEN := 0.5
 const BLOODRUSH_TIME := 4.5
 const BLOODRUSH_MAX := 10
+const MAX_RELICS := 3
+const FAMILY_STACK_LIMIT := 2
 
 const ABILITIES := [
 	{"name": "Blood Nova", "cost": 6.0, "cooldown": 3.2, "key": "1", "glyph": "NOVA", "desc": "Detonate your life force around you."},
@@ -27,9 +30,11 @@ var move_speed := BASE_SPEED
 var crit_chance := 0.06
 var crit_damage := 1.75
 var power := 1.0
-var regen := 2.1
+var regen := BASE_REGEN
 var life_cost_mult := 1.0
-var relic: Dictionary = {}
+var relics: Array = []
+var dash_cooldown_base := 2.2
+var move_direct := Vector3.ZERO
 
 var alive := true
 var aim_point := Vector3.ZERO
@@ -201,7 +206,14 @@ func _physics_process(delta: float) -> void:
 
 	velocity.y -= GRAVITY * delta
 	var walking := false
-	if path.size() > 0:
+	if move_direct.length_squared() > 0.01:
+		path.clear()
+		velocity.x = move_direct.x * move_speed
+		velocity.z = move_direct.z * move_speed
+		walking = true
+		if cast_timer <= 0.0:
+			_face_direction(move_direct, delta)
+	elif path.size() > 0:
 		var point := path[0]
 		var flat := Vector3(point.x - global_position.x, 0.0, point.z - global_position.z)
 		if flat.length() < 0.5:
@@ -276,6 +288,12 @@ func move_along(points: PackedVector3Array) -> void:
 	path = points
 
 
+func set_move_direct(direction: Vector3) -> void:
+	move_direct = Vector3(direction.x, 0.0, direction.z)
+	if move_direct.length_squared() > 1.0:
+		move_direct = move_direct.normalized()
+
+
 func stop() -> void:
 	path.clear()
 
@@ -284,7 +302,7 @@ func ability_cost(index: int) -> float:
 	if index < 0 or index >= ABILITIES.size():
 		return 0.0
 	var cost: float = ABILITIES[index].cost
-	if index == 0 and String(relic.get("unique", "")) == "nova_free":
+	if index == 0 and has_unique("nova_free"):
 		cost = 0.0
 	return cost * life_cost_mult
 
@@ -340,7 +358,7 @@ func try_dash() -> bool:
 		dir = Vector3(sin(facing), 0.0, cos(facing))
 	dash_direction = dir.normalized()
 	dash_time = 0.16
-	dash_cooldown = 2.2
+	dash_cooldown = dash_cooldown_base
 	path.clear()
 	invulnerable = 0.22
 	cast_timer = 0.0
@@ -408,30 +426,125 @@ func revive() -> void:
 	health_changed.emit(health, max_health)
 
 
-func equip(item: Dictionary) -> void:
-	relic = item
+func has_unique(key: String) -> bool:
+	for item in relics:
+		if String(item.get("unique", "")) == key:
+			return true
+	return false
+
+
+func family_count(family: String) -> int:
+	var count := 0
+	for item in relics:
+		if String(item.get("family", "")) == family:
+			count += 1
+	return count
+
+
+func can_equip(item: Dictionary, slot: int) -> bool:
+	if slot < 0 or slot >= MAX_RELICS:
+		return false
+	var family := String(item.get("family", "blood"))
+	var count := 0
+	for i in relics.size():
+		if i == slot:
+			continue
+		if String(relics[i].get("family", "")) == family:
+			count += 1
+	return count < FAMILY_STACK_LIMIT
+
+
+func equip_slot(slot: int, item: Dictionary) -> bool:
+	if not can_equip(item, slot):
+		return false
+	while relics.size() < MAX_RELICS:
+		relics.append({})
+	relics[slot] = item
 	_recalculate()
+	return true
+
+
+func unequip_slot(slot: int) -> void:
+	if slot < 0 or slot >= relics.size():
+		return
+	relics[slot] = {}
+	_recalculate()
+
+
+func equip(item: Dictionary) -> bool:
+	for i in MAX_RELICS:
+		if can_equip(item, i):
+			return equip_slot(i, item)
+	return false
+
+
+func relic_total(key: String) -> float:
+	var total := 0.0
+	for item in relics:
+		if item.is_empty():
+			continue
+		total += ItemDB.total(item, key)
+	return total
+
+
+func relic_names() -> String:
+	var names: Array = []
+	for item in relics:
+		if not item.is_empty():
+			names.append(String(item.get("name", "Relic")))
+	if names.is_empty():
+		return "None"
+	return ", ".join(names)
+
+
+func synergy() -> Dictionary:
+	var syn := {
+		"power": 0.0, "crit": 0.0, "crit_damage": 0.0, "move_speed": 0.0,
+		"regen": 0.0, "life": 0.0, "life_pct": 0.0, "cost_cut": 0.0, "dash": 0.0,
+		"active": [],
+	}
+	var blood := family_count("blood")
+	var ember := family_count("ember")
+	var rift := family_count("rift")
+	if blood >= 2:
+		syn.power += 0.18
+		syn.life += 8.0
+		syn.active.append("blood")
+	if ember >= 2:
+		syn.crit += 8.0
+		syn.crit_damage += 30.0
+		syn.active.append("ember")
+	if rift >= 2:
+		syn.move_speed += 10.0
+		syn.regen += 1.2
+		syn.dash += 0.5
+		syn.active.append("rift")
+	var families := 0
+	for fam in ["blood", "ember", "rift"]:
+		if family_count(fam) > 0:
+			families += 1
+	if families >= 3:
+		syn.power += 0.06
+		syn.life_pct += 0.05
+		syn.cost_cut += 0.10
+		syn.active.append("triad")
+	return syn
 
 
 func _recalculate() -> void:
 	var ratio := 1.0
 	if max_health > 0.0:
 		ratio = health / max_health
-	max_health = BASE_MAX_HEALTH
-	move_speed = BASE_SPEED
-	crit_chance = 0.06
-	crit_damage = 1.75
-	regen = 2.1
-	life_cost_mult = 1.0
-	power = 1.0
-	if not relic.is_empty():
-		max_health += ItemDB.total(relic, "vitality")
-		move_speed *= 1.0 + ItemDB.total(relic, "move_speed") / 100.0
-		crit_chance += ItemDB.total(relic, "crit") / 100.0
-		crit_damage += ItemDB.total(relic, "crit_damage") / 100.0
-		regen += ItemDB.total(relic, "regen")
-		life_cost_mult = 1.0 + ItemDB.total(relic, "life_cost") / 100.0
-		power = 1.0 + ItemDB.total(relic, "power") / 100.0
+	var syn := synergy()
+	max_health = BASE_MAX_HEALTH + relic_total("vitality") + float(syn.life)
+	max_health *= 1.0 + float(syn.life_pct)
+	move_speed = BASE_SPEED * (1.0 + (relic_total("move_speed") + float(syn.move_speed)) / 100.0)
+	crit_chance = 0.06 + (relic_total("crit") + float(syn.crit)) / 100.0
+	crit_damage = 1.75 + (relic_total("crit_damage") + float(syn.crit_damage)) / 100.0
+	regen = BASE_REGEN + relic_total("regen") + float(syn.regen)
+	life_cost_mult = (1.0 + relic_total("life_cost") / 100.0) * (1.0 - float(syn.cost_cut))
+	power = (1.0 + relic_total("power") / 100.0) * (1.0 + float(syn.power))
+	dash_cooldown_base = 2.2 - float(syn.dash)
 	health = clampf(max_health * ratio, 1.0, max_health)
 	health_changed.emit(health, max_health)
 
