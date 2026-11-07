@@ -22,6 +22,12 @@ An isometric, click-to-move action RPG in a volcanic wasteland split by lava rif
 - Packs aggro at 13 m, so fights are deliberate and readable instead of a screen-wide swarm.
 
 ## Home Hub and the Mirror Ring
+- Online play is built on Summer's dedicated-server model: the player runs `client/main.tscn`, the match runs headless from `authority/main.tscn`, and both load one network contract (`network/composition.tres`). The project declares `summer.build.json`, `world.json`, `runtime-manifest.json` and `source-domains.json`; the queue is `rift` for 1-4 players.
+- The authority picks the world seed and publishes it on the `rift.world` State stream; every client seeds its floor generator with `seed + layer * 9176` before building, so two players always stand in the same randomised rift.
+- Each player owns one pose group (`rift.motion`, key `p<seat>`) carrying entity, position and yaw. The authority checks every pose with an arena bound and a distance allowance refilled at 22 m/s, and refuses teleports; a refused pose snaps the owner back. Other players are observer projections that glide 100 ms behind, so remote movement stays smooth.
+- Joining a World drops the player straight into the rift (`ONLINE - n IN RIFT - SEAT n` chip under the minimap). With no World available the client prints `RIFT_NET_SOLO` and boots the untouched solo game, so single player never depends on the network.
+- Local co-op test: `summer/local_play/players = 2` and PlayGame starts one headless authority plus two clients on port 7787.
+
 - The game opens on the Ashen Bastion title card over the live floor: RIFT & RUIN, deepest rift reached, CONTINUE (layer, level, coin of the saved run) or ENTER THE RIFT / NEW RIFT, then DUEL THE MIRROR, HALL OF WARDENS and OPTIONS.
 - Hovering a menu entry writes a lore line into the card's panel. HALL OF WARDENS is a four-page lore book (Bastion, Hushed Prophet, Brood Mother, Ashen Broker), one page per click.
 - DUEL THE MIRROR is the PvP mode: a clean obsidian ring with no packs, no hazards, no portal and no relics. The rival is the sorceress model with the player's own kit: a five-bolt soul volley on a windup, a seven-bolt blood fan that heals her, and a phase break at half life. Winning or losing opens a result card with DUEL AGAIN and RETURN TO BASTION. Duel results never touch the run save.

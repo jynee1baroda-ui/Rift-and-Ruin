@@ -128,6 +128,8 @@ var duel_stats: Label
 var settings_btn: Button
 var duel_shown_ms := 0
 var whisper_label: Label
+var online_chip: PanelContainer
+var online_label: Label
 
 const HALL_LORE := [
 	"THE BASTION — raised by deserters who refused to kneel to the rift's first warden. Its braziers have not gone out in a hundred years.",
@@ -317,6 +319,7 @@ func _build() -> void:
 	body.modulate.a = 0.0
 	root.add_child(body)
 	_build_minimap()
+	_build_online_chip()
 	_build_top()
 	_build_boss()
 	_build_health()
@@ -772,6 +775,33 @@ func flash_ability(color: Color) -> void:
 	ability_flash_rect.color = Color(color.r, color.g, color.b, 0.16)
 	var tween := create_tween()
 	tween.tween_property(ability_flash_rect, "color:a", 0.0, 0.4).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+
+
+func _build_online_chip() -> void:
+	online_chip = PanelContainer.new()
+	online_chip.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	online_chip.offset_left = 34.0
+	online_chip.offset_top = 204.0
+	online_chip.offset_right = 214.0
+	online_chip.offset_bottom = 228.0
+	online_chip.add_theme_stylebox_override("panel", _stylebox(Color(0.05, 0.03, 0.05, 0.82), Color(0.32, 0.52, 0.34, 1.0), 1, 2))
+	online_chip.visible = false
+	body.add_child(online_chip)
+	online_label = _label("ONLINE", 10, Color(0.68, 0.92, 0.72), false)
+	online_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	online_chip.add_child(online_label)
+
+
+## seat is 1-based for display; 0 means a solo run, which hides the chip.
+func set_online(seat: int, peers: int) -> void:
+	if online_chip == null:
+		return
+	if seat < 1:
+		online_chip.visible = false
+		return
+	online_chip.visible = true
+	online_chip.add_theme_stylebox_override("panel", _stylebox(Color(0.05, 0.03, 0.05, 0.82), Color(0.32, 0.52, 0.34, 1.0), 1, 2))
+	online_label.text = "ONLINE  -  %d IN RIFT  -  SEAT %d" % [maxi(1, peers), seat]
 
 
 func _build_top() -> void:
@@ -1473,7 +1503,9 @@ func _build_title() -> void:
 
 
 func _title_input_ok() -> bool:
-	return title_mouse_moved and Time.get_ticks_msec() - title_shown_ms > 600
+	# Only the fade-in is protected: a click after the card is visible counts.
+	title_mouse_moved = true
+	return Time.get_ticks_msec() - title_shown_ms > 450
 
 
 func _set_lore(key: String) -> void:
@@ -2223,6 +2255,21 @@ func set_record(best: int) -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo \
+			and (event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER or event.keycode == KEY_SPACE):
+		var focused := get_viewport().gui_get_focus_owner()
+		if focused != null:
+			focused.release_focus()
+	if title_panel != null and title_panel.visible and not settings_open:
+		if event is InputEventKey and event.pressed and not event.echo \
+				and (event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER or event.keycode == KEY_SPACE):
+			if _title_input_ok():
+				if title_continue_btn != null and title_continue_btn.visible:
+					continue_pressed.emit()
+				else:
+					start_pressed.emit()
+			get_viewport().set_input_as_handled()
+		return
 	if shop_open:
 		if event is InputEventKey and event.pressed and not event.echo and (event.keycode == KEY_ESCAPE or event.keycode == KEY_P or event.keycode == KEY_E):
 			close_shop()

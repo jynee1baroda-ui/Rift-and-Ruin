@@ -1,6 +1,6 @@
-﻿[gd_scene load_steps=5 format=3]
+[gd_scene format=3 uid="uid://odjl8r73hhfv"]
 
-[ext_resource type="Script" path="res://scripts/game.gd" id="1_game"]
+[ext_resource type="Script" uid="uid://bhjdrggwckokn" path="res://scripts/game.gd" id="1_8jq5g"]
 
 [sub_resource type="ProceduralSkyMaterial" id="sky_mat"]
 sky_top_color = Color(0.015, 0.008, 0.035, 1)
@@ -30,9 +30,7 @@ ssao_radius = 1.4
 ssao_intensity = 1.6
 glow_enabled = true
 glow_intensity = 0.8
-glow_strength = 1.0
 glow_bloom = 0.1
-glow_blend_mode = 1
 glow_hdr_threshold = 1.1
 fog_enabled = true
 fog_light_color = Color(0.26, 0.09, 0.05, 1)
@@ -45,49 +43,46 @@ volumetric_fog_albedo = Color(0.42, 0.28, 0.32, 1)
 volumetric_fog_emission = Color(0.2, 0.06, 0.02, 1)
 volumetric_fog_emission_energy = 0.3
 volumetric_fog_gi_inject = 0.4
-volumetric_fog_ambient_inject = 0.2
 volumetric_fog_length = 90.0
+volumetric_fog_ambient_inject = 0.2
 adjustment_enabled = true
 adjustment_contrast = 1.06
 adjustment_saturation = 1.12
 
-[node name="Main" type="Node3D"]
-script = ExtResource("1_game")
+[node name="Main" type="Node3D" unique_id=458377295]
+script = ExtResource("1_8jq5g")
 
-[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1714378368]
 environment = SubResource("env_main")
 
-[node name="Sun" type="DirectionalLight3D" parent="."]
-rotation_degrees = Vector3(-52, -32, 0)
+[node name="Sun" type="DirectionalLight3D" parent="." unique_id=32006276]
+transform = Transform3D(0.8480481, 0.41758206, -0.32625088, 0, 0.6156615, 0.7880107, 0.52991927, -0.668271, 0.5221106, 0, 0, 0)
 light_color = Color(1, 0.92, 0.84, 1)
 light_energy = 2.0
-shadow_enabled = true
-directional_shadow_max_distance = 95.0
-shadow_blur = 1.4
 light_angular_distance = 1.2
+shadow_enabled = true
+shadow_blur = 1.4
+directional_shadow_max_distance = 95.0
 
-[node name="RimLight" type="DirectionalLight3D" parent="."]
-rotation_degrees = Vector3(-18, 148, 0)
+[node name="RimLight" type="DirectionalLight3D" parent="." unique_id=1197053280]
+transform = Transform3D(-0.84804803, -0.16375408, 0.50398326, 0, 0.95105654, 0.309017, -0.5299193, 0.26206127, -0.8065416, 0, 0, 0)
 light_color = Color(0.55, 0.42, 0.95, 1)
 light_energy = 0.78
-shadow_enabled = false
 
-[node name="FillLight" type="DirectionalLight3D" parent="."]
-rotation_degrees = Vector3(-38, 0, 0)
+[node name="FillLight" type="DirectionalLight3D" parent="." unique_id=1070644947]
+transform = Transform3D(1, 0, 0, 0, 0.7880108, 0.6156615, 0, -0.6156615, 0.7880108, 0, 0, 0)
 light_color = Color(0.72, 0.74, 0.95, 1)
 light_energy = 0.55
-shadow_enabled = false
 
-[node name="ArenaLight" type="OmniLight3D" parent="."]
-position = Vector3(0, 9, 0)
+[node name="ArenaLight" type="OmniLight3D" parent="." unique_id=527810045]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 9, 0)
 light_color = Color(1, 0.48, 0.18, 1)
 light_energy = 0.8
 omni_range = 95.0
-shadow_enabled = false
 
-[node name="Camera3D" type="Camera3D" parent="."]
-position = Vector3(0, 24, 19)
+[node name="Camera3D" type="Camera3D" parent="." unique_id=2087175425]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 24, 19)
+current = true
 fov = 40.0
 near = 0.1
 far = 520.0
-current = true

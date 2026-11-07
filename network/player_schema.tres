@@ -1,0 +1,4 @@
+[gd_resource type="SummerNetworkSchema" format=3]
+
+[resource]
+schema_id = &"rift.player.v1"

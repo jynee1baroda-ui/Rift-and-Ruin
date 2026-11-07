@@ -1,0 +1,80 @@
+[gd_resource type="SummerNetworkComposition" format=3]
+
+[sub_resource type="SummerNetworkField" id="MotionEntity"]
+field_name = &"entity"
+type = 1
+
+[sub_resource type="SummerNetworkField" id="MotionPosition"]
+field_name = &"position"
+type = 9
+
+[sub_resource type="SummerNetworkField" id="MotionYaw"]
+field_name = &"yaw"
+type = 2
+
+[sub_resource type="SummerNetworkSchema" id="MotionSchema"]
+schema_id = &"rift.motion.v1"
+state_fields = Array[SummerNetworkField]([SubResource("MotionEntity"), SubResource("MotionPosition"), SubResource("MotionYaw")])
+
+[sub_resource type="SummerWorldAudience" id="Everyone"]
+max_expansion = 4
+
+[sub_resource type="SummerNetworkStateStream" id="Motion"]
+stream_id = &"rift.motion"
+writer_policy = 1
+skip_writer_echo = true
+state_schema = SubResource("MotionSchema")
+audience_policy = SubResource("Everyone")
+max_audience_count = 4
+max_keys = 4
+max_state_bytes = 1024
+max_total_bytes = 4096
+
+[sub_resource type="SummerNetworkField" id="WorldSeed"]
+field_name = &"seed"
+type = 1
+
+[sub_resource type="SummerNetworkSchema" id="WorldSchema"]
+schema_id = &"rift.world.v1"
+state_fields = Array[SummerNetworkField]([SubResource("WorldSeed")])
+
+[sub_resource type="SummerWorldAudience" id="WorldAudience"]
+max_expansion = 4
+
+[sub_resource type="SummerNetworkStateStream" id="WorldStream"]
+stream_id = &"rift.world"
+state_schema = SubResource("WorldSchema")
+audience_policy = SubResource("WorldAudience")
+max_audience_count = 4
+max_keys = 1
+max_state_bytes = 512
+max_total_bytes = 512
+
+[sub_resource type="SummerNetworkField" id="CommandBytes"]
+field_name = &"b"
+type = 20
+
+[sub_resource type="SummerNetworkSchema" id="CommandSchema"]
+schema_id = &"rift.cmd.v1"
+state_fields = Array[SummerNetworkField]([SubResource("CommandBytes")])
+
+[sub_resource type="SummerNetworkField" id="ResultBytes"]
+field_name = &"b"
+type = 20
+
+[sub_resource type="SummerNetworkSchema" id="ResultSchema"]
+schema_id = &"rift.cmd.result.v1"
+state_fields = Array[SummerNetworkField]([SubResource("ResultBytes")])
+
+[sub_resource type="SummerNetworkOccurrenceStream" id="Commands"]
+stream_id = &"rift.cmd"
+command_scope = 2
+command_tick_dispatch = true
+command_timeout_msec = 8000
+payload_schema = SubResource("CommandSchema")
+result_schema = SubResource("ResultSchema")
+
+[resource]
+network_version = "1.0.0"
+state_streams = Array[SummerNetworkStateStream]([SubResource("Motion"), SubResource("WorldStream")])
+occurrence_streams = Array[SummerNetworkOccurrenceStream]([SubResource("Commands")])

@@ -181,6 +181,11 @@ var hazards_alive := 0
 var duel_mode := false
 var rival: Enemy
 var duel_casts := 0
+var online_mode := false
+var world_seed := 0
+var my_seat := 0
+var online_peers := 1
+var net: Node
 
 
 func _ready() -> void:
@@ -222,12 +227,51 @@ func _ready() -> void:
 	hud.show_loading()
 	await get_tree().process_frame
 	_create_player()
+	_load_record()
+	# The network decides between solo and a Summer World; both paths call
+	# back into this script before the first floor is built.
+	net = preload("res://client/net_client.gd").new()
+	net.name = "RiftNet"
+	add_child(net)
+	net.start(self)
+
+
+func boot_solo() -> void:
+	online_mode = false
+	_after_spawn(false)
+
+
+func boot_online(seed_value: int, seat: int) -> void:
+	online_mode = true
+	world_seed = seed_value
+	my_seat = seat
+	_after_spawn(true)
+	# A player who joined a World is already in that party's rift: no menu.
+	started = true
+	run_active = true
+	hud.hide_title()
+	hud.show_body()
+	for enemy in enemies:
+		enemy.frozen = false
+	hud.toast("ONLINE RIFT  -  SEAT %d" % (seat + 1), Color(0.62, 0.95, 0.72), 2.6)
+
+
+func set_online_peers(count: int) -> void:
+	online_peers = maxi(1, count)
+	if online_mode:
+		hud.set_online(my_seat + 1, online_peers)
+
+
+func _after_spawn(networked: bool) -> void:
 	_generate_floor()
 	camera.global_position = player.global_position + CAMERA_OFFSET
 	camera.look_at(player.global_position + Vector3(0.0, 1.0, 0.0), Vector3.UP)
 	hud.set_layer_info(layer, enemies.size(), total_enemies, kills)
 	hud.set_relics(player.relics)
-	_load_record()
+	if networked:
+		hud.set_online(my_seat + 1, online_peers)
+	else:
+		hud.set_online(0, 1)
 	hud.hide_loading()
 
 
@@ -235,6 +279,7 @@ func _create_player() -> void:
 	player = Player.new()
 	player.name = "BloodSorceress"
 	world_root.add_child(player)
+	player.add_to_group("local_player")
 	player.setup(_find_hero_scene())
 	player.died.connect(_on_player_died)
 	player.damaged.connect(_on_player_damaged)
@@ -262,6 +307,10 @@ func _save_record() -> void:
 
 
 func _save_run() -> void:
+	if online_mode:
+		# Character persistence moves to the authority in the next phase;
+		# two local clients must not fight over one save file.
+		return
 	if player == null or not run_active or not player.alive:
 		return
 	var relics: Array = []
@@ -489,6 +538,9 @@ func _apply_brightness() -> void:
 
 
 func _generate_floor() -> void:
+	if online_mode:
+		# Every client builds the same floor for a given world and layer.
+		rng.seed = world_seed + layer * 9176
 	_clear_floor()
 	hud.hide_boons()
 	if duel_mode:

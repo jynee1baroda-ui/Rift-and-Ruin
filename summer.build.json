@@ -1,0 +1,36 @@
+{
+  "schema": "summer.build.v2",
+  "gameId": "game_rift_and_ruin",
+  "executionMode": "hosted",
+  "targetPlatforms": ["windows"],
+  "project": { "directory": "." },
+  "server": { "exportPreset": "Rift and Ruin Authority" },
+  "runtime": {
+    "protocolVersion": "1.0.0",
+    "interfaces": {
+      "multiplayer": 6,
+      "session": 3,
+      "lobby": 3,
+      "presence": 3,
+      "config": 3,
+      "party": 1,
+      "matchSearch": 1
+    },
+    "scenes": ["res://client/main.tscn"],
+    "worldDefinitions": ["world.json"],
+    "queues": [
+      {
+        "name": "rift",
+        "minPlayers": 1,
+        "maxPlayers": 4,
+        "worldDefinition": "rift",
+        "policy": "fifo"
+      }
+    ],
+    "tickRate": 60,
+    "config": { "keys": {} },
+    "presence": { "tokens": {} },
+    "lobby": { "fields": {} },
+    "server": { "tier": "small" }
+  }
+}
