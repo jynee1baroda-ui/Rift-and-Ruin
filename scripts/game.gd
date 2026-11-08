@@ -324,6 +324,15 @@ var merchant_npc: Node3D
 var merchant_area: Area3D
 var merchant_near := false
 var broker_shut := false
+## Broker consumables. Bought as charges, spent from the row above the ability
+## bar: every entry is a real inventory count, so the row cannot be used
+## forever and cannot be used at all once the last charge is gone.
+const CONSUMABLES := {
+	"vitae": {"name": "VITAE DRAUGHT", "detail": "Restore 45% of maximum vitae.", "color": Color(0.95, 0.34, 0.36), "cd": 9.0, "buff": 0.0, "icon": "res://art/generated/icon_flask_vitae"},
+	"ember": {"name": "EMBER TINCTURE", "detail": "+30% ability damage for 22s.", "color": Color(1.0, 0.58, 0.2), "cd": 26.0, "buff": 22.0, "icon": "res://art/generated/icon_flask_ember"},
+	"swift": {"name": "QUICKENING", "detail": "+22% movement speed for 22s.", "color": Color(0.5, 0.9, 0.9), "cd": 26.0, "buff": 22.0, "icon": "res://art/generated/icon_flask_swift"},
+}
+var consumed: Dictionary = {}
 var shop_offers: Array = []
 var shop_open := false
 var boss_enemy: Enemy
@@ -401,6 +410,7 @@ func _ready() -> void:
 	hud.character_created.connect(_on_character_created)
 	hud.passives_requested.connect(_open_passives)
 	hud.passive_buy.connect(_on_passive_buy)
+	hud.consumable_use.connect(_use_consumable)
 	hud.roster_requested.connect(_open_roster)
 	hud.roster_load.connect(_on_roster_load)
 	hud.roster_delete.connect(_on_roster_delete)
@@ -3183,13 +3193,106 @@ func _roll_shop_offers() -> void:
 			"color": boon.get("color", Color(1.0, 0.72, 0.28)),
 			"price": 55 + layer * 4,
 		})
-	shop_offers.append({
-		"kind": "heal",
-		"name": "VITAE FLASK",
-		"detail": "Restore all vitae.",
-		"color": Color(0.95, 0.32, 0.34),
-		"price": 20 + layer * 2,
-	})
+	## Two flasks and one draught: they land in the quick-use row above the
+	## ability bar as real charges instead of healing on the spot.
+	shop_offers.append(_consumable_offer("vitae", 2, 18 + layer * 2))
+	var buff_key := "ember" if rng.randf() < 0.5 else "swift"
+	shop_offers.append(_consumable_offer(buff_key, 2, 30 + layer * 3))
+
+
+func _consumable_offer(key: String, count: int, price: int) -> Dictionary:
+	var data: Dictionary = CONSUMABLES.get(key, {})
+	return {
+		"kind": "consumable",
+		"consumable": key,
+		"count": count,
+		"name": "%s  x%d" % [String(data.get("name", key)), count],
+		"detail": String(data.get("detail", "")),
+		"color": data.get("color", Color(1.0, 0.72, 0.28)),
+		"price": price,
+	}
+
+
+## Burns down flask cooldowns and timed buffs once a frame. The player's derived
+## stats are rebuilt only when a buff actually starts or ends.
+func _tick_consumables(delta: float) -> void:
+	var changed := false
+	for key in consumed.keys():
+		var state: Dictionary = consumed[key]
+		var cd := maxf(0.0, float(state.get("cd", 0.0)) - delta)
+		var active := maxf(0.0, float(state.get("active", 0.0)) - delta)
+		if cd != float(state.get("cd", 0.0)) or active != float(state.get("active", 0.0)):
+			state["cd"] = cd
+			state["active"] = active
+			changed = true
+	if _buff_power() <= 0.0 and _buff_speed() <= 0.0:
+		if player != null and (player.temp_power_pct > 0.0 or player.temp_speed_pct > 0.0):
+			player.set_temp_bonus(0.0, 0.0)
+	elif player != null:
+		player.set_temp_bonus(_buff_power(), _buff_speed())
+	if changed:
+		_push_consumables()
+
+
+func _buff_power() -> float:
+	return 30.0 if float(consumed.get("ember", {}).get("active", 0.0)) > 0.0 else 0.0
+
+
+func _buff_speed() -> float:
+	return 22.0 if float(consumed.get("swift", {}).get("active", 0.0)) > 0.0 else 0.0
+
+
+func _push_consumables() -> void:
+	var rows: Array = []
+	for key in CONSUMABLES.keys():
+		var state: Dictionary = consumed.get(key, {})
+		var count := int(state.get("amount", 0))
+		if count <= 0:
+			continue
+		var data: Dictionary = CONSUMABLES[key]
+		rows.append({
+			"key": key,
+			"name": String(data.get("name", key)),
+			"detail": String(data.get("detail", "")),
+			"color": data.get("color", Color(1.0, 0.72, 0.28)),
+			"icon": String(data.get("icon", "")),
+			"count": count,
+			"cd": float(state.get("cd", 0.0)),
+			"cd_max": float(data.get("cd", 0.0)),
+			"active": float(state.get("active", 0.0)),
+		})
+	hud.show_consumables(rows)
+
+
+func _use_consumable(key: String) -> void:
+	if not run_active or player == null or not player.alive:
+		return
+	var state: Dictionary = consumed.get(key, {})
+	if int(state.get("amount", 0)) <= 0:
+		hud.toast("NO %s LEFT" % String(CONSUMABLES.get(key, {}).get("name", "FLASK")), Color(1.0, 0.4, 0.3), 1.6)
+		return
+	if float(state.get("cd", 0.0)) > 0.0:
+		return
+	var data: Dictionary = CONSUMABLES.get(key, {})
+	state["amount"] = int(state.get("amount", 0)) - 1
+	state["cd"] = float(data.get("cd", 0.0))
+	consumed[key] = state
+	match key:
+		"vitae":
+			player.heal(player.max_health * 0.45)
+			FX.burst(fx_root, player.global_position + Vector3(0.0, 1.0, 0.0), Color(0.95, 0.3, 0.34, 0.9), 18, 4.0, 0.3, 0.5)
+		"ember":
+			state["active"] = float(data.get("buff", 22.0))
+			consumed[key] = state
+			FX.nova(fx_root, player.global_position, Color(1.0, 0.55, 0.2, 0.9), 2.6)
+		"swift":
+			state["active"] = float(data.get("buff", 22.0))
+			consumed[key] = state
+			FX.ring(fx_root, player.global_position, Color(0.5, 0.95, 0.95, 0.7), 2.4, 0.5, 0.06)
+	player.set_temp_bonus(_buff_power(), _buff_speed())
+	play_sfx("pickup", -6.0, 0.08)
+	hud.toast(String(data.get("name", key)), data.get("color", Color(1.0, 0.8, 0.4)), 1.6)
+	_push_consumables()
 
 
 func _relic_price(item: Dictionary) -> int:
@@ -3250,6 +3353,14 @@ func _on_shop_buy(index: int) -> void:
 			player.heal(player.max_health)
 			hud.update_shop(shop_offers, coins)
 			hud.toast("VITAE RESTORED", Color(0.95, 0.4, 0.42), 2.0)
+		"consumable":
+			var ckey := String(offer.get("consumable", ""))
+			var state: Dictionary = consumed.get(ckey, {"amount": 0, "cd": 0.0, "active": 0.0})
+			state["amount"] = int(state.get("amount", 0)) + int(offer.get("count", 1))
+			consumed[ckey] = state
+			hud.update_shop(shop_offers, coins)
+			_push_consumables()
+			hud.toast("%s  STOWED" % String(offer.get("name", "FLASK")), offer.get("color", Color(1.0, 0.8, 0.35)), 2.0)
 	_save_run()
 
 
@@ -3297,6 +3408,8 @@ func begin_run() -> void:
 	layer = 1
 	kills = 0
 	run_boons.clear()
+	consumed.clear()
+	_push_consumables()
 	attack_target = null
 	player.set_progress(1, 0.0)
 	player.set_passives([], 1)
@@ -4117,6 +4230,7 @@ func _process(delta: float) -> void:
 	if player == null:
 		return
 	var mouse := get_viewport().get_mouse_position()
+	_tick_consumables(delta)
 	player.set_aim(_aim_point(mouse))
 	_update_move_input()
 	var costs: Array = [player.ability_cost(0), player.ability_cost(1), player.ability_cost(2)]

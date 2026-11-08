@@ -24,6 +24,7 @@ signal character_created(hero_name: String, klass: String)
 signal story_closed
 signal passives_requested
 signal passive_buy(id: String)
+signal consumable_use(key: String)
 signal roster_requested
 signal roster_load(id: String)
 signal roster_delete(id: String)
@@ -189,6 +190,7 @@ var passive_points_label: Label
 var passive_owned: Array = []
 var passive_points := 0
 var passive_buttons: Array = []
+var consumable_row: HBoxContainer
 var roster_panel: PanelContainer
 var roster_list: VBoxContainer
 var roster_delete_armed := ""
@@ -1288,6 +1290,7 @@ func _build_abilities() -> void:
 	box.alignment = BoxContainer.ALIGNMENT_END
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	body.add_child(box)
+	_build_consumables(box)
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 10)
@@ -1421,6 +1424,116 @@ func _build_abilities() -> void:
 	dash_cd.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	dash.add_child(dash_cd)
 	slots.append({"panel": dash, "overlay": null, "cd": dash_cd, "name": dash_action_label, "cost": null, "was_cd": false})
+
+
+## The quick-use row sits directly above the ability bar. Only charged items
+## the player actually bought appear here; each one shows its own icon, its
+## remaining count, its cooldown sweep and, for a timed buff, the time left.
+func _build_consumables(box: VBoxContainer) -> void:
+	consumable_row = HBoxContainer.new()
+	consumable_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	consumable_row.add_theme_constant_override("separation", 8)
+	consumable_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	consumable_row.visible = false
+	box.add_child(consumable_row)
+
+
+func show_consumables(rows: Array) -> void:
+	if consumable_row == null:
+		return
+	for child in consumable_row.get_children():
+		child.queue_free()
+	consumable_row.visible = not rows.is_empty()
+	for entry in rows:
+		var key := String(entry.get("key", ""))
+		var color: Color = entry.get("color", AMBER)
+		var count := int(entry.get("count", 0))
+		var cd := float(entry.get("cd", 0.0))
+		var cd_max := maxf(0.1, float(entry.get("cd_max", 1.0)))
+		var active := float(entry.get("active", 0.0))
+		var panel := Panel.new()
+		panel.custom_minimum_size = Vector2(54, 48)
+		panel.mouse_filter = Control.MOUSE_FILTER_STOP
+		panel.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		var tip := "%s\n%s\n%d in pack" % [String(entry.get("name", key)), String(entry.get("detail", "")), count]
+		if cd > 0.0:
+			tip += "\nready in %.1fs" % cd
+		if active > 0.0:
+			tip += "\nactive for %.0fs" % active
+		panel.tooltip_text = tip
+		panel.add_theme_stylebox_override("panel", _stylebox(Color(0.04, 0.026, 0.036, 0.94), color.darkened(0.35), 1, 3))
+		panel.gui_input.connect(func(event: InputEvent) -> void:
+			if event is InputEventMouseButton and event.pressed and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
+				consumable_use.emit(key)
+				get_viewport().set_input_as_handled())
+		consumable_row.add_child(panel)
+		var icon_box := Panel.new()
+		icon_box.position = Vector2(6, 5)
+		icon_box.size = Vector2(32, 32)
+		icon_box.clip_contents = true
+		icon_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		icon_box.add_theme_stylebox_override("panel", _stylebox(Color(0.015, 0.01, 0.02, 0.95), color.darkened(0.2), 1, 2))
+		panel.add_child(icon_box)
+		var icon_path := String(entry.get("icon", ""))
+		if not icon_path.is_empty() and icon_path.get_extension() == "":
+			icon_path = _first_png(icon_path)
+		if not icon_path.is_empty() and ResourceLoader.exists(icon_path):
+			var tex := TextureRect.new()
+			tex.texture = load(icon_path)
+			tex.set_anchors_preset(Control.PRESET_FULL_RECT)
+			tex.offset_left = 1.0
+			tex.offset_top = 1.0
+			tex.offset_right = -1.0
+			tex.offset_bottom = -1.0
+			tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+			tex.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			icon_box.add_child(tex)
+		else:
+			## No art yet: a readable coloured seal rather than an empty box.
+			var seal := ColorRect.new()
+			seal.color = color.darkened(0.15)
+			seal.set_anchors_preset(Control.PRESET_FULL_RECT)
+			seal.offset_left = 4.0
+			seal.offset_top = 4.0
+			seal.offset_right = -4.0
+			seal.offset_bottom = -4.0
+			seal.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			icon_box.add_child(seal)
+		var count_label := _label(str(count), 12, Color(1.0, 0.95, 0.86))
+		count_label.anchor_left = 1.0
+		count_label.anchor_right = 1.0
+		count_label.anchor_top = 1.0
+		count_label.anchor_bottom = 1.0
+		count_label.offset_left = -20.0
+		count_label.offset_top = -18.0
+		count_label.offset_right = -4.0
+		count_label.offset_bottom = -2.0
+		count_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		panel.add_child(count_label)
+		if cd > 0.0:
+			var shade := ColorRect.new()
+			shade.color = Color(0.02, 0.0, 0.02, 0.66)
+			shade.set_anchors_preset(Control.PRESET_FULL_RECT)
+			shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			panel.add_child(shade)
+			var cd_label := _label("%.0f" % ceilf(cd), 13, Color(1.0, 0.9, 0.7))
+			cd_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+			cd_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			cd_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			panel.add_child(cd_label)
+			cd_label.move_to_front()
+		elif active > 0.0:
+			var glow := ColorRect.new()
+			glow.color = Color(color.r, color.g, color.b, 0.22)
+			glow.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+			glow.anchor_top = 0.0
+			glow.offset_bottom = 2.0
+			glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			panel.add_child(glow)
+			var timer := _label("%.0fs" % active, 10, color.lightened(0.3))
+			timer.position = Vector2(4, 33)
+			panel.add_child(timer)
 
 
 func _on_slot_input(event: InputEvent, index: int) -> void:
@@ -3402,8 +3515,8 @@ func _build_passives() -> void:
 	passive_panel.set_anchors_preset(Control.PRESET_CENTER)
 	passive_panel.offset_left = -460.0
 	passive_panel.offset_right = 460.0
-	passive_panel.offset_top = -306.0
-	passive_panel.offset_bottom = 306.0
+	passive_panel.offset_top = -262.0
+	passive_panel.offset_bottom = 262.0
 	passive_panel.add_theme_stylebox_override("panel", _stylebox(Color(0.022, 0.011, 0.026, 0.99), Color(0.5, 0.3, 0.13, 1.0), 2, 5))
 	passive_panel.visible = false
 	passive_panel.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -3438,28 +3551,49 @@ func _build_passives() -> void:
 	cols.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	cols.add_theme_constant_override("separation", 14)
 	box.add_child(cols)
-	for branch in ["might", "vitae", "grace"]:
+	for branch in Passives.BRANCH_ORDER:
 		var col := VBoxContainer.new()
 		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		col.add_theme_constant_override("separation", 7)
+		col.add_theme_constant_override("separation", 5)
 		cols.add_child(col)
 		var color: Color = Passives.BRANCH_COLORS.get(branch, AMBER)
 		var heading := _label(String(Passives.BRANCH_NAMES.get(branch, branch)), 12, color)
 		heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		col.add_child(heading)
+		## Rows that carry a fork get both options side by side, so a player can
+		## see the choice they are making instead of reading a long list.
+		var rows := {}
 		for entry in Passives.nodes_in(branch):
-			var btn := Button.new()
-			btn.custom_minimum_size = Vector2(0, 62)
-			btn.alignment = HORIZONTAL_ALIGNMENT_CENTER
-			btn.add_theme_font_size_override("font_size", 12)
-			btn.add_theme_color_override("font_color", BONE)
-			btn.add_theme_color_override("font_hover_color", Color(1.0, 0.95, 0.85))
-			btn.add_theme_color_override("font_disabled_color", Color(0.42, 0.38, 0.4))
-			btn.text = "%s\n%s" % [String(entry.get("name", "")), String(entry.get("desc", ""))]
-			var id := String(entry.get("id", ""))
-			btn.pressed.connect(func() -> void: passive_buy.emit(id))
-			col.add_child(btn)
-			passive_buttons.append({"id": id, "button": btn, "branch": branch})
+			var row := int(entry.get("row", 0))
+			if not rows.has(row):
+				rows[row] = []
+			rows[row].append(entry)
+		var keys := rows.keys()
+		keys.sort()
+		for key in keys:
+			var group: Array = rows[key]
+			var holder: Container = col
+			if group.size() > 1:
+				var pair := HBoxContainer.new()
+				pair.add_theme_constant_override("separation", 4)
+				col.add_child(pair)
+				holder = pair
+			for entry in group:
+				var btn := Button.new()
+				btn.custom_minimum_size = Vector2(0, 50)
+				btn.alignment = HORIZONTAL_ALIGNMENT_CENTER
+				btn.add_theme_font_size_override("font_size", 10)
+				btn.add_theme_color_override("font_color", BONE)
+				btn.add_theme_color_override("font_hover_color", Color(1.0, 0.95, 0.85))
+				btn.add_theme_color_override("font_disabled_color", Color(0.42, 0.38, 0.4))
+				btn.text = String(entry.get("name", ""))
+				btn.tooltip_text = String(entry.get("desc", ""))
+				btn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+				btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+				var id := String(entry.get("id", ""))
+				btn.pressed.connect(func() -> void: passive_buy.emit(id))
+				holder.add_child(btn)
+				passive_buttons.append({"id": id, "button": btn, "branch": branch})
 
 
 func show_passives(owned: Array, points: int) -> void:
@@ -3480,7 +3614,8 @@ func show_passives(owned: Array, points: int) -> void:
 		var is_owned := passive_owned.has(id)
 		var can_buy := points > 0 and Passives.available(passive_owned, id)
 		btn.disabled = not is_owned and not can_buy
-		btn.text = "%s\n%s" % [String(data.get("name", id)), String(data.get("desc", ""))]
+		btn.text = String(data.get("name", id))
+		btn.tooltip_text = String(data.get("desc", ""))
 		if is_owned:
 			btn.add_theme_stylebox_override("normal", _stylebox(Color(color.r * 0.18, color.g * 0.12, color.b * 0.12, 0.98), color, 1, 3))
 			btn.add_theme_color_override("font_color", color.lightened(0.35))

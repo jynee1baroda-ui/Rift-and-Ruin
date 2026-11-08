@@ -40,6 +40,10 @@ var crit_bonus_amount := 0.0
 var level := 1
 var xp := 0.0
 var move_speed := BASE_SPEED
+## Temporary consumable bonuses, in percent. They live outside _recalculate's
+## own sums so a level-up or a boon cannot wipe an active draught.
+var temp_power_pct := 0.0
+var temp_speed_pct := 0.0
 var crit_chance := 0.06
 var crit_damage := 1.75
 var power := 1.0
@@ -171,6 +175,16 @@ func _redress() -> void:
 	var inst := model_root.get_child(0)
 	HandGrip.undress(inst)
 	HandGrip.dress(inst, class_id, model_root.scale.x, class_data.get("glove", Color(0.24, 0.2, 0.2)))
+
+
+## Sets the temporary consumable bonuses and rebuilds the derived stats, so an
+## ember draught really lifts damage now rather than at the next level-up.
+func set_temp_bonus(power_pct: float, speed_pct: float) -> void:
+	if is_equal_approx(temp_power_pct, power_pct) and is_equal_approx(temp_speed_pct, speed_pct):
+		return
+	temp_power_pct = power_pct
+	temp_speed_pct = speed_pct
+	_recalculate()
 
 
 func set_passives(nodes: Array, points: int) -> void:
@@ -785,6 +799,7 @@ func _recalculate() -> void:
 	max_health *= 1.0 + float(syn.life_pct) + float(passive_bonus.get("health_pct", 0.0)) / 100.0
 	move_speed = base_speed * (1.0 + 0.007 * level_steps + (relic_total("move_speed") + float(syn.move_speed)) / 100.0)
 	move_speed *= 1.0 + float(passive_bonus.get("speed_pct", 0.0)) / 100.0
+	move_speed *= 1.0 + temp_speed_pct / 100.0
 	move_speed *= pow(1.08, float(boon_count("swift")))
 	crit_chance = 0.06 + (relic_total("crit") + float(syn.crit)) / 100.0 + float(passive_bonus.get("crit", 0.0)) / 100.0
 	crit_damage = 1.75 + (relic_total("crit_damage") + float(syn.crit_damage)) / 100.0 + float(passive_bonus.get("crit_damage", 0.0)) / 100.0
@@ -795,6 +810,7 @@ func _recalculate() -> void:
 	cooldown_mult = clampf(pow(0.85, float(boon_count("haste"))) * (1.0 + float(passive_bonus.get("cooldown_pct", 0.0)) / 100.0), 0.35, 1.0)
 	power = base_power * (1.0 + relic_total("power") / 100.0) * (1.0 + float(syn.power)) \
 		* (1.0 + 0.045 * level_steps) * (1.0 + float(passive_bonus.get("power_pct", 0.0)) / 100.0) * pow(1.15, fury)
+	power *= 1.0 + temp_power_pct / 100.0
 	dash_cooldown_base = 2.2 - float(syn.dash)
 	focus_max = float(class_data.get("focus_max", 0.0)) + 2.0 * level_steps + float(passive_bonus.get("focus_flat", 0.0))
 	focus = clampf(focus, 0.0, focus_max)
