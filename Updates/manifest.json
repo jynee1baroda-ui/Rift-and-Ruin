@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "product": "Rift & Ruin",
+  "channel": "development",
+  "releaseStatus": "unpublished",
+  "latestVersion": "0.9.0",
+  "releaseNotes": "release-notes.json",
+  "artifacts": []
+}

@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "releases": [
+    {
+      "version": "0.9.0",
+      "status": "unpublished",
+      "notes": [
+        "Development repository organized into Game, Launcher, and Updates areas.",
+        "No packaged game or launcher update artifact is published."
+      ]
+    }
+  ]
+}

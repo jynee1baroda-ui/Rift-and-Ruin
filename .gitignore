@@ -4,3 +4,8 @@
 
 # Summer Engine local-only state
 .summer/local/
+
+# .NET launcher build outputs
+.vs/
+**/bin/
+**/obj/
