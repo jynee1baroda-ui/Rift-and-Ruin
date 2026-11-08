@@ -175,6 +175,141 @@ static func disc(parent: Node, global_pos: Vector3, color: Color, radius := 3.0,
 	tween.chain().tween_callback(mesh_inst.queue_free)
 
 
+## A held ground shape that warns exactly where an attack will land: it snaps
+## on, stays lit for `duration`, then blazes and vanishes as the blow lands.
+## `points` is a polygon in world space; the shape is drawn in its own plane.
+static func telegraph_shape(parent: Node, points: PackedVector3Array, color: Color, duration := 0.7) -> void:
+	if parent == null or not parent.is_inside_tree() or points.size() < 3:
+		return
+	var mid := Vector3.ZERO
+	for p in points:
+		mid += p
+	mid /= float(points.size())
+	var verts := PackedVector3Array([Vector3.ZERO])
+	for p in points:
+		var local := p - mid
+		local.y = 0.0
+		verts.append(local)
+	var indices := PackedInt32Array()
+	var count := points.size()
+	for i in range(1, count):
+		indices.append_array([0, i, i + 1])
+	indices.append_array([0, count, 1])
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	var mesh_inst := MeshInstance3D.new()
+	mesh_inst.mesh = mesh
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	mat.albedo_color = Color(color.r, color.g, color.b, 0.0)
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.disable_receive_shadows = true
+	mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	mesh_inst.material_override = mat
+	mesh_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	parent.add_child(mesh_inst)
+	mesh_inst.global_position = Vector3(mid.x, mid.y + 0.07, mid.z)
+	var tween := mesh_inst.create_tween()
+	tween.tween_property(mat, "albedo_color:a", color.a, 0.10)
+	tween.tween_interval(maxf(0.02, duration - 0.22))
+	tween.tween_property(mat, "albedo_color:a", minf(1.0, color.a * 2.2), 0.12)
+	tween.tween_property(mat, "albedo_color:a", 0.0, 0.10)
+	tween.tween_callback(mesh_inst.queue_free)
+
+
+## The warning corridor of a charge: a wide strip from the attacker to where it
+## will stop, plus a bright seam down the middle.
+static func telegraph_line(parent: Node, from: Vector3, dir: Vector3, length: float, half_width: float, color: Color, duration := 0.7) -> void:
+	var flat := Vector3(dir.x, 0.0, dir.z)
+	if flat.length_squared() < 0.0001:
+		return
+	flat = flat.normalized()
+	var side := Vector3(-flat.z, 0.0, flat.x) * half_width
+	var a := Vector3(from.x, from.y, from.z)
+	var b := a + flat * length
+	telegraph_shape(parent, PackedVector3Array([a + side, b + side, b - side, a - side]), color, duration)
+	var seam := Color(color.r, color.g, color.b, minf(1.0, color.a * 1.7))
+	telegraph_shape(parent, PackedVector3Array([
+		a + side * 0.06, b + side * 0.06, b - side * 0.06, a - side * 0.06]), seam, duration)
+
+
+## The warning cone of a fan or breath attack. `half_angle` is in degrees and
+## the fan is drawn in the ground plane around `dir`.
+static func telegraph_cone(parent: Node, origin: Vector3, dir: Vector3, reach: float, half_angle: float, color: Color, duration := 0.7, segments := 14) -> void:
+	var flat := Vector3(dir.x, 0.0, dir.z)
+	if flat.length_squared() < 0.0001 or reach <= 0.1:
+		return
+	flat = flat.normalized()
+	var points := PackedVector3Array([Vector3(origin.x, 0.0, origin.z)])
+	for i in range(segments + 1):
+		var t := float(i) / float(segments)
+		var angle := deg_to_rad(lerpf(-half_angle, half_angle, t))
+		var edge := flat.rotated(Vector3.UP, angle) * reach
+		points.append(Vector3(origin.x + edge.x, 0.0, origin.z + edge.z))
+	telegraph_shape(parent, points, color, duration)
+
+
+## The warning circle of a storm or slam: a filled disc with a hard rim, held
+## for the full windup instead of blooming and fading like an impact.
+static func telegraph_circle(parent: Node, centre: Vector3, radius: float, color: Color, duration := 0.7) -> void:
+	if parent == null or not parent.is_inside_tree() or radius <= 0.1:
+		return
+	var fill := MeshInstance3D.new()
+	var quad := QuadMesh.new()
+	quad.size = Vector2(2.0, 2.0)
+	fill.mesh = quad
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	mat.albedo_texture = soft_texture()
+	mat.albedo_color = Color(color.r, color.g, color.b, 0.0)
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.disable_receive_shadows = true
+	mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	fill.material_override = mat
+	fill.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	fill.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
+	fill.scale = Vector3(radius, radius, 1.0)
+	parent.add_child(fill)
+	fill.global_position = centre + Vector3(0.0, 0.06, 0.0)
+	var rim := MeshInstance3D.new()
+	var rim_quad := QuadMesh.new()
+	rim_quad.size = Vector2(2.0, 2.0)
+	rim.mesh = rim_quad
+	var rim_mat := StandardMaterial3D.new()
+	rim_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	rim_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	rim_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	rim_mat.albedo_texture = ring_texture(0.035)
+	rim_mat.albedo_color = Color(color.r, color.g, color.b, 0.0)
+	rim_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	rim_mat.disable_receive_shadows = true
+	rim_mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	rim.material_override = rim_mat
+	rim.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	rim.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
+	rim.scale = Vector3(radius, radius, 1.0)
+	parent.add_child(rim)
+	rim.global_position = centre + Vector3(0.0, 0.09, 0.0)
+	var hold := maxf(0.02, duration - 0.22)
+	for pair in [[mat, fill], [rim_mat, rim]]:
+		var m: StandardMaterial3D = pair[0]
+		var node: MeshInstance3D = pair[1]
+		var tween := node.create_tween()
+		tween.tween_property(m, "albedo_color:a", color.a, 0.10)
+		tween.tween_interval(hold)
+		tween.tween_property(m, "albedo_color:a", minf(1.0, color.a * 2.4), 0.12)
+		tween.tween_property(m, "albedo_color:a", 0.0, 0.10)
+		tween.tween_callback(node.queue_free)
+
+
 static func mist(parent: Node, global_pos: Vector3, color: Color, amount := 16, radius := 2.4, lifetime := 1.2) -> void:
 	if parent == null or not parent.is_inside_tree():
 		return

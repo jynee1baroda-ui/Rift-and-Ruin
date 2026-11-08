@@ -10,26 +10,71 @@ class_name HandGrip
 const FINGER_SEGMENTS := 3
 const FINGER_SIDES := 4
 
-## One grip profile per weapon type. `axis` is the world-space direction the
-## weapon's own +Y should point while held, `roll` turns it about that axis,
-## `offset` seats the handle in the palm and `curl` is how tightly the fingers
-## close. Weapons are not interchangeable: a bow is carried upright in the left
-## hand, a sword hangs blade-down in the right.
+## One grip profile per weapon type. `carry` is the direction the weapon's own
+## +Y (its shaft) points while held, written in the model's own space; `face`
+## flips which side of the shaft the cutting edge or bow string looks towards;
+## `roll` turns the weapon about its shaft; `offset` seats the handle in the
+## palm and `curl` is how tightly the fingers close. Weapons are not
+## interchangeable: a bow is carried upright in the left hand, a sword hangs
+## blade-down in the right, and a staff is stood on the ground.
 const WEAPON_PROFILES := {
-	"staff": {"hand": "right", "axis": Vector3(0.16, -0.96, 0.20), "roll": 0.0, "offset": Vector3(0.0, 0.03, 0.01), "curl": 0.95},
-	"hammer": {"hand": "right", "axis": Vector3(0.18, -0.95, 0.22), "roll": 0.0, "offset": Vector3(0.0, 0.02, 0.01), "curl": 1.0},
-	"sword": {"hand": "right", "axis": Vector3(0.24, -0.90, 0.36), "roll": 8.0, "offset": Vector3(0.0, 0.02, 0.02), "curl": 1.0},
-	"axe": {"hand": "right", "axis": Vector3(0.26, -0.90, 0.34), "roll": 0.0, "offset": Vector3(0.0, 0.02, 0.02), "curl": 1.0},
-	"cleaver": {"hand": "right", "axis": Vector3(0.30, -0.86, 0.40), "roll": 0.0, "offset": Vector3(0.0, 0.03, 0.02), "curl": 1.0},
-	"dagger": {"hand": "right", "axis": Vector3(0.20, -0.92, 0.34), "roll": 0.0, "offset": Vector3(0.0, 0.01, 0.01), "curl": 1.05},
-	"spear": {"hand": "right", "axis": Vector3(0.20, -0.94, 0.28), "roll": 0.0, "offset": Vector3(0.0, 0.02, 0.01), "curl": 0.98},
-	"trident": {"hand": "right", "axis": Vector3(0.20, -0.94, 0.28), "roll": 0.0, "offset": Vector3(0.0, 0.02, 0.01), "curl": 0.98},
-	"bow": {"hand": "left", "axis": Vector3(0.05, 0.99, 0.10), "roll": 0.0, "offset": Vector3(0.0, 0.02, 0.02), "curl": 0.55},
+	"staff": {"hand": "right", "carry": Vector3(0.12, 1.0, 0.20), "roll": 0.0, "offset": Vector3(0.0, 0.03, 0.01), "curl": 0.95},
+	"hammer": {"hand": "right", "carry": Vector3(0.16, 1.0, 0.22), "roll": 0.0, "offset": Vector3(0.0, 0.02, 0.01), "curl": 1.0},
+	"sword": {"hand": "right", "carry": Vector3(0.10, -1.0, 0.28), "roll": 0.0, "offset": Vector3(0.0, 0.02, 0.02), "curl": 1.0},
+	"axe": {"hand": "right", "carry": Vector3(0.12, -1.0, 0.30), "roll": 0.0, "offset": Vector3(0.0, 0.02, 0.02), "curl": 1.0},
+	"cleaver": {"hand": "right", "carry": Vector3(0.14, -1.0, 0.34), "roll": 0.0, "offset": Vector3(0.0, 0.03, 0.02), "curl": 1.0},
+	"dagger": {"hand": "right", "carry": Vector3(0.08, -1.0, 0.22), "roll": 0.0, "offset": Vector3(0.0, 0.01, 0.01), "curl": 1.05},
+	"spear": {"hand": "right", "carry": Vector3(0.10, 1.0, 0.24), "roll": 0.0, "offset": Vector3(0.0, 0.02, 0.01), "curl": 0.98},
+	"trident": {"hand": "right", "carry": Vector3(0.10, 1.0, 0.24), "roll": 0.0, "offset": Vector3(0.0, 0.02, 0.01), "curl": 0.98},
+	"bow": {"hand": "left", "carry": Vector3(0.06, 1.0, 0.02), "face": -1.0, "roll": 0.0, "offset": Vector3(0.0, 0.02, 0.02), "curl": 0.55},
 }
 
 
 static func profile(kind: String) -> Dictionary:
 	return WEAPON_PROFILES.get(kind, WEAPON_PROFILES["sword"])
+
+
+## The local basis that turns a hand's world orientation into a grip aimed the
+## way a weapon of this kind is carried. Worked out from the rig's own rest
+## pose, so a Meshy hand, a Mixamo hand and a static warden all end up holding
+## the shaft the right way round instead of relying on tuned Euler guesses.
+static func grip_basis(hand_world: Basis, dir: Vector3, face: Vector3, roll_deg := 0.0) -> Basis:
+	var y := dir.normalized()
+	var hint := face
+	if hint.length_squared() < 0.001 or absf(hint.normalized().dot(y)) > 0.97:
+		hint = Vector3.FORWARD if absf(y.dot(Vector3.UP)) > 0.9 else Vector3.UP
+	var x := hint.cross(y)
+	if x.length_squared() < 0.000001:
+		x = Vector3.RIGHT.cross(y)
+	x = x.normalized()
+	var z := x.cross(y).normalized()
+	var target := Basis(x, y, z)
+	if absf(roll_deg) > 0.001:
+		target = target * Basis(Vector3.UP, deg_to_rad(roll_deg))
+	## Only the rotation may survive: a centimetre-scaled import would otherwise
+	## put a 100x scale into every held weapon.
+	return hand_world.orthonormalized().inverse() * target
+
+
+## Bounds of a model in its own local space, used to find where a sculpted
+## model without bones keeps its weapon hand.
+static func local_bounds(root: Node) -> AABB:
+	var result := AABB()
+	var first := true
+	var to_local := Transform3D.IDENTITY
+	if root is Node3D:
+		to_local = (root as Node3D).global_transform.affine_inverse()
+	for node in root.find_children("*", "MeshInstance3D", true, false):
+		var mesh := node as MeshInstance3D
+		if mesh == null or mesh.mesh == null:
+			continue
+		var box := to_local * (mesh.global_transform * mesh.get_aabb())
+		if first:
+			result = box
+			first = false
+		else:
+			result = result.merge(box)
+	return result
 
 
 
@@ -424,11 +469,10 @@ static func build_weapon(kind: String, scale_hint: float) -> Node3D:
 	return root
 
 
-## Builds hands and the class weapon for one humanoid model.
-static func dress(root: Node, class_id: String, scale_hint: float, skin: Color, weapon_override := "") -> void:
-	var skeleton := find_skeleton(root)
-	if skeleton == null:
-		return
+## Builds hands and the class weapon for one humanoid model. Returns the swing
+## pivot for models that carry no skeleton, and null for rigged ones (their
+## weapon rides the hand bone directly).
+static func dress(root: Node, class_id: String, scale_hint: float, skin: Color, weapon_override := "") -> Node3D:
 	var weapon := weapon_override
 	if weapon.is_empty():
 		match class_id:
@@ -438,6 +482,11 @@ static func dress(root: Node, class_id: String, scale_hint: float, skin: Color, 
 				weapon = "bow"
 			"blood_sorceress":
 				weapon = "staff"
+	var skeleton := find_skeleton(root)
+	if skeleton == null:
+		if root is Node3D and not weapon.is_empty():
+			return dress_static(root as Node3D, weapon, scale_hint, skin)
+		return null
 	var prof := profile(weapon) if not weapon.is_empty() else {}
 	var hold_left := String(prof.get("hand", "right")) == "left"
 	var curl := float(prof.get("curl", 1.0))
@@ -464,13 +513,115 @@ static func dress(root: Node, class_id: String, scale_hint: float, skin: Color, 
 			var sb := skeleton.get_bone_global_pose(shield_index).basis.orthonormalized()
 			shield.basis = sb.inverse() * Basis(Quaternion(sb.y.normalized(), Vector3(0.0, 0.25, -0.97).normalized())) * sb
 			shield.position = Vector3(0.0, 0.10, 0.02)
-	## A constant local rotation relative to the hand bone: it rides every
-	## animation instead of being computed from a bind pose that the stance then
-	## invalidates. `rot` is per weapon, in degrees, so a staff, a hammer and a
-	## bow can each sit in the fist their own way.
-	var rot: Vector3 = prof.get("rot", Vector3.ZERO)
-	var grip_basis := Basis.from_euler(Vector3(deg_to_rad(rot.x), deg_to_rad(rot.y), deg_to_rad(rot.z)))
-	prop.basis = grip_basis
+	## Measured, not guessed. The hand bone's rest orientation in world space is
+	## read once, then the basis that aims the shaft the way this weapon is
+	## carried is stored as a constant local offset. The prop then rides every
+	## animation clip exactly as the hand does, on any rig orientation.
+	var hand_index := hand_bone(skeleton, hold_left)
+	if hand_index >= 0:
+		var rest := skeleton.get_bone_global_rest(hand_index)
+		var hand_world := skeleton.global_transform.basis * rest.basis
+		var model_basis := Basis()
+		if root is Node3D:
+			model_basis = (root as Node3D).global_transform.basis.orthonormalized()
+		var carry: Vector3 = prof.get("carry", Vector3(0.1, 1.0, 0.2))
+		var face_sign := float(prof.get("face", 1.0))
+		var dir_world := (model_basis * carry).normalized()
+		var face_world := (model_basis * Vector3(0.0, 0.0, face_sign)).normalized()
+		prop.basis = grip_basis(hand_world, dir_world, face_world, float(prof.get("roll", 0.0)))
+	return null
+
+
+## Builds a gripping hand and its weapon for a model that has no skeleton at
+## all - the generated warden sculpts. The hand is seated where a humanoid of
+## that silhouette would carry it and returned as a pivot the owner swings.
+static func dress_static(root: Node3D, weapon: String, scale_hint: float, skin: Color) -> Node3D:
+	if root == null or weapon.is_empty():
+		return null
+	var prof := profile(weapon)
+	var unit := maxf(0.6, scale_hint)
+	var box := local_bounds(root)
+	var size := box.size
+	if size.y < 0.05:
+		return null
+	var left_hand := String(prof.get("hand", "right")) == "left"
+	var side := -0.30 if left_hand else 0.30
+	var pivot := Node3D.new()
+	pivot.name = "WeaponHand"
+	pivot.position = Vector3(
+		box.get_center().x + size.x * side,
+		box.position.y + size.y * 0.56,
+		box.get_center().z + size.z * 0.20)
+	root.add_child(pivot)
+	var palm := build_palm(pivot, left_hand, scale_hint, skin, float(prof.get("curl", 1.0)))
+	var prop := build_weapon(weapon, scale_hint)
+	prop.position = Vector3(prof.get("offset", Vector3.ZERO)) * unit
+	palm.add_child(prop)
+	var carry: Vector3 = prof.get("carry", Vector3(0.1, 1.0, 0.2))
+	var face_sign := float(prof.get("face", 1.0))
+	pivot.basis = grip_basis(
+		Basis(),
+		carry.normalized(),
+		Vector3(0.0, 0.0, face_sign),
+		float(prof.get("roll", 0.0)))
+	return pivot
+
+
+## A bare palm with fingers, for a model with no bones to hang them on.
+static func build_palm(parent: Node3D, left: bool, scale_hint: float, skin: Color, curl: float) -> Node3D:
+	var palm := Node3D.new()
+	palm.name = "Grip"
+	parent.add_child(palm)
+	var unit := maxf(0.6, scale_hint)
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = skin
+	mat.roughness = 0.85
+	var side := -1.0 if left else 1.0
+	for finger in FINGER_SIDES:
+		var spread := (float(finger) - 1.5) * 0.022 * unit
+		var length := (0.030 - absf(float(finger) - 1.2) * 0.003) * unit
+		var knuckle := Node3D.new()
+		knuckle.position = Vector3(spread, 0.05 * unit, side * 0.012 * unit)
+		knuckle.rotation_degrees = Vector3(-72.0 * curl, 0.0, 8.0 * (float(finger) - 1.5))
+		palm.add_child(knuckle)
+		var run := knuckle
+		for segment in FINGER_SEGMENTS:
+			var joint := Node3D.new()
+			joint.position = Vector3(0.0, length * (1.0 if segment == 0 else 0.9), 0.0)
+			joint.rotation_degrees = Vector3(-38.0 * curl, 0.0, 0.0)
+			run.add_child(joint)
+			var capsule := CapsuleMesh.new()
+			capsule.radius = 0.0085 * unit
+			capsule.height = length * 1.35
+			capsule.radial_segments = 6
+			capsule.rings = 2
+			var mesh := MeshInstance3D.new()
+			mesh.mesh = capsule
+			mesh.material_override = mat
+			mesh.position = Vector3(0.0, length * 0.5, 0.0)
+			joint.add_child(mesh)
+			run = joint
+	var thumb := Node3D.new()
+	thumb.position = Vector3(-0.03 * unit * side, 0.03 * unit, side * 0.028 * unit)
+	thumb.rotation_degrees = Vector3(-30.0, 0.0, 55.0 * side)
+	palm.add_child(thumb)
+	var thumb_len := 0.026 * unit
+	var thumb_joint := Node3D.new()
+	thumb_joint.position = Vector3(0.0, thumb_len, 0.0)
+	thumb_joint.rotation_degrees = Vector3(-40.0, 0.0, 0.0)
+	thumb.add_child(thumb_joint)
+	for node in [thumb, thumb_joint]:
+		var capsule := CapsuleMesh.new()
+		capsule.radius = 0.0095 * unit
+		capsule.height = thumb_len * 1.4
+		capsule.radial_segments = 6
+		capsule.rings = 2
+		var mesh := MeshInstance3D.new()
+		mesh.mesh = capsule
+		mesh.material_override = mat
+		mesh.position = Vector3(0.0, thumb_len * 0.5, 0.0)
+		node.add_child(mesh)
+	return palm
 
 
 ## Removes the built hands, weapon and shield so a class can be dressed again
@@ -478,6 +629,8 @@ static func dress(root: Node, class_id: String, scale_hint: float, skin: Color, 
 static func undress(root: Node) -> void:
 	if root == null:
 		return
+	for pivot in root.find_children("WeaponHand", "Node3D", true, false):
+		pivot.get_parent().remove_child(pivot)
 	for child in root.find_children("*", "BoneAttachment3D", true, false):
 		var attach := child as BoneAttachment3D
 		if attach != null and String(attach.name).begins_with("HandGrip"):

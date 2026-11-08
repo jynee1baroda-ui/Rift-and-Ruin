@@ -17,10 +17,10 @@ const KINDS := {
 	"wolf": {"key": "wolf", "name": "Gloam Wolf", "file": "gloam-wolf.glb", "health": 46.0, "damage": 8.0, "speed": 5.0, "range": 2.0, "interval": 1.5, "windup": 0.45, "scale": 1.0},
 	"crawler": {"key": "crawler", "name": "Cave Crawler", "file": "cave-crawler.glb", "health": 30.0, "damage": 6.0, "speed": 5.6, "range": 1.5, "interval": 1.1, "windup": 0.3, "scale": 1.7},
 	"bat": {"key": "bat", "name": "Hollow Bat", "file": "hollow-bat.glb", "health": 24.0, "damage": 5.0, "speed": 6.4, "range": 1.7, "interval": 1.1, "windup": 0.25, "scale": 1.3},
-	"acolyte": {"key": "acolyte", "name": "Hushed Acolyte", "file": "res://art/generated/mob_acolyte/3d_1794101415355.glb", "texture": "res://art/generated/mob_acolyte/3d_1794101415355_texture_20250901.png", "height": 1.78, "weapon": "staff", "health": 62.0, "damage": 10.0, "speed": 4.0, "range": 2.1, "interval": 1.8, "windup": 0.55},
-	"slinger": {"key": "slinger", "name": "Hushed Slinger", "file": "res://art/generated/mob_acolyte/3d_1794101415355.glb", "texture": "res://art/generated/mob_acolyte/3d_1794101415355_texture_20250901.png", "height": 1.62, "tint": Color(0.8, 0.6, 1.0), "weapon": "bow", "health": 50.0, "damage": 7.0, "speed": 3.8, "range": 9.0, "interval": 2.4, "windup": 0.65, "ranged": true},
+	"acolyte": {"key": "acolyte", "name": "Hushed Acolyte", "file": "hushed-acolyte.glb", "weapon": "staff", "health": 62.0, "damage": 10.0, "speed": 4.0, "range": 2.1, "interval": 1.8, "windup": 0.55, "scale": 1.0},
+	"slinger": {"key": "slinger", "name": "Hushed Slinger", "file": "hushed-slinger.glb", "tint": Color(0.86, 0.72, 1.0), "weapon": "bow", "health": 50.0, "damage": 7.0, "speed": 3.8, "range": 9.0, "interval": 2.4, "windup": 0.65, "ranged": true, "scale": 1.0},
 	"alpha": {"key": "alpha", "name": "Gloam Alpha", "file": "gloam-alpha.glb", "health": 120.0, "damage": 15.0, "speed": 5.6, "range": 2.3, "interval": 1.7, "windup": 0.5, "scale": 1.15, "elite": true},
-	"brute": {"key": "brute", "name": "Hushed Brute", "file": "res://art/generated/mob_brute/3d_f87c220079fb4f2b841accb2_1794101648136.glb", "texture": "res://art/generated/mob_brute/3d_f87c220079fb4f2b841accb2_1794101648136_texture_20250901.png", "height": 2.35, "weapon": "cleaver", "health": 190.0, "damage": 22.0, "speed": 3.4, "range": 2.7, "interval": 2.4, "windup": 0.85, "elite": true, "tint": Color(1.0, 0.9, 0.82)},
+	"brute": {"key": "brute", "name": "Hushed Brute", "file": "hushed-brute.glb", "weapon": "cleaver", "health": 190.0, "damage": 22.0, "speed": 3.4, "range": 2.7, "interval": 2.4, "windup": 0.85, "elite": true, "tint": Color(1.0, 0.9, 0.82), "scale": 1.32},
 	"prophet": {"key": "prophet", "name": "The Hushed Prophet", "file": "hushed-prophet.glb", "weapon": "staff", "health": 460.0, "damage": 24.0, "speed": 3.1, "range": 3.2, "interval": 2.6, "windup": 0.9, "scale": 1.05, "boss": true},
 	"brood": {"key": "brood", "name": "The Brood Mother", "file": "brood-mother-boss.glb", "health": 520.0, "damage": 26.0, "speed": 3.3, "range": 3.6, "interval": 2.1, "windup": 0.75, "scale": 1.0, "boss": true},
 	"nail": {"key": "nail", "name": "The Iron Choir", "file": "res://art/generated/boss_iron_choir/3d_1794099354340.glb", "texture": "res://art/generated/boss_iron_choir/3d_1794099354340_texture_20250901.png", "weapon": "hammer", "health": 780.0, "damage": 34.0, "speed": 3.6, "range": 3.0, "interval": 2.2, "windup": 0.8, "height": 2.9, "boss": true, "tint": Color(0.86, 0.9, 1.0), "special": "slam"},
@@ -2454,8 +2454,8 @@ func _boss_special(enemy: Enemy) -> void:
 func _boss_slam(enemy: Enemy) -> void:
 	var target := player.global_position
 	var radius := 4.6
-	FX.ring(fx_root, target, Color(0.86, 0.92, 1.0, 0.9), radius, 0.6, 0.06)
-	FX.disc(fx_root, target, Color(0.72, 0.82, 1.0, 0.20), radius, 0.75, 0.03)
+	FX.telegraph_circle(fx_root, target, radius, Color(0.72, 0.82, 1.0, 0.18), 0.78)
+	hud.toast("IRON CHOIR — VERDICT", Color(0.8, 0.88, 1.0), 0.9)
 	play_sfx("lava", -1.0, 0.06)
 	await get_tree().create_timer(0.78).timeout
 	if not is_instance_valid(enemy) or enemy.dead or not run_active:
@@ -2479,10 +2479,14 @@ func _boss_charge(enemy: Enemy) -> void:
 		return
 	dir = dir.normalized()
 	var finish := start + dir * 7.0
-	for i in 7:
-		var point := start.lerp(finish, float(i) / 6.0)
-		FX.ring(fx_root, point, Color(0.9, 1.0, 0.7, 0.45), 1.5, 0.4, 0.05)
+	## Warn first: a corridor exactly as wide and as long as the pounce, held
+	## while the boss coils, so stepping out of it is a real choice.
+	FX.telegraph_line(fx_root, start, dir, 7.0, 1.9, Color(0.9, 1.0, 0.7, 0.40), 0.72)
+	hud.toast("BONE TIDE — CHARGE", Color(0.85, 1.0, 0.65), 1.0)
 	play_sfx("cast", -2.0, 0.04)
+	await get_tree().create_timer(0.72).timeout
+	if not is_instance_valid(enemy) or enemy.dead or not run_active:
+		return
 	var tween := create_tween()
 	tween.tween_property(enemy, "global_position", finish, 0.34)
 	await tween.finished
@@ -2503,6 +2507,15 @@ func _boss_charge(enemy: Enemy) -> void:
 ## The Drowning: a ring of bolts and three eruptions around the player.
 func _boss_storm(enemy: Enemy) -> void:
 	var origin := enemy.global_position + Vector3(0.0, 1.4, 0.0)
+	## Warn with the exact circle the bolts fill, and name the gap rule so the
+	## player knows to run out of the ring rather than stand and trade.
+	FX.telegraph_circle(fx_root, enemy.global_position, 12.2, Color(1.0, 0.26, 0.16, 0.13), 0.78)
+	FX.ring(fx_root, enemy.global_position, Color(1.0, 0.32, 0.18, 0.55), 12.2, 0.78, 0.03)
+	hud.toast("THE DROWNING — RIPTIDE", Color(1.0, 0.45, 0.3), 1.0)
+	play_sfx("cast", -1.5, 0.05)
+	await get_tree().create_timer(0.78).timeout
+	if not is_instance_valid(enemy) or enemy.dead or not run_active:
+		return
 	var count := 16
 	var gap := rng.randi_range(0, count - 1)
 	for i in count:
@@ -2544,6 +2557,12 @@ func _mirror_special(enemy: Enemy) -> void:
 	aim.y = 0.0
 	if aim.length() > 0.1:
 		aim = aim.normalized()
+		FX.telegraph_cone(fx_root, enemy.global_position, aim, 12.0, 37.0, Color(1.0, 0.26, 0.42, 0.16), 0.58)
+		hud.toast("SHE WEARS YOUR FACE", Color(1.0, 0.4, 0.55), 0.9)
+		play_sfx("cast", -2.0, 0.05)
+		await get_tree().create_timer(0.58).timeout
+		if not is_instance_valid(enemy) or enemy.dead or not run_active:
+			return
 		var count := 7
 		var fan := deg_to_rad(74.0)
 		for i in count:
@@ -2560,7 +2579,6 @@ func _mirror_special(enemy: Enemy) -> void:
 	enemy.health = minf(enemy.max_health, enemy.health + enemy.max_health * 0.04)
 	FX.burst(fx_root, origin, Color(1.0, 0.3, 0.45, 0.9), 30, 6.5, 0.45, 0.75)
 	FX.ring(fx_root, enemy.global_position, Color(1.0, 0.35, 0.45, 0.65), 4.0, 0.6, 0.07)
-	hud.toast("SHE WEARS YOUR FACE", Color(1.0, 0.45, 0.55), 1.2)
 
 
 func _prophet_volley(enemy: Enemy) -> void:
@@ -2570,6 +2588,13 @@ func _prophet_volley(enemy: Enemy) -> void:
 	if aim.length() < 0.1:
 		return
 	aim = aim.normalized()
+	## Warn with the fan the bolts actually fill.
+	FX.telegraph_cone(fx_root, enemy.global_position, aim, 13.0, 31.0, Color(0.74, 0.32, 1.0, 0.16), 0.62)
+	hud.toast("SOUL VOLLEY", Color(0.85, 0.45, 1.0), 1.0)
+	play_sfx("cast", -2.0, 0.05)
+	await get_tree().create_timer(0.62).timeout
+	if not is_instance_valid(enemy) or enemy.dead or not run_active:
+		return
 	var count := 5
 	var fan := deg_to_rad(58.0)
 	for i in count:
@@ -2585,7 +2610,6 @@ func _prophet_volley(enemy: Enemy) -> void:
 		bolt.global_position = origin + dir * 1.1
 	FX.burst(fx_root, origin, Color(0.8, 0.35, 1.0, 0.9), 26, 6.0, 0.4, 0.7)
 	FX.ring(fx_root, enemy.global_position, Color(0.82, 0.35, 1.0, 0.6), 3.4, 0.5, 0.06)
-	hud.toast("SOUL VOLLEY", Color(0.85, 0.45, 1.0), 1.1)
 
 
 func _brood_call(enemy: Enemy) -> void:

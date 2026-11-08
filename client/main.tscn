@@ -23,7 +23,6 @@ ambient_light_color = Color(0.16, 0.105, 0.135, 1)
 ambient_light_energy = 0.34
 reflected_light_source = 2
 tonemap_mode = 4
-tonemap_exposure = 1.0
 tonemap_white = 6.0
 ssao_enabled = true
 ssao_radius = 1.4

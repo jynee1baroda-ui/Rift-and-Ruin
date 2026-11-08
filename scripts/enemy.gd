@@ -52,6 +52,11 @@ var gait := 0.0
 ## clips, and library rigs do not all carry attack or hit takes either.
 var attack_pose := 0.0
 var flinch := 0.0
+## Models with no skeleton (the generated wardens) hold their weapon on this
+## pivot instead of a hand bone, and it swings through the same windup and
+## strike poses so a sculpt still visibly uses its weapon.
+var prop_pivot: Node3D
+var prop_rest := Basis()
 
 
 func _ready() -> void:
@@ -118,7 +123,11 @@ func setup(kind: Dictionary, model_scene: PackedScene, player: Player, path_call
 				model_root.scale = Vector3.ONE * model_scale
 		else:
 			model_root.scale = Vector3.ONE * model_scale
-		HandGrip.dress(inst, "", model_scale, kind.get("glove", Color(0.20, 0.17, 0.16)), String(kind.get("weapon", "")))
+		var weapon_name := String(kind.get("weapon", ""))
+		if not weapon_name.is_empty():
+			prop_pivot = HandGrip.dress(inst, "", model_scale, kind.get("glove", Color(0.20, 0.17, 0.16)), weapon_name)
+			if prop_pivot != null:
+				prop_rest = prop_pivot.basis
 	else:
 		_build_fallback_model()
 	_build_hp_bar()
@@ -466,6 +475,14 @@ func _static_gait(delta: float) -> void:
 	model_root.position.y = bob
 	model_root.rotation.z = sway * 0.6
 	model_root.rotation.x = pitch
+	## A warden with no armature still has to visibly lift and use its weapon:
+	## coil it back during the windup, then drive it through the strike.
+	if prop_pivot != null and is_instance_valid(prop_pivot):
+		var swing := -0.7 * attack_pose
+		if windup > 0.0:
+			swing += minf(1.0, windup * 1.7) * 0.85
+		swing += flinch * 0.3
+		prop_pivot.basis = prop_rest * Basis(Vector3.RIGHT, swing) * Basis(Vector3.UP, attack_pose * 0.45)
 
 
 ## World-space bounds of every mesh under a freshly instanced model, used to
