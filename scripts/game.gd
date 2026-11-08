@@ -111,27 +111,50 @@ const LAYER_LORE := {
 
 ## The spine that runs between layers: the Warden speaks when a floor is
 ## cleared, the Broker speaks when his shop opens. Keyed by layer.
+## What the lava is, and why a blood sorceress goes down into it.
+const INTRO_TITLE := "THE DROWNING"
+const INTRO_BODY := """Nine hundred years ago the world did not end in war. It ended in a seam.
+
+The sea went down into it — every ocean at once, with a sound the survivors described as a held breath finally let go. What climbed back up was fire. The rivers you are about to cross are not weather and they are not punishment: they are the world's blood, and the rift is the cut that lets it out. It breathes. Every eruption raises the tide a little.
+
+Your order cut the first rift on purpose, to bleed the pressure before the whole crust split, and then sealed it with their own blood. Eight went down. One came back up and never spoke again. The seal has held for nine centuries on the strength of a single family, and you are the last of it.
+
+You are %HERO% of the Ashen Bastion. You feel the seal in your teeth when you sleep. The wells are turning to steam, children are born with ember in their lungs, and the First Warden — who went down forty years ago with a lantern and a promise — is still down there, counting.
+
+You are not here to save the world. You are here to reach the bottom of the wound and decide whether to close it, or open it wider."""
+
+
 const STORY := {
 	1: {"warden": "You came down with a heartbeat. Nobody has done that since the First Warden.",
-		"broker": "Everything in this rift was somebody's once. You want it, you buy it."},
+		"broker": "Everything in this rift was somebody's once. You want it, you buy it.",
+		"rift": "The heat down here has a rhythm. Count it. It is not your heartbeat."},
 	2: {"warden": "The warrens breathe because something beneath them is still asleep. Do not wake it politely.",
-		"broker": "The Prophet used to buy candles from me. He stopped when he ran out of face."},
+		"broker": "The Prophet used to buy candles from me. He stopped when he ran out of face.",
+		"rift": "Something under the warrens turns over when you step. It has not opened its eyes yet."},
 	3: {"warden": "The choir is not mourning. Listen again: they are counting.",
-		"broker": "Cathedral glass sells well. It sings when it breaks."},
+		"broker": "Cathedral glass sells well. It sings when it breaks.",
+		"rift": "The choir is not singing to the saints. It is singing to the pressure."},
 	4: {"warden": "Cinder does not burn out. It remembers, and then it burns again.",
-		"broker": "I do not set the prices. The rift does. I only hold the coin."},
+		"broker": "I do not set the prices. The rift does. I only hold the coin.",
+		"rift": "The chasm is not a crack. It is a throat, and it is swallowing the ash you make."},
 	5: {"warden": "You are standing in the only quiet place left. Do not mistake it for mercy.",
-		"broker": "A blade, a boon, a bit of breath. Pick two. You cannot carry all three."},
+		"broker": "A blade, a boon, a bit of breath. Pick two. You cannot carry all three.",
+		"rift": "Even the fire stops to trade. That should frighten you more than the fighting."},
 	6: {"warden": "Each spire is a pyre. Someone is still climbing the last one.",
-		"broker": "Ember glass. Sold to a woman who wanted to look like fire. She does now."},
+		"broker": "Ember glass. Sold to a woman who wanted to look like fire. She does now.",
+		"rift": "Every pyre you pass has a name on it. Some of them are still warm."},
 	7: {"warden": "The Foundry was built to make something beautiful. It has not stopped working.",
-		"broker": "The glass remembers the city. Sometimes it sells that memory back."},
+		"broker": "The glass remembers the city. Sometimes it sells that memory back.",
+		"rift": "The Foundry is making something. You can hear the mould close."},
 	8: {"warden": "The trees grow fruit so the dead have something to trade. Do not eat it.",
-		"broker": "Orchard fruit. I do not ask who picked it."},
+		"broker": "Orchard fruit. I do not ask who picked it.",
+		"rift": "The orchard is fed from below. Everything here is fed from below."},
 	9: {"warden": "The Maw does not want you. It simply does not stop opening.",
-		"broker": "Ninth one to reach this depth with a purse. The other eight bought."},
+		"broker": "Ninth one to reach this depth with a purse. The other eight bought.",
+		"rift": "The Maw is not hungry. It has simply stopped pretending to have a bottom."},
 	10: {"warden": "This is where the rift was made. It was never given an off switch.",
-		"broker": "This is the last layer I know. Below it, I would be a customer too."},
+		"broker": "This is the last layer I know. Below it, I would be a customer too.",
+		"rift": "This is the throat. Everything above you is the wound's lips."},
 }
 
 @onready var camera: Camera3D = $Camera3D
@@ -214,6 +237,8 @@ var net: Node
 var camera_pan := Vector3.ZERO
 var zoom_target := 1.0
 var pan_drag := false
+var character_name := "VESNA"
+var character_class := "BLOOD SORCERESS"
 
 
 func _ready() -> void:
@@ -253,6 +278,7 @@ func _ready() -> void:
 	hud.net_action.connect(_on_net_action)
 	hud.rift_enter_requested.connect(_on_rift_enter)
 	hud.leave_run_pressed.connect(_return_home)
+	hud.character_created.connect(_on_character_created)
 	_setup_audio()
 	_apply_settings()
 	hud.show_loading()
@@ -294,6 +320,7 @@ func set_online_peers(count: int) -> void:
 
 
 func _after_spawn(networked: bool) -> void:
+	hud.set_hero(character_name, character_class)
 	_generate_floor()
 	camera.global_position = player.global_position + CAMERA_OFFSET
 	camera.look_at(player.global_position + Vector3(0.0, 1.0, 0.0), Vector3.UP)
@@ -349,6 +376,8 @@ func _save_run() -> void:
 		relics.append(item.duplicate(true) if not item.is_empty() else {})
 	RunSave.write({
 		"layer": layer,
+		"name": character_name,
+		"class": character_class,
 		"coins": coins,
 		"boons": run_boons.duplicate(),
 		"relics": relics,
@@ -367,6 +396,9 @@ func continue_run() -> bool:
 	if data.is_empty():
 		return false
 	duel_mode = false
+	character_name = String(data.get("name", character_name))
+	character_class = String(data.get("class", character_class))
+	hud.set_hero(character_name, character_class)
 	var saved_settings = data.get("settings", {})
 	if typeof(saved_settings) == TYPE_DICTIONARY and not saved_settings.is_empty():
 		GameSettings.apply_snapshot(saved_settings)
@@ -619,13 +651,14 @@ func _generate_floor() -> void:
 		hud.set_layer_info(layer, 0, 0, kills)
 		hud.set_theme_name("THE ASHEN BAZAAR")
 		hud.set_status("NO HOSTILES  -  THE BROKER WAITS")
+		hud.whisper(_layer_whisper())
 		play_merchant_music()
 		_open_portal(false)
 	else:
 		hud.set_layer_info(layer, enemies.size(), total_enemies, kills)
 		hud.set_theme_name(String(theme.get("name", "RIFT")))
 		hud.set_status("PACKS AWAKE")
-		hud.whisper(String(LAYER_LORE.get(String(theme.get("name", "")), "")))
+		hud.whisper(_layer_whisper())
 		play_music(_is_boss_layer())
 	map_timer = 0.0
 	_save_run()
@@ -736,7 +769,8 @@ func _duel_finished(won: bool) -> void:
 
 
 func _return_home() -> void:
-	get_tree().paused = false
+	hud.hide_codex()
+	hud.hide_pause()
 	duel_mode = false
 	run_active = false
 	started = false
@@ -775,6 +809,15 @@ func _roll_modifiers() -> void:
 func _story_line(who: String, layer_num: int) -> String:
 	var entry: Dictionary = STORY.get(layer_num, {})
 	return String(entry.get(who, ""))
+
+
+## What the layer says when you arrive: where you are, then the rift's voice.
+func _layer_whisper() -> String:
+	var lore := String(LAYER_LORE.get(String(theme.get("name", "")), ""))
+	var voice := _story_line("rift", layer)
+	if voice.is_empty():
+		return lore
+	return "%s\n%s" % [lore, voice]
 
 
 func has_mod(key: String) -> bool:
@@ -2768,6 +2811,7 @@ func _on_ui_click() -> void:
 func begin_run() -> void:
 	if started or player == null:
 		return
+	hud.set_hero(character_name, character_class)
 	get_tree().paused = false
 	duel_mode = false
 	RunSave.clear()
@@ -2800,6 +2844,9 @@ func _continue_from_title() -> void:
 ## The one multiplayer surface: the home screen and the pause menu both call
 ## this panel and these handlers, so there is no second, disconnected system.
 func _on_net_action(action: String, mode: String) -> void:
+	if action == "character":
+		hud.show_creator()
+		return
 	match action:
 		"open":
 			hud.show_net_panel(mode)
@@ -2808,6 +2855,21 @@ func _on_net_action(action: String, mode: String) -> void:
 			_net_find_match()
 		"duel":
 			_start_duel()
+
+
+## The creator hands back a name and a class key; only the Blood Sorceress is
+## implemented, so any other key is refused rather than silently replaced.
+func _on_character_created(hero_name: String, klass: String) -> void:
+	if klass != "blood_sorceress":
+		hud.toast("THAT CLASS IS NOT READY", Color(1.0, 0.5, 0.3), 2.2)
+		return
+	character_name = hero_name if not hero_name.is_empty() else "VESNA"
+	character_class = "BLOOD SORCERESS"
+	started = false
+	run_active = false
+	RunSave.clear()
+	begin_run()
+	hud.show_story(INTRO_TITLE, INTRO_BODY.replace("%HERO%", character_name))
 
 
 func _refresh_net_panel() -> void:
@@ -2915,7 +2977,7 @@ func _input(event: InputEvent) -> void:
 				continue_run()
 				get_viewport().set_input_as_handled()
 				return
-			begin_run()
+			return
 		var key: int = key_event.keycode
 
 		if key == KEY_1:
@@ -2964,7 +3026,6 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event is InputEventMouseButton and event.pressed:
 		if not started:
-			begin_run()
 			get_viewport().set_input_as_handled()
 			return
 		if not run_active or not player.alive:

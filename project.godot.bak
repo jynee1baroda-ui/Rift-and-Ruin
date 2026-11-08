@@ -69,5 +69,5 @@ rendering_device/driver.windows="d3d12"
 
 [summer]
 
-local_play/players=2.0
+local_play/players=0.0
 version="0.8.5"

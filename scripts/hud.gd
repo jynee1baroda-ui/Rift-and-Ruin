@@ -20,6 +20,8 @@ signal home_pressed
 signal net_action(action: String, mode: String)
 signal rift_enter_requested(layer: int)
 signal leave_run_pressed
+signal character_created(hero_name: String, klass: String)
+signal story_closed
 
 const INK := Color(0.035, 0.025, 0.045, 0.92)
 const AMBER := Color(1.0, 0.72, 0.28)
@@ -148,12 +150,48 @@ var rift_entries: Array = []
 var rift_index := 0
 var leave_btn: Button
 var leave_armed_ms := 0
+var creator_panel: Control
+var creator_name: LineEdit
+var creator_lore: Label
+var creator_preview: Node3D
+var creator_class := "blood_sorceress"
+var creator_locked := false
+var creator_create_btn: Button
+var creator_portrait: TextureRect
+var creator_scene_holder: Control
+var creator_hint: Label
+var creator_glyph: Label
+var codex_panel: PanelContainer
+var codex_title: Label
+var codex_body: Label
+var codex_page_label: Label
+var codex_page := 0
+var hero_name_label: Label
+var story_panel: PanelContainer
+var story_title: Label
+var story_body: Label
 
-const HALL_LORE := [
-	"THE BASTION — raised by deserters who refused to kneel to the rift's first warden. Its braziers have not gone out in a hundred years.",
-	"THE HUSHED PROPHET — a saint who traded his voice for prophecy. Now he speaks only in volleys of stolen souls.",
-	"THE BROOD MOTHER — the rift's answer to the sorceress. She births her army from the stone and calls it love.",
-	"THE ASHEN BROKER — he sells relics he should not have. Nobody asks where they came from, and he never tells the same story twice.",
+const LORE_BOOK := [
+	{"title": "THE DROWNING",
+		"body": "Nine hundred years ago the sea did not boil away. It went down into a seam in the crust, all of it, at once, with a sound the survivors described as a held breath finally let go. Nothing was left but salt flats, steam, and a wind that smelled of iron.\n\nThirty years later the first lava well opened under what is now the Ashen Bastion. The water had not vanished. It had gone somewhere with a floor, and the floor was hot."},
+	{"title": "THE WOUND",
+		"body": "The lava is not weather and it is not punishment. It is the world's blood, and the rift is the cut that lets it out.\n\nIt moves like a tide. Every eruption raises the level of every pit a little; every quiet year lowers it. The seam breathes, and when it breathes in, the rivers draw back and show you what has been lying under them. When it breathes out, the islands you are standing on become islands again.\n\nNobody has ever mapped the bottom. Everyone who tried came back with the same sentence: it is deeper than the sea was."},
+	{"title": "THE FIRST SEAL",
+		"body": "The first sorceresses did not build a lock. They made one out of themselves.\n\nThey cut the rift wide on purpose, to let the pressure out before the whole crust split, and then they stood in the wound and spent their blood closing it to a single narrow throat. Eight went down. One came back up, and she never spoke again.\n\nThe seal is not a wall. It is a promise, kept by whoever carries the blood that made it."},
+	{"title": "THE ASHEN BASTION",
+		"body": "Raised by deserters who refused to kneel to the rift's first warden. Its braziers have not gone out in a hundred years, fed on cinder that never cools.\n\nThe Bastion is built on the seal itself. That is the arrangement: the order keeps the wound shut, and the wound keeps the order honest. The wells are turning to steam now. Children are born with ember in their lungs. The bargain is coming due."},
+	{"title": "THE BLOODED LINE",
+		"body": "A seal needs a keeper, and a keeper needs the right blood. There has only ever been one family with it, and it has been getting smaller for nine centuries.\n\nVesna is the last of it. She can feel the seal in her teeth when she sleeps, the way other people feel a tooth before a storm. When the rift shifts, her pulse shifts with it.\n\nThis is not a gift. It is a debt with interest."},
+	{"title": "THE FIRST WARDEN",
+		"body": "Forty years ago the First Warden took a lantern, a blade, and the only map of the throat, and went down to check the seal by hand. He promised to be back before the braziers dimmed.\n\nHe is still down there. The Warden who speaks to you now is not him; it is the office, passed to whoever survives the descent long enough to hold it.\n\nSometimes, on the lower layers, you can hear the first one counting."},
+	{"title": "THE ASHEN BROKER",
+		"body": "He sells relics he should not have, and he takes payment in coin because the rift will not accept it.\n\nEvery item on his stall was pulled out of the wound or off somebody the wound kept. He does not set the prices; the depth does. He never tells the same story about where a relic came from, but every story is true.\n\nHe is not on your side. He is on the side of the transaction."},
+	{"title": "THE HUSHED PROPHET",
+		"body": "A saint who traded his voice for prophecy, and got exactly what he paid for.\n\nHe speaks now only in volleys of stolen souls, and each one is a sentence of the future that has already happened. He is not guarding the rift. He is waiting at the point where it stops being a place and starts being a mouth."},
+	{"title": "THE BROOD MOTHER",
+		"body": "The rift's answer to the Blood Sorceress. She births her army from the stone and calls it love, and the stone agrees with her.\n\nShe was a keeper once, of a different seal, on a different coast. When her seal failed she did not die. She made more of herself."},
+	{"title": "THE LAST FURNACE",
+		"body": "Where the rift was made. It is still running, and it has never been given an off switch.\n\nEverything the wound has swallowed is being rendered down there into something that comes back up as fire. The first sealers built the throat above it and called the work finished. It was not finished. It was only narrow."},
 ]
 
 
@@ -356,6 +394,9 @@ func _build() -> void:
 	_build_prompt()
 	_build_shop()
 	_build_net_panel()
+	_build_creator()
+	_build_story_card()
+	_build_codex()
 	_build_fade()
 	_build_save_chip()
 	_build_rift_map()
@@ -1026,6 +1067,8 @@ func _build_health() -> void:
 	box.add_theme_constant_override("separation", 3)
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	body.add_child(box)
+	hero_name_label = _label("", 12, Color(0.78, 0.62, 0.5))
+	box.add_child(hero_name_label)
 	var level_row := HBoxContainer.new()
 	level_row.add_theme_constant_override("separation", 8)
 	level_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1489,7 +1532,7 @@ func _build_title() -> void:
 	title_label = _label("RIFT & RUIN", 62, AMBER)
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(title_label)
-	var sub := _label("THE BLOOD SORCERESS", 17, CRIMSON)
+	var sub := _label("AN ACTION RPG OF THE DROWNING WORLD", 14, CRIMSON)
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(sub)
 	record_label = _label("DEEPEST RIFT  ·  LAYER 1", 12, MUTED)
@@ -1533,7 +1576,7 @@ func _build_title() -> void:
 	begin_btn.pressed.connect(func() -> void:
 		if not _title_input_ok():
 			return
-		start_pressed.emit()
+		show_creator()
 	)
 	buttons.add_child(begin_btn)
 	var menu2 := HBoxContainer.new()
@@ -1639,8 +1682,9 @@ func _set_lore(key: String) -> void:
 			heading = "THE MIRROR RING"
 			body = "A rival sorceress with your own blood and your own spells. No relics, no coin, no mercy: only proof that your hands are the sharper ones."
 		"hall":
-			heading = "HALL OF WARDENS  ·  CLICK TO TURN THE PAGE"
-			body = String(HALL_LORE[hall_index % HALL_LORE.size()])
+			var entry: Dictionary = LORE_BOOK[hall_index % LORE_BOOK.size()]
+			heading = "HALL OF WARDENS  ·  %s" % String(entry.get("title", ""))
+			body = String(entry.get("body", "")).split("\n\n")[0]
 		"options":
 			heading = "OPTIONS"
 			body = "Sound, screen, controls and the shape of the HUD. Every rift save carries its own settings."
@@ -1649,8 +1693,8 @@ func _set_lore(key: String) -> void:
 
 
 func _cycle_hall() -> void:
+	hall_index = (hall_index + 1) % LORE_BOOK.size()
 	_set_lore("hall")
-	hall_index = (hall_index + 1) % HALL_LORE.size()
 
 
 func refresh_title() -> void:
@@ -1697,8 +1741,8 @@ func _build_pause() -> void:
 	pause_panel.anchor_bottom = 0.5
 	pause_panel.offset_left = -382.0
 	pause_panel.offset_right = 382.0
-	pause_panel.offset_top = -222.0
-	pause_panel.offset_bottom = 222.0
+	pause_panel.offset_top = -248.0
+	pause_panel.offset_bottom = 248.0
 	pause_panel.add_theme_stylebox_override("panel", _stylebox(Color(0.04, 0.02, 0.05, 0.97), Color(0.55, 0.34, 0.14, 1.0), 2, 4))
 	pause_panel.visible = false
 	root.add_child(pause_panel)
@@ -1799,6 +1843,10 @@ func _build_pause() -> void:
 	var options := _pause_button("OPTIONS")
 	options.pressed.connect(open_settings)
 	grid.add_child(options)
+	var lore := _pause_button("LORE", GOLD)
+	lore.tooltip_text = "The Ledger of the Drowning: why the rift is here"
+	lore.pressed.connect(open_codex)
+	grid.add_child(lore)
 	leave_btn = _pause_button("LEAVE TO HUB", Color(0.95, 0.55, 0.45))
 	leave_btn.pressed.connect(_on_leave_pressed)
 	grid.add_child(leave_btn)
@@ -2520,12 +2568,479 @@ func hide_net_panel() -> void:
 
 
 ## Called by the game with the real connection state; never faked.
+## The created character's name and class, shown above the level readout.
+func set_hero(name_text: String, class_text: String) -> void:
+	if hero_name_label == null:
+		return
+	hero_name_label.text = "%s  -  %s" % [name_text.to_upper(), class_text.to_upper()] if not name_text.is_empty() else ""
+
+
 func set_net_status(status_text: String, detail_text: String, ok: bool) -> void:
 	if net_status == null:
 		return
 	net_status.text = status_text
 	net_status.add_theme_color_override("font_color", Color(0.62, 0.95, 0.72) if ok else Color(1.0, 0.62, 0.4))
 	net_detail.text = detail_text
+
+
+## Create-character: the only implemented class is the Blood Sorceress; the
+## other three seats are shown locked so the class ring is already visible.
+const CLASS_SEATS := [
+	{"key": "blood_sorceress", "name": "BLOOD SORCERESS", "role": "Life is the fuel",
+		"text": "She burns her own blood to cast. Every spell is a decision about how much of herself she is willing to spend.",
+		"seal": "", "color": Color(0.95, 0.3, 0.32), "playable": true,
+		"portrait": "res://art/portraits/blood_sorceress.png"},
+	{"key": "iron_paladin", "name": "IRON PALADIN", "role": "The wall that walks",
+		"text": "A knight in rift-scarred plate, carrying the last lit sun of a drowned city. He holds the line so the others can breathe, and he does not move when the ground does.",
+		"seal": "SECOND SEAT  ·  STILL IN THE FORGE", "color": Color(0.78, 0.72, 0.5), "playable": false,
+		"portrait": "res://art/portraits/iron_paladin.png"},
+	{"key": "shadow_huntress", "name": "SHADOW HUNTRESS", "role": "Nothing is out of range",
+		"text": "She hunts what the rift lets loose and she never lets it close. Her arrows remember every name the seam has taken, and she says them out loud before she fires.",
+		"seal": "THIRD SEAT  ·  STILL IN THE FORGE", "color": Color(0.55, 0.8, 0.75), "playable": false,
+		"portrait": "res://art/portraits/shadow_huntress.png"},
+	{"key": "fourth_seat", "name": "THE FOURTH SEAT", "role": "Unwritten",
+		"text": "The rift has room for one more. Nobody has come back up to say who it is, only that the seat is warm.",
+		"seal": "FOURTH SEAT  ·  UNWRITTEN", "color": Color(0.62, 0.5, 0.7), "playable": false,
+		"portrait": ""},
+]
+
+
+func _build_creator() -> void:
+	creator_panel = Control.new()
+	creator_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	creator_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	creator_panel.visible = false
+	root.add_child(creator_panel)
+	var shade := ColorRect.new()
+	shade.color = Color(0.008, 0.004, 0.012, 0.9)
+	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	creator_panel.add_child(shade)
+	var card := PanelContainer.new()
+	card.set_anchors_preset(Control.PRESET_CENTER)
+	card.offset_left = -470.0
+	card.offset_right = 470.0
+	card.offset_top = -290.0
+	card.offset_bottom = 290.0
+	card.add_theme_stylebox_override("panel", _stylebox(Color(0.028, 0.014, 0.032, 0.98), Color(0.5, 0.32, 0.14, 1.0), 2, 5))
+	creator_panel.add_child(card)
+	var outer := VBoxContainer.new()
+	outer.add_theme_constant_override("separation", 8)
+	card.add_child(outer)
+	var head := HBoxContainer.new()
+	outer.add_child(head)
+	var title := _label("CREATE YOUR CHARACTER", 34, AMBER)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(title)
+	var back := Button.new()
+	back.text = "BACK"
+	back.custom_minimum_size = Vector2(80, 30)
+	back.add_theme_font_size_override("font_size", 12)
+	back.add_theme_color_override("font_color", MUTED)
+	back.add_theme_color_override("font_hover_color", AMBER)
+	back.add_theme_stylebox_override("normal", _stylebox(Color(0.05, 0.03, 0.04, 0.9), Color(0.24, 0.16, 0.12, 1.0), 1))
+	back.add_theme_stylebox_override("hover", _stylebox(Color(0.13, 0.06, 0.05, 0.95), Color(0.9, 0.55, 0.2, 1.0), 1))
+	back.pressed.connect(hide_creator)
+	head.add_child(back)
+	var sub := _label("THE FIRST SEAT IS OPEN  ·  THREE REMAIN SEALED", 11, CRIMSON)
+	outer.add_child(sub)
+	var columns := HBoxContainer.new()
+	columns.add_theme_constant_override("separation", 18)
+	columns.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	outer.add_child(columns)
+	var classes := VBoxContainer.new()
+	classes.add_theme_constant_override("separation", 6)
+	classes.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	columns.add_child(classes)
+	for seat in CLASS_SEATS:
+		classes.add_child(_class_card(seat))
+	var filler := PanelContainer.new()
+	filler.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	filler.add_theme_stylebox_override("panel", _stylebox(Color(0.035, 0.018, 0.03, 0.9), Color(0.24, 0.16, 0.12, 1.0), 1, 2))
+	classes.add_child(filler)
+	var fbox := VBoxContainer.new()
+	fbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	fbox.add_theme_constant_override("separation", 4)
+	filler.add_child(fbox)
+	fbox.add_child(_label("THE OTHER SEATS", 11, GOLD))
+	var fbody := _label("Three seats wait below the Bastion. Each will arrive as a full 3D character in the same light and the same weight as the Blood Sorceress: the Iron Paladin with a hammer that remembers the sun, the Shadow Huntress who fires from beyond the seam, and a fourth name the rift has not given up yet.\n\nClick a sealed seat to read what is known.", 12, BONE, false)
+	fbody.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	fbox.add_child(fbody)
+	var right := VBoxContainer.new()
+	right.custom_minimum_size = Vector2(340, 0)
+	right.add_theme_constant_override("separation", 8)
+	columns.add_child(right)
+	right.add_child(_build_creator_preview())
+	creator_name = LineEdit.new()
+	creator_name.text = "VESNA"
+	creator_name.placeholder_text = "NAME"
+	creator_name.max_length = 16
+	creator_name.custom_minimum_size = Vector2(0, 40)
+	creator_name.add_theme_font_size_override("font_size", 18)
+	creator_name.add_theme_color_override("font_color", BONE)
+	creator_name.add_theme_color_override("font_placeholder_color", Color(0.45, 0.4, 0.42))
+	creator_name.add_theme_stylebox_override("normal", _stylebox(Color(0.06, 0.03, 0.04, 0.96), Color(0.5, 0.3, 0.14, 1.0), 1, 3))
+	creator_name.add_theme_stylebox_override("focus", _stylebox(Color(0.09, 0.045, 0.05, 0.98), Color(1.0, 0.7, 0.3, 1.0), 1, 3))
+	right.add_child(creator_name)
+	var create := Button.new()
+	create.text = "ENTER THE RIFT"
+	create.custom_minimum_size = Vector2(0, 46)
+	create.add_theme_font_size_override("font_size", 18)
+	create.add_theme_color_override("font_color", AMBER)
+	create.add_theme_color_override("font_hover_color", Color(1.0, 0.95, 0.8))
+	create.add_theme_stylebox_override("normal", _stylebox(Color(0.15, 0.06, 0.05, 0.97), Color(0.6, 0.34, 0.13, 1.0), 1, 3))
+	create.add_theme_stylebox_override("hover", _stylebox(Color(0.26, 0.11, 0.07, 0.99), Color(1.0, 0.68, 0.24, 1.0), 1, 3))
+	create.pressed.connect(_confirm_character)
+	creator_create_btn = create
+	right.add_child(create)
+	creator_lore = _label("", 13, BONE, false)
+	creator_lore.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	creator_lore.custom_minimum_size = Vector2(0, 54)
+	outer.add_child(creator_lore)
+	_set_creator_class("blood_sorceress")
+
+
+func _class_card(seat: Dictionary) -> Control:
+	var btn := Button.new()
+	btn.custom_minimum_size = Vector2(0, 78)
+	btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	btn.add_theme_constant_override("h_separation", 12)
+	var color: Color = seat.get("color", BONE)
+	var playable := bool(seat.get("playable", false))
+	var portrait := String(seat.get("portrait", ""))
+	var has_art := not portrait.is_empty() and ResourceLoader.exists(portrait)
+	btn.text = "  %s\n  %s%s" % [String(seat.get("name", "")), String(seat.get("role", "")), "" if playable else "  -  SEALED"]
+	btn.add_theme_font_size_override("font_size", 14)
+	btn.add_theme_color_override("font_color", color if playable else Color(0.58, 0.53, 0.55))
+	btn.add_theme_color_override("font_hover_color", Color(1.0, 0.94, 0.8))
+	var normal_box := _stylebox(Color(0.05, 0.028, 0.035, 0.95), color.darkened(0.6) if playable else Color(0.26, 0.22, 0.26), 1, 3)
+	var hover_box := _stylebox(Color(0.11, 0.05, 0.05, 0.98), color if playable else Color(0.34, 0.3, 0.34), 1, 3)
+	if has_art:
+		normal_box.content_margin_left = 66.0
+		hover_box.content_margin_left = 66.0
+	btn.add_theme_stylebox_override("normal", normal_box)
+	btn.add_theme_stylebox_override("hover", hover_box)
+	if has_art:
+		var tex: Variant = load(portrait)
+		if tex is Texture2D:
+			var atlas := AtlasTexture.new()
+			atlas.atlas = tex
+			atlas.region = Rect2(170.0, 60.0, 560.0, 660.0)
+			var tile := TextureRect.new()
+			tile.texture = atlas
+			tile.anchor_left = 0.0
+			tile.anchor_right = 0.0
+			tile.anchor_top = 0.5
+			tile.anchor_bottom = 0.5
+			tile.offset_left = 8.0
+			tile.offset_right = 56.0
+			tile.offset_top = -33.0
+			tile.offset_bottom = 33.0
+			tile.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			tile.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			tile.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			tile.modulate = Color(1, 1, 1, 1) if playable else Color(0.72, 0.68, 0.7, 1.0)
+			btn.add_child(tile)
+	btn.pressed.connect(_set_creator_class.bind(String(seat.get("key", ""))))
+	return btn
+
+
+func _build_creator_preview() -> Control:
+	var frame := PanelContainer.new()
+	frame.custom_minimum_size = Vector2(340, 300)
+	frame.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	frame.add_theme_stylebox_override("panel", _stylebox(Color(0.02, 0.012, 0.022, 0.95), Color(0.34, 0.24, 0.34, 1.0), 1, 3))
+	var stage_box := Control.new()
+	stage_box.custom_minimum_size = Vector2(336, 296)
+	stage_box.clip_contents = true
+	stage_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	frame.add_child(stage_box)
+	var holder := SubViewportContainer.new()
+	holder.stretch = true
+	holder.set_anchors_preset(Control.PRESET_FULL_RECT)
+	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stage_box.add_child(holder)
+	creator_scene_holder = holder
+	var viewport := SubViewport.new()
+	viewport.size = Vector2i(336, 296)
+	viewport.transparent_bg = true
+	viewport.own_world_3d = true
+	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	holder.add_child(viewport)
+	var stage := Node3D.new()
+	viewport.add_child(stage)
+	var scene: Variant = load("res://art/generated/blood_sorceress/character.tscn")
+	if scene is PackedScene:
+		creator_preview = (scene as PackedScene).instantiate()
+		creator_preview.scale = Vector3.ONE * 1.08
+		creator_preview.rotation.y = 0.0
+		stage.add_child(creator_preview)
+		var idle_anim := creator_preview.find_child("AnimationPlayer", true, false) as AnimationPlayer
+		if idle_anim != null:
+			for clip in ["Idle", "idle", "IDLE"]:
+				if idle_anim.has_animation(clip):
+					idle_anim.play(clip)
+					break
+	var cam := Camera3D.new()
+	cam.fov = 32.0
+	cam.look_at_from_position(Vector3(0.0, 1.15, 4.1), Vector3(0.0, 0.88, 0.0), Vector3.UP)
+	stage.add_child(cam)
+	var key := OmniLight3D.new()
+	key.light_color = Color(1.0, 0.82, 0.7)
+	key.light_energy = 5.0
+	key.omni_range = 9.0
+	key.position = Vector3(1.6, 3.0, 2.4)
+	stage.add_child(key)
+	var rim := OmniLight3D.new()
+	rim.light_color = Color(0.72, 0.5, 1.0)
+	rim.light_energy = 4.0
+	rim.omni_range = 8.0
+	rim.position = Vector3(-2.0, 2.4, -2.2)
+	stage.add_child(rim)
+	creator_portrait = TextureRect.new()
+	creator_portrait.set_anchors_preset(Control.PRESET_FULL_RECT)
+	creator_portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	creator_portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	creator_portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	creator_portrait.visible = false
+	stage_box.add_child(creator_portrait)
+	creator_glyph = _label("?", 96, Color(0.5, 0.42, 0.55))
+	creator_glyph.set_anchors_preset(Control.PRESET_FULL_RECT)
+	creator_glyph.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	creator_glyph.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	creator_glyph.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	creator_glyph.visible = false
+	stage_box.add_child(creator_glyph)
+	creator_hint = _label("", 10, GOLD)
+	creator_hint.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	creator_hint.offset_top = -30.0
+	creator_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	creator_hint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	creator_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	creator_hint.visible = false
+	stage_box.add_child(creator_hint)
+	return frame
+
+
+func _set_creator_class(key: String) -> void:
+	if key.is_empty():
+		return
+	for seat in CLASS_SEATS:
+		if String(seat.get("key", "")) == key:
+			creator_class = key
+			creator_locked = not bool(seat.get("playable", false))
+			creator_lore.text = String(seat.get("text", ""))
+			var portrait := String(seat.get("portrait", ""))
+			if creator_scene_holder != null:
+				creator_scene_holder.visible = not creator_locked
+			if creator_portrait != null:
+				creator_portrait.visible = creator_locked and not portrait.is_empty() and ResourceLoader.exists(portrait)
+				if creator_portrait.visible:
+					creator_portrait.texture = load(portrait)
+			if creator_glyph != null:
+				creator_glyph.visible = creator_locked and (portrait.is_empty() or not ResourceLoader.exists(portrait))
+			if creator_hint != null:
+				creator_hint.text = String(seat.get("seal", ""))
+				creator_hint.visible = creator_locked and not creator_hint.text.is_empty()
+			if creator_create_btn != null:
+				creator_create_btn.disabled = creator_locked
+				creator_create_btn.text = "ENTER THE RIFT" if not creator_locked else "CLASS SEALED"
+			return
+
+
+func show_creator() -> void:
+	if creator_panel == null:
+		return
+	if not creator_panel.visible:
+		_set_creator_class("blood_sorceress")
+	creator_panel.visible = true
+	creator_panel.modulate.a = 0.0
+	var tween := create_tween()
+	tween.tween_property(creator_panel, "modulate:a", 1.0, 0.22)
+	if creator_name != null:
+		creator_name.grab_focus()
+
+
+func hide_creator() -> void:
+	if creator_panel != null:
+		creator_panel.visible = false
+	if creator_name != null:
+		creator_name.release_focus()
+
+
+func _confirm_character() -> void:
+	if creator_locked:
+		return
+	var hero := creator_name.text.strip_edges() if creator_name != null else ""
+	if hero.is_empty():
+		hero = "VESNA"
+	hide_creator()
+	character_created.emit(hero.to_upper(), creator_class)
+
+
+func _process_creator(delta: float) -> void:
+	if creator_panel != null and creator_panel.visible and creator_preview != null:
+		creator_preview.rotation.y += delta * 0.5
+
+
+## The opening of a new run: what the lava is and why she went down.
+func _build_story_card() -> void:
+	story_panel = PanelContainer.new()
+	story_panel.set_anchors_preset(Control.PRESET_CENTER)
+	story_panel.offset_left = -432.0
+	story_panel.offset_right = 432.0
+	story_panel.offset_top = -304.0
+	story_panel.offset_bottom = 304.0
+	story_panel.add_theme_stylebox_override("panel", _stylebox(Color(0.02, 0.01, 0.024, 0.98), Color(0.5, 0.3, 0.13, 1.0), 2, 5))
+	story_panel.visible = false
+	story_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	root.add_child(story_panel)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 12)
+	story_panel.add_child(box)
+	story_title = _label("THE DROWNING", 36, AMBER)
+	story_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(story_title)
+	story_body = _label("", 14, BONE, false)
+	story_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	story_body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	box.add_child(story_body)
+	var begin := Button.new()
+	begin.text = "DESCEND"
+	begin.custom_minimum_size = Vector2(220, 46)
+	begin.add_theme_font_size_override("font_size", 18)
+	begin.add_theme_color_override("font_color", AMBER)
+	begin.add_theme_color_override("font_hover_color", Color(1.0, 0.95, 0.8))
+	begin.add_theme_stylebox_override("normal", _stylebox(Color(0.14, 0.06, 0.05, 0.97), Color(0.55, 0.3, 0.12, 1.0), 1, 3))
+	begin.add_theme_stylebox_override("hover", _stylebox(Color(0.24, 0.1, 0.07, 0.99), Color(1.0, 0.66, 0.24, 1.0), 1, 3))
+	begin.pressed.connect(close_story)
+	var center := CenterContainer.new()
+	center.add_child(begin)
+	box.add_child(center)
+
+
+func show_story(title_text: String, body_text: String) -> void:
+	if story_panel == null:
+		return
+	story_title.text = title_text
+	story_body.text = body_text
+	story_panel.visible = true
+	story_panel.modulate.a = 0.0
+	get_tree().paused = true
+	var tween := create_tween()
+	tween.tween_property(story_panel, "modulate:a", 1.0, 0.5)
+
+
+func close_story() -> void:
+	if story_panel == null or not story_panel.visible:
+		return
+	story_panel.visible = false
+	get_tree().paused = false
+	story_closed.emit()
+
+
+## The full codex page, opened from the pause menu. Same data as the title's
+## HALL of Wardens, so the two never drift apart.
+func _build_codex() -> void:
+	codex_panel = PanelContainer.new()
+	codex_panel.set_anchors_preset(Control.PRESET_CENTER)
+	codex_panel.offset_left = -400.0
+	codex_panel.offset_right = 400.0
+	codex_panel.offset_top = -286.0
+	codex_panel.offset_bottom = 286.0
+	codex_panel.add_theme_stylebox_override("panel", _stylebox(Color(0.022, 0.011, 0.026, 0.98), Color(0.5, 0.3, 0.13, 1.0), 2, 5))
+	codex_panel.visible = false
+	codex_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	root.add_child(codex_panel)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 10)
+	codex_panel.add_child(box)
+	var head := HBoxContainer.new()
+	box.add_child(head)
+	var kicker := _label("THE LEDGER OF THE DROWNING  ·  %d PAGES" % LORE_BOOK.size(), 11, GOLD)
+	kicker.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(kicker)
+	var close := Button.new()
+	close.text = "CLOSE"
+	close.custom_minimum_size = Vector2(78, 30)
+	close.add_theme_font_size_override("font_size", 12)
+	close.add_theme_color_override("font_color", MUTED)
+	close.add_theme_color_override("font_hover_color", AMBER)
+	close.add_theme_stylebox_override("normal", _stylebox(Color(0.05, 0.03, 0.04, 0.9), Color(0.24, 0.16, 0.12, 1.0), 1))
+	close.add_theme_stylebox_override("hover", _stylebox(Color(0.13, 0.06, 0.05, 0.95), Color(0.9, 0.55, 0.2, 1.0), 1))
+	close.pressed.connect(close_codex)
+	head.add_child(close)
+	codex_title = _label("", 30, AMBER)
+	box.add_child(codex_title)
+	var rule := HSeparator.new()
+	rule.custom_minimum_size = Vector2(0, 4)
+	box.add_child(rule)
+	codex_body = _label("", 14, BONE, false)
+	codex_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	codex_body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	box.add_child(codex_body)
+	var foot := HBoxContainer.new()
+	foot.alignment = BoxContainer.ALIGNMENT_CENTER
+	foot.add_theme_constant_override("separation", 14)
+	box.add_child(foot)
+	var prev := Button.new()
+	prev.text = "PREV"
+	prev.custom_minimum_size = Vector2(92, 34)
+	prev.add_theme_font_size_override("font_size", 13)
+	prev.add_theme_color_override("font_color", MUTED)
+	prev.add_theme_color_override("font_hover_color", AMBER)
+	prev.add_theme_stylebox_override("normal", _stylebox(Color(0.05, 0.028, 0.035, 0.95), Color(0.3, 0.2, 0.14, 1.0), 1, 2))
+	prev.add_theme_stylebox_override("hover", _stylebox(Color(0.12, 0.06, 0.06, 0.98), Color(0.9, 0.58, 0.24, 1.0), 1, 2))
+	prev.pressed.connect(func() -> void: _set_codex_page(codex_page - 1))
+	foot.add_child(prev)
+	codex_page_label = _label("1 / %d" % LORE_BOOK.size(), 12, MUTED)
+	codex_page_label.custom_minimum_size = Vector2(70, 20)
+	codex_page_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	foot.add_child(codex_page_label)
+	var next := Button.new()
+	next.text = "NEXT"
+	next.custom_minimum_size = Vector2(92, 34)
+	next.add_theme_font_size_override("font_size", 13)
+	next.add_theme_color_override("font_color", MUTED)
+	next.add_theme_color_override("font_hover_color", AMBER)
+	next.add_theme_stylebox_override("normal", _stylebox(Color(0.05, 0.028, 0.035, 0.95), Color(0.3, 0.2, 0.14, 1.0), 1, 2))
+	next.add_theme_stylebox_override("hover", _stylebox(Color(0.12, 0.06, 0.06, 0.98), Color(0.9, 0.58, 0.24, 1.0), 1, 2))
+	next.pressed.connect(func() -> void: _set_codex_page(codex_page + 1))
+	foot.add_child(next)
+
+
+func _set_codex_page(index: int) -> void:
+	if codex_panel == null:
+		return
+	codex_page = wrapi(index, 0, LORE_BOOK.size())
+	var entry: Dictionary = LORE_BOOK[codex_page]
+	codex_title.text = String(entry.get("title", ""))
+	codex_body.text = String(entry.get("body", ""))
+	if codex_page_label != null:
+		codex_page_label.text = "%d / %d" % [codex_page + 1, LORE_BOOK.size()]
+
+
+func open_codex() -> void:
+	if codex_panel == null:
+		return
+	_close_pause_for_overlay()
+	get_tree().paused = true
+	codex_panel.visible = true
+	codex_panel.modulate.a = 0.0
+	_set_codex_page(codex_page)
+	var tween := create_tween()
+	tween.tween_property(codex_panel, "modulate:a", 1.0, 0.18)
+
+
+func close_codex() -> void:
+	if codex_panel != null:
+		codex_panel.visible = false
+	show_pause()
+
+
+func hide_codex() -> void:
+	if codex_panel != null:
+		codex_panel.visible = false
 
 
 func _build_fade() -> void:
@@ -2557,6 +3072,33 @@ func _input(event: InputEvent) -> void:
 		var focused := get_viewport().gui_get_focus_owner()
 		if focused != null:
 			focused.release_focus()
+	if creator_panel != null and creator_panel.visible:
+		if event is InputEventKey and event.pressed and not event.echo:
+			if event.keycode == KEY_ESCAPE:
+				hide_creator()
+				get_viewport().set_input_as_handled()
+			elif event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER:
+				_confirm_character()
+				get_viewport().set_input_as_handled()
+		return
+	if story_panel != null and story_panel.visible:
+		if event is InputEventKey and event.pressed and not event.echo \
+				and (event.keycode == KEY_ESCAPE or event.keycode == KEY_ENTER or event.keycode == KEY_SPACE):
+			close_story()
+			get_viewport().set_input_as_handled()
+		return
+	if codex_panel != null and codex_panel.visible:
+		if event is InputEventKey and event.pressed and not event.echo:
+			if event.keycode == KEY_ESCAPE:
+				close_codex()
+				get_viewport().set_input_as_handled()
+			elif event.keycode == KEY_LEFT or event.keycode == KEY_UP:
+				_set_codex_page(codex_page - 1)
+				get_viewport().set_input_as_handled()
+			elif event.keycode == KEY_RIGHT or event.keycode == KEY_DOWN:
+				_set_codex_page(codex_page + 1)
+				get_viewport().set_input_as_handled()
+		return
 	if net_panel != null and net_panel.visible:
 		if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
 			hide_net_panel()
@@ -2581,7 +3123,7 @@ func _input(event: InputEvent) -> void:
 				if title_continue_btn != null and title_continue_btn.visible:
 					continue_pressed.emit()
 				else:
-					start_pressed.emit()
+					show_creator()
 			get_viewport().set_input_as_handled()
 		return
 	if shop_open:
@@ -2626,13 +3168,27 @@ func toggle_pause() -> void:
 	if now - last_pause_ms < 80:
 		return
 	last_pause_ms = now
-	var paused := not get_tree().paused
-	if paused and pause_summary != null:
-		pause_summary.text = "LAYER %d    ·    LEVEL %d    ·    COIN %d    ·    SOULS %d" % [run_layer, run_level, run_coins, run_kills]
-	get_tree().paused = paused
-	pause_shade.visible = paused
-	pause_panel.visible = paused
+	if get_tree().paused:
+		hide_pause()
+	else:
+		show_pause()
 	ui_click.emit()
+
+
+func show_pause() -> void:
+	if death_panel.visible or not body.visible:
+		return
+	if pause_summary != null:
+		pause_summary.text = "LAYER %d    ·    LEVEL %d    ·    COIN %d    ·    SOULS %d" % [run_layer, run_level, run_coins, run_kills]
+	get_tree().paused = true
+	pause_shade.visible = true
+	pause_panel.visible = true
+
+
+func hide_pause() -> void:
+	get_tree().paused = false
+	pause_shade.visible = false
+	pause_panel.visible = false
 
 
 func set_health(current: float, maximum: float, regen_rate := -1.0, in_combat := false) -> void:
@@ -3206,6 +3762,7 @@ func hide_title() -> void:
 
 
 func _process(delta: float) -> void:
+	_process_creator(delta)
 	vignette_alpha = maxf(0.0, vignette_alpha - delta * 1.4)
 	damage_flash = maxf(0.0, damage_flash - delta * 3.0)
 	health_shown = lerpf(health_shown, health_target, clampf(delta * 9.0, 0.0, 1.0))

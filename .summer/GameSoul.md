@@ -25,17 +25,21 @@ An isometric, click-to-move action RPG in a volcanic wasteland split by lava rif
 
 ## Home Hub and the Mirror Ring
 - The story spine lives in `STORY` in game.gd: the Warden speaks a line in the boon panel when a floor is cleared, the Ashen Broker speaks a line at the top of his shop, and both are written per layer so each depth advances the reason the rift exists and why the Broker keeps selling.
+- The lava has an explanation now, and it is the spine of the whole setting: nine hundred years ago the sea went down into a seam in the crust all at once, and what came back up was fire. The lava is the world's blood and the rift is the cut that lets it out; it moves like a tide and every eruption raises the level a little. The first sorceresses cut the rift deliberately to bleed the pressure, then sealed it with their own blood. Eight went down, one came back, and the seal has been kept by a single family ever since. Vesna is the last of that line: she feels the seal in her teeth when she sleeps, the Bastion's wells are turning to steam, and the First Warden — who descended forty years ago with a lantern and a promise — is still down there counting. She is not there to save the world; she is there to reach the bottom and decide whether to close the wound or open it wider. This is `INTRO_BODY`, shown once when a character is created, with `%HERO%` replaced by the name the player typed.
+- `LORE_BOOK` in hud.gd is the ten-page Ledger of the Drowning (The Drowning, The Wound, The First Seal, The Ashen Bastion, The Blooded Line, The First Warden, The Ashen Broker, The Hushed Prophet, The Brood Mother, The Last Furnace). The title's HALL button turns its pages inline; the pause menu's LORE button opens it as a full page with PREV/NEXT, arrow keys and Esc. Both read the same data, so they cannot drift apart.
+- Each layer also has a `rift` voice in `STORY` that plays as the second line of the arrival whisper, under the place's own `LAYER_LORE` line, so the dungeon speaks on every descent and the merchant floors speak too.
 - Online play is built on Summer's dedicated-server model: the player runs `client/main.tscn`, the match runs headless from `authority/main.tscn`, and both load one network contract (`network/composition.tres`). The project declares `summer.build.json`, `world.json`, `runtime-manifest.json` and `source-domains.json`; the queue is `rift` for 1-4 players.
 - The authority picks the world seed and publishes it on the `rift.world` State stream; every client seeds its floor generator with `seed + layer * 9176` before building, so two players always stand in the same randomised rift.
 - Each player owns one pose group (`rift.motion`, key `p<seat>`) carrying entity, position and yaw. The authority checks every pose with an arena bound and a distance allowance refilled at 22 m/s, and refuses teleports; a refused pose snaps the owner back. Other players are observer projections that glide 100 ms behind, so remote movement stays smooth.
 - Joining a World drops the player straight into the rift (`ONLINE - n IN RIFT - SEAT n` chip under the minimap). With no World available the client prints `RIFT_NET_SOLO` and boots the untouched solo game, so single player never depends on the network.
 - Local co-op test: `summer/local_play/players = 2` and PlayGame starts one headless authority plus two clients on port 7787.
 - One multiplayer surface serves the home screen and the pause menu: `show_net_panel(mode)` with `net_action(action, mode)`. FIND MATCH really retries the Summer queue join and prints the real error (`unavailable` outside Local Play or hosting); DUEL THE MIRROR starts the local mirror duel. There is no second, disconnected co-op/PvP UI.
-- The pause menu offers RESUME, CHARACTER (relic loadout), WORLD MAP, CO-OP ONLINE, PVP ARENA, OPTIONS and LEAVE TO HUB (two-press confirmation, then back to the title).
+- The pause menu offers RESUME, CHARACTER (relic loadout), WORLD MAP, CO-OP ONLINE, PVP ARENA, OPTIONS, LORE (the Ledger of the Drowning) and LEAVE TO HUB (two-press confirmation, then back to the title). Leaving the hub also closes the pause and codex overlays, so no panel is ever stranded on the title.
 - The rift ladder is interactive: mouse or arrow keys move the selection, the footer prints tier, recommended level, WARDEN/BROKER tags and the lock rule, and ENTER RIFT (or Enter) regenerates that local layer up to deepest + 1.
 - Camera: wheel zooms toward `zoom_target` (0.78-1.4), middle-drag and optional edge panning move `camera_pan`, F recenters, and the follow strength, pan speed, edge pan and zoom step live in settings.
 
-- The game opens on the Ashen Bastion title card over the live floor: RIFT & RUIN, deepest rift reached, CONTINUE (layer, level, coin of the saved run) or ENTER THE RIFT / NEW RIFT, then DUEL THE MIRROR, HALL OF WARDENS and OPTIONS.
+- The game opens on the Ashen Bastion title card over the live floor: RIFT & RUIN, deepest rift reached, CONTINUE (layer, level, coin of the saved run) or ENTER THE RIFT / NEW RIFT, then CO-OP, PVP, WORLD MAP, HALL and OPTIONS.
+- NEW RIFT opens CREATE YOUR CHARACTER: a full class list with concept portraits (Blood Sorceress, Iron Paladin, Shadow Huntress, and the unnamed fourth seat), a live 3D turntable of the Blood Sorceress playing her Idle clip in a lit SubViewport, a name field (VESNA by default, 16 characters) and ENTER THE RIFT. Sealed seats can be clicked to read their lore and see their art; their card says SEALED and the create button refuses, so a class can never be silently swapped for another.
 - Hovering a menu entry writes a lore line into the card's panel. HALL OF WARDENS is a four-page lore book (Bastion, Hushed Prophet, Brood Mother, Ashen Broker), one page per click.
 - DUEL THE MIRROR is the PvP mode: a clean obsidian ring with no packs, no hazards, no portal and no relics. The rival is the sorceress model with the player's own kit: a five-bolt soul volley on a windup, a seven-bolt blood fan that heals her, and a phase break at half life. Winning or losing opens a result card with DUEL AGAIN and RETURN TO BASTION. Duel results never touch the run save.
 - Entering any layer prints a quiet one-line whisper under the status text (LAYER_LORE), so each rift has a voice without stopping play.
@@ -76,7 +80,7 @@ An isometric, click-to-move action RPG in a volcanic wasteland split by lava rif
 - Settings > Interface has Save Settings Automatically and the window has SAVE SETTINGS; RESET DEFAULTS restores everything.
 
 ## Classes and Abilities
-Only the Blood Sorceress is playable.
+Only the Blood Sorceress is playable. The creator shows the full class ring: the Iron Paladin (the wall that walks), the Shadow Huntress (nothing is out of range) and a fourth, unnamed seat are visible, readable and sealed, with the direction that each arrives later as a full 3D character in the same lighting, palette and weight as the sorceress. Class art lives in `res://art/portraits/` and is used both as the card thumbnail and as the preview for a sealed seat.
 - 1 Blood Nova — AoE detonation around the player, 6 life.
 - 2 Crimson Lance — piercing blood spear toward the cursor, 3 life.
 - 3 Sanguine Siphon — 2 s drain on nearby foes that heals a share of damage.
@@ -138,5 +142,5 @@ Only the Blood Sorceress is playable.
 
 ## Attribution
 - Dungeon kit props and monsters: Summer curated `dungeon-dark-fantasy` collection (CC0 kit by SigilsVault; monsters Summer licence).
-- Blood Sorceress, rift gate, basalt rocks: Summer generated assets.
+- Blood Sorceress, rift gate, basalt rocks: Summer generated assets. Class concept portraits for the Blood Sorceress, Iron Paladin and Shadow Huntress are imported into `res://art/portraits/` from the project board.
 - Audio: Summer generated (ElevenLabs).
