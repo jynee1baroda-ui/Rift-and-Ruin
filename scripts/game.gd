@@ -372,6 +372,9 @@ var character_class_id := "blood_sorceress"
 
 func _ready() -> void:
 	rng.randomize()
+	var game_window := get_window()
+	if game_window != null:
+		game_window.close_requested.connect(_on_window_close_requested)
 	GameSettings.load_all()
 	Engine.max_fps = int(GameSettings.get_value("fps_cap"))
 	world_root = Node3D.new()
@@ -401,6 +404,8 @@ func _ready() -> void:
 	hud.shop_buy.connect(_on_shop_buy)
 	hud.shop_close.connect(_on_shop_closed)
 	hud.rift_map_requested.connect(_open_rift_map)
+	hud.world_map_requested.connect(_open_world_map)
+	hud.rift_ladder_requested.connect(_open_rift_map_at)
 	hud.duel_pressed.connect(_start_duel)
 	hud.duel_again_pressed.connect(_start_duel)
 	hud.home_pressed.connect(_return_home)
@@ -427,6 +432,10 @@ func _ready() -> void:
 	net.name = "RiftNet"
 	add_child(net)
 	net.start(self)
+
+
+func _on_window_close_requested() -> void:
+	_save_run()
 
 
 func boot_solo() -> void:
@@ -552,6 +561,7 @@ func _save_run() -> void:
 		"best": best_layer,
 		"passives": player.passive_nodes.duplicate(),
 		"passive_points": player.passive_points,
+		"consumables": consumed.duplicate(true),
 		"settings": GameSettings.snapshot(),
 	})
 	Roster.update(RunSave.slot, {
@@ -591,6 +601,7 @@ func continue_run() -> bool:
 	if typeof(saved_boons) == TYPE_ARRAY:
 		for key in saved_boons:
 			run_boons.append(String(key))
+	consumed = _restore_consumables(data.get("consumables", {}))
 	started = true
 	run_active = true
 	hud.hide_title()
@@ -607,6 +618,7 @@ func continue_run() -> bool:
 				player.equip(item)
 	for key in run_boons:
 		_apply_boon(String(key), false)
+	player.set_temp_bonus(_buff_power(), _buff_speed())
 	_generate_floor()
 	var ratio := clampf(float(data.get("health", 1.0)), 0.25, 1.0)
 	player.health = maxf(1.0, player.max_health * ratio)
@@ -631,6 +643,34 @@ func _find_hero_scene() -> PackedScene:
 				if res is PackedScene:
 					return res
 	return null
+
+
+func _restore_consumables(saved: Variant) -> Dictionary:
+	var restored: Dictionary = {}
+	if typeof(saved) != TYPE_DICTIONARY:
+		return restored
+	for key in CONSUMABLES.keys():
+		var entry: Variant = saved.get(key, {})
+		if typeof(entry) != TYPE_DICTIONARY:
+			continue
+		var amount_value: Variant = entry.get("amount", 0)
+		var cooldown_value: Variant = entry.get("cd", 0.0)
+		var active_value: Variant = entry.get("active", 0.0)
+		if typeof(amount_value) != TYPE_INT and typeof(amount_value) != TYPE_FLOAT:
+			continue
+		if typeof(cooldown_value) != TYPE_INT and typeof(cooldown_value) != TYPE_FLOAT:
+			continue
+		if typeof(active_value) != TYPE_INT and typeof(active_value) != TYPE_FLOAT:
+			continue
+		if not is_finite(float(amount_value)) or not is_finite(float(cooldown_value)) or not is_finite(float(active_value)):
+			continue
+		var limit: Dictionary = CONSUMABLES[key]
+		restored[key] = {
+			"amount": clampi(int(amount_value), 0, 999),
+			"cd": clampf(float(cooldown_value), 0.0, float(limit.get("cd", 0.0))),
+			"active": clampf(float(active_value), 0.0, float(limit.get("buff", 0.0))),
+		}
+	return restored
 
 
 func _setup_audio() -> void:
@@ -3293,6 +3333,7 @@ func _use_consumable(key: String) -> void:
 	play_sfx("pickup", -6.0, 0.08)
 	hud.toast(String(data.get("name", key)), data.get("color", Color(1.0, 0.8, 0.4)), 1.6)
 	_push_consumables()
+	_save_run()
 
 
 func _relic_price(item: Dictionary) -> int:
@@ -3409,6 +3450,7 @@ func begin_run() -> void:
 	kills = 0
 	run_boons.clear()
 	consumed.clear()
+	player.set_temp_bonus(0.0, 0.0)
 	_push_consumables()
 	attack_target = null
 	player.set_progress(1, 0.0)
@@ -3570,7 +3612,17 @@ func _on_rift_enter(target_layer: int) -> void:
 	hud.toast("RIFT LAYER %d" % layer, Color(1.0, 0.72, 0.3), 2.2)
 
 
-func _open_rift_map() -> void:
+func _open_world_map() -> void:
+	hud.show_world_map(layer if run_active else maxi(1, best_layer), best_layer)
+
+
+func _open_rift_map_at(target_layer: int) -> void:
+	if run_active:
+		get_tree().paused = true
+	_open_rift_map(target_layer)
+
+
+func _open_rift_map(preferred_layer := 0) -> void:
 	var entries: Array = []
 	## The ladder always shows this release's thirty layers, then keeps
 	## extending as the player climbs past them.
@@ -3579,7 +3631,10 @@ func _open_rift_map() -> void:
 	## player's deepest layer instead of every layer from one.
 	var first := 1
 	if count > 26:
-		first = maxi(1, mini(maxi(1, best_layer) - 8, count - 25))
+		if preferred_layer > 0:
+			first = clampi(preferred_layer - 12, 1, count - 25)
+		else:
+			first = maxi(1, mini(maxi(1, best_layer) - 8, count - 25))
 	var range_note := "" if first == 1 else "LAYERS %d-%d" % [first, first + 25]
 	for i in 26 if first > 1 else count:
 		var l := first + i
@@ -3590,7 +3645,7 @@ func _open_rift_map() -> void:
 			"boss": _is_boss_layer_at(l),
 			"milestone": l == RELEASE_LAYER,
 		})
-	hud.show_rift_map(entries, layer, best_layer, range_note)
+	hud.show_rift_map(entries, layer, best_layer, range_note, preferred_layer)
 
 
 func _restart_run() -> void:
@@ -4186,6 +4241,7 @@ func _on_player_leveled(level: int) -> void:
 	FX.ring(fx_root, player.global_position, Color(1.0, 0.7, 0.25, 0.8), 4.0, 0.8, 0.05)
 	hud.toast("LEVEL %d  -  PASSIVE POINT" % level, Color(1.0, 0.84, 0.34), 2.2)
 	hud.set_level(player.level, player.xp, player.xp_to_next())
+	hud.set_build_summary(player.build_summary())
 
 
 func _on_life_spent(amount: float) -> void:
@@ -4239,6 +4295,7 @@ func _process(delta: float) -> void:
 	hud.set_bloodrush(player.bloodrush, player.bloodrush_timer / Player.BLOODRUSH_TIME)
 	hud.set_health(player.health, player.max_health, player.regen_now(), player.in_combat())
 	hud.set_level(player.level, player.xp, player.xp_to_next())
+	hud.set_build_summary(player.build_summary())
 	if merchant_npc != null and is_instance_valid(merchant_npc):
 		var near := player.global_position.distance_to(merchant_npc.global_position) < 4.4
 		if near != merchant_near:

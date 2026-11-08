@@ -14,6 +14,8 @@ signal boon_chosen(key: String)
 signal shop_buy(index: int)
 signal shop_close
 signal rift_map_requested
+signal world_map_requested
+signal rift_ladder_requested(layer: int)
 signal duel_pressed
 signal duel_again_pressed
 signal home_pressed
@@ -41,6 +43,18 @@ const ICON_NOVA := "res://art/generated/icon_nova/img-f4afbd64-b344-4c4f-a17c-5b
 const ICON_LANCE := "res://art/generated/icon_lance/img-f4afbd64-b344-4c4f-a17c-5b062341cf23-1794037334226-0_1794037334226_0jajynkv.png"
 const ICON_SIPHON := "res://art/generated/icon_siphon/img-f4afbd64-b344-4c4f-a17c-5b062341cf23-1794037347430-0_1794037347430_d38c0j6p.png"
 const ICON_RIFTSTEP_DIR := "res://art/generated/icon_riftstep"
+const WORLD_PLACES := [
+	{"name": "ASHEN BASTION", "region": "THE LAST SEA ROAD", "layer": 1, "kind": "bastion", "point": Vector2(185, 432), "label_offset": Vector2(0, 34), "detail": "The Bastion stands on the first seal. Its wells are turning to steam, and the rift is breathing again. The descent begins here."},
+	{"name": "SUNKEN CATHEDRAL", "region": "THE DROWNED COAST", "layer": 3, "kind": "boss", "point": Vector2(555, 231), "label_offset": Vector2(-3, -24), "detail": "The choir still sings below the drowned coast. The old road reaches its first great ruin at Rift Layer 3."},
+	{"name": "ASHEN BAZAAR", "region": "THE BROKER'S ROAD", "layer": 5, "kind": "broker", "point": Vector2(405, 398), "label_offset": Vector2(-3, 32), "detail": "A market built where the old road crosses the wound. The Broker opens a stall here; merchants recur every fifth Rift Layer."},
+	{"name": "GLASS FOUNDRY", "region": "THE FURNACE MARCH", "layer": 7, "kind": "rift", "point": Vector2(633, 142), "label_offset": Vector2(0, -25), "detail": "The glass was sand once; the sand was someone's city. The Glass Foundry is the rift's seventh named depth."},
+	{"name": "BONE ORCHARD", "region": "THE GREEN SCAR", "layer": 8, "kind": "rift", "point": Vector2(740, 417), "label_offset": Vector2(0, 29), "detail": "The trees bear fruit no one should eat. The rift has made a garden out of what it kept; its route opens at Layer 8."},
+	{"name": "BLACK OBSIDIAN MAW", "region": "THE INNER WOUND", "layer": 9, "kind": "rift", "point": Vector2(821, 265), "label_offset": Vector2(0, -25), "detail": "The Maw does not eat. It opens, and things fall in. The route descends into its broken ring at Layer 9."},
+	{"name": "THE LAST FURNACE", "region": "THE FURNACE MARCH", "layer": 10, "kind": "broker", "point": Vector2(788, 493), "label_offset": Vector2(-15, 28), "detail": "Where the rift was made. It is still running. The Last Furnace is the tenth named depth; the Layer 30 release milestone is the Drowning Floor."},
+	{"name": "THE SECOND SEAL", "region": "THE DEEP THROAT", "layer": 18, "kind": "boss", "point": Vector2(553, 471), "label_offset": Vector2(-6, 31), "detail": "A second seal lies under the salt and basalt. The themed rift reaches it at Layer 18, where the Iron Choir is the mandatory Warden."},
+	{"name": "THE BONE TIDE", "region": "THE GREEN SCAR", "layer": 24, "kind": "boss", "point": Vector2(812, 351), "label_offset": Vector2(-4, 31), "detail": "The Bone Tide's route opens at Layer 24, where its mandatory Warden guards the descent."},
+	{"name": "THE DROWNING FLOOR", "region": "THE BOTTOM OF THE WOUND", "layer": 30, "kind": "release", "point": Vector2(875, 168), "label_offset": Vector2(-32, -25), "detail": "The first release's progression milestone: Layer 30's Broker appears before the final Drowning Warden. The rift continues beyond it."},
+]
 
 var root: Control
 var body: Control
@@ -65,6 +79,7 @@ var slots: Array = []
 var bloodrush_label: Label
 var bloodrush_bar: ProgressBar
 var relic_stats: Label
+var build_summary_text := "BALANCED BUILD\nWaiting for character stats."
 var toast_box: VBoxContainer
 var relic_window: PanelContainer
 var relic_tabs: HBoxContainer
@@ -125,6 +140,18 @@ var loading_bar: ProgressBar
 var rift_map_panel: PanelContainer
 var rift_map_body: VBoxContainer
 var rift_map_footer: Label
+var world_map_panel: PanelContainer
+var world_chart: WorldChart
+var world_name: Label
+var world_region: Label
+var world_detail: Label
+var world_unlock: Label
+var world_ladder_btn: Button
+var world_places: Array = []
+var world_selected := 0
+var world_deepest := 1
+var world_current_layer := 1
+var world_game_context := false
 var save_chip: PanelContainer
 var save_chip_last_ms := 0
 var title_shown_ms := 0
@@ -346,6 +373,335 @@ class RiftMap extends Control:
 		draw_polyline(pts, col.lightened(0.4), 1.0, true)
 
 
+class WorldChart extends Control:
+	signal location_changed(index: int)
+
+	const MAP_SIZE := Vector2(1000.0, 620.0)
+	var places: Array = []
+	var deepest := 1
+	var active_layer := 1
+	var selected := 0
+	var hovered := -1
+	var zoom := 1.0
+	var pan := Vector2.ZERO
+	var dragging := false
+	var dragged := false
+	var drag_start := Vector2.ZERO
+	var drag_pan := Vector2.ZERO
+	var clock := 0.0
+	var font: Font
+
+	func _ready() -> void:
+		mouse_filter = Control.MOUSE_FILTER_STOP
+		clip_contents = true
+		set_process(true)
+		set_process_input(true)
+
+	func set_world(data: Array, current: int, furthest: int) -> void:
+		places = data.duplicate()
+		active_layer = current
+		deepest = furthest
+		selected = _active_place()
+		hovered = -1
+		zoom = 1.0
+		pan = Vector2.ZERO
+		queue_redraw()
+
+	func _process(delta: float) -> void:
+		clock += delta
+		if fmod(clock, 0.08) < delta:
+			queue_redraw()
+
+	func _scale() -> float:
+		return minf(size.x / MAP_SIZE.x, size.y / MAP_SIZE.y) * zoom
+
+	func _origin() -> Vector2:
+		var scale_value := _scale()
+		return size * 0.5 + pan - Vector2(MAP_SIZE.x * 0.5, MAP_SIZE.y * 0.5) * scale_value
+
+	func _to_screen(point: Vector2) -> Vector2:
+		return _origin() + point * _scale()
+
+	func _from_screen(point: Vector2) -> Vector2:
+		return (point - _origin()) / maxf(0.01, _scale())
+
+	func _active_place() -> int:
+		if places.is_empty():
+			return 0
+		var choice := 0
+		for i in places.size():
+			if int((places[i] as Dictionary).get("layer", 1)) <= active_layer:
+				choice = i
+		return choice
+
+	func _available(index: int) -> bool:
+		if index < 0 or index >= places.size():
+			return false
+		return int((places[index] as Dictionary).get("layer", 1)) <= maxi(1, deepest + 1)
+
+	func _draw() -> void:
+		var bounds := Rect2(Vector2.ZERO, size)
+		draw_rect(bounds, Color(0.015, 0.025, 0.04, 1.0))
+		var map_scale := _scale()
+		var map_origin := _origin()
+		draw_set_transform(map_origin, 0.0, Vector2.ONE * map_scale)
+		_draw_geography()
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		draw_rect(bounds, Color(0.72, 0.46, 0.20, 0.64), false, 1.0)
+
+	func _draw_geography() -> void:
+		var sea := Color(0.025, 0.055, 0.075, 1.0)
+		draw_rect(Rect2(Vector2.ZERO, MAP_SIZE), sea)
+		for i in 100:
+			var x := fposmod(float(i) * 137.7 + 29.0, MAP_SIZE.x)
+			var y := fposmod(float(i) * 71.9 + 17.0, MAP_SIZE.y)
+			draw_circle(Vector2(x, y), 0.8 + fposmod(float(i) * 0.31, 1.5), Color(0.48, 0.55, 0.54, 0.10))
+		for y in range(54, 620, 44):
+			draw_line(Vector2(0.0, float(y)), Vector2(1000.0, float(y)), Color(0.42, 0.52, 0.54, 0.07), 1.0, true)
+		for x in range(54, 1000, 44):
+			draw_line(Vector2(float(x), 0.0), Vector2(float(x), 620.0), Color(0.42, 0.52, 0.54, 0.07), 1.0, true)
+
+		var coast := PackedVector2Array([
+			Vector2(56, 154), Vector2(111, 106), Vector2(177, 117), Vector2(220, 82),
+			Vector2(308, 100), Vector2(357, 68), Vector2(431, 91), Vector2(489, 76),
+			Vector2(565, 107), Vector2(631, 79), Vector2(696, 111), Vector2(755, 88),
+			Vector2(837, 120), Vector2(901, 104), Vector2(956, 150), Vector2(928, 203),
+			Vector2(962, 257), Vector2(928, 309), Vector2(949, 370), Vector2(900, 416),
+			Vector2(921, 472), Vector2(875, 525), Vector2(818, 507), Vector2(768, 557),
+			Vector2(699, 532), Vector2(635, 566), Vector2(567, 531), Vector2(504, 565),
+			Vector2(443, 533), Vector2(372, 562), Vector2(319, 516), Vector2(246, 541),
+			Vector2(200, 502), Vector2(126, 513), Vector2(83, 466), Vector2(101, 416),
+			Vector2(59, 366), Vector2(79, 304), Vector2(49, 253), Vector2(74, 211)
+		])
+		var stone := Color(0.14, 0.105, 0.095, 1.0)
+		draw_colored_polygon(coast, stone)
+		var coast_line := coast.duplicate()
+		coast_line.append(coast[0])
+		draw_polyline(coast_line, Color(0.78, 0.50, 0.28, 0.76), 2.2, true)
+		_draw_region([
+			Vector2(78, 205), Vector2(156, 164), Vector2(235, 185), Vector2(276, 253),
+			Vector2(239, 328), Vector2(177, 355), Vector2(104, 314), Vector2(78, 255)
+		], Color(0.52, 0.34, 0.20, 0.26), "SALT SCAR", Vector2(98, 280))
+		_draw_region([
+			Vector2(290, 123), Vector2(376, 102), Vector2(463, 125), Vector2(483, 201),
+			Vector2(423, 245), Vector2(342, 221), Vector2(292, 179)
+		], Color(0.39, 0.20, 0.16, 0.28), "CINDER REACH", Vector2(332, 150))
+		_draw_region([
+			Vector2(510, 126), Vector2(607, 111), Vector2(691, 153), Vector2(675, 227),
+			Vector2(590, 246), Vector2(524, 206)
+		], Color(0.26, 0.30, 0.31, 0.31), "THE SUNKEN COAST", Vector2(541, 163))
+		_draw_region([
+			Vector2(694, 329), Vector2(775, 287), Vector2(852, 313), Vector2(879, 393),
+			Vector2(820, 464), Vector2(739, 451), Vector2(688, 390)
+		], Color(0.24, 0.36, 0.26, 0.28), "BONE ORCHARD", Vector2(733, 420))
+		_draw_region([
+			Vector2(748, 149), Vector2(830, 129), Vector2(898, 164), Vector2(907, 229),
+			Vector2(863, 276), Vector2(785, 262), Vector2(744, 211)
+		], Color(0.25, 0.21, 0.35, 0.29), "OBSIDIAN RIDGE", Vector2(782, 185))
+
+		## The wound runs inland from the drowned sea toward the Last Furnace.
+		var wound := PackedVector2Array([
+			Vector2(110, 469), Vector2(165, 439), Vector2(214, 454), Vector2(265, 406),
+			Vector2(326, 418), Vector2(383, 362), Vector2(443, 374), Vector2(496, 326),
+			Vector2(546, 341), Vector2(604, 292), Vector2(658, 306), Vector2(709, 258),
+			Vector2(758, 268), Vector2(803, 220), Vector2(856, 226), Vector2(893, 177)
+		])
+		draw_polyline(wound, Color(0.25, 0.035, 0.025, 0.86), 31.0, true)
+		draw_polyline(wound, Color(0.73, 0.13, 0.045, 0.74), 15.0, true)
+		draw_polyline(wound, Color(1.0, 0.43, 0.12, 0.77 + 0.12 * sin(clock * 1.8)), 3.0, true)
+		for i in 10:
+			var t := float(i + 1) / 11.0
+			var point := wound[0].lerp(wound[wound.size() - 1], t)
+			var ring_radius := 8.0 + fposmod(float(i) * 4.0 + clock * 7.0, 7.0)
+			draw_arc(point, ring_radius, 0.0, TAU, 28, Color(1.0, 0.32, 0.09, 0.13), 1.0, true)
+
+		## Old trade roads and the route of the sealers.
+		_draw_dashed(Vector2(226, 430), Vector2(263, 409), Color(0.88, 0.65, 0.36, 0.72))
+		_draw_dashed(Vector2(263, 409), Vector2(384, 362), Color(0.88, 0.65, 0.36, 0.62))
+		_draw_dashed(Vector2(384, 362), Vector2(496, 326), Color(0.88, 0.65, 0.36, 0.56))
+		_draw_dashed(Vector2(496, 326), Vector2(604, 292), Color(0.88, 0.65, 0.36, 0.48))
+		_draw_dashed(Vector2(604, 292), Vector2(804, 220), Color(0.88, 0.65, 0.36, 0.40))
+		_draw_map_decor()
+		for i in places.size():
+			_draw_place(i)
+		draw_string(font if font != null else ThemeDB.fallback_font, Vector2(30, 37), "THE DRAWN COAST", HORIZONTAL_ALIGNMENT_LEFT, -1.0, 15, Color(0.91, 0.77, 0.56, 0.84))
+		draw_string(font if font != null else ThemeDB.fallback_font, Vector2(942, 575), "N", HORIZONTAL_ALIGNMENT_CENTER, -1.0, 14, Color(0.97, 0.75, 0.36, 0.95))
+		draw_line(Vector2(942, 588), Vector2(942, 554), Color(0.97, 0.75, 0.36, 0.8), 1.5, true)
+		draw_colored_polygon(PackedVector2Array([Vector2(942, 547), Vector2(937, 558), Vector2(947, 558)]), Color(0.97, 0.75, 0.36, 0.9))
+
+	func _draw_region(points: Array, color: Color, caption: String, label_at: Vector2) -> void:
+		var polygon := PackedVector2Array()
+		for point in points:
+			polygon.append(point)
+		draw_colored_polygon(polygon, color)
+		polygon.append(polygon[0])
+		draw_polyline(polygon, Color(0.8, 0.64, 0.39, 0.25), 1.2, true)
+		draw_string(font if font != null else ThemeDB.fallback_font, label_at, caption, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 11, Color(0.86, 0.78, 0.64, 0.60))
+
+	func _draw_dashed(from: Vector2, to: Vector2, color: Color) -> void:
+		var length := from.distance_to(to)
+		var direction := (to - from).normalized()
+		var step := 11.0
+		var distance := 0.0
+		while distance < length:
+			var end := minf(distance + 5.0, length)
+			draw_line(from + direction * distance, from + direction * end, color, 1.4, true)
+			distance += step
+
+	func _draw_map_decor() -> void:
+		for i in 14:
+			var x := 178.0 + float(i) * 54.0
+			var y := 122.0 + sin(float(i) * 0.82) * 26.0
+			draw_arc(Vector2(x, y), 17.0 + fposmod(float(i) * 3.1, 11.0), PI * 1.1, PI * 1.9, 28, Color(0.78, 0.66, 0.53, 0.16), 1.0, true)
+		for i in 7:
+			var x := 119.0 + float(i) * 122.0
+			var y := 481.0 + sin(float(i) * 1.1) * 20.0
+			draw_arc(Vector2(x, y), 18.0 + float(i % 3) * 7.0, 0.0, TAU, 32, Color(0.84, 0.72, 0.54, 0.12), 1.0, true)
+		## A handful of broken ruins makes the land read as inhabited, not a flat
+		## generic gradient. These are map glyphs, not claims of extra scenes.
+		for ruin in [Vector2(328, 259), Vector2(574, 267), Vector2(721, 225), Vector2(830, 326), Vector2(466, 179)]:
+			draw_line(ruin + Vector2(-5, 2), ruin + Vector2(0, -5), Color(0.78, 0.69, 0.56, 0.39), 1.2, true)
+			draw_line(ruin + Vector2(0, -5), ruin + Vector2(6, 2), Color(0.78, 0.69, 0.56, 0.39), 1.2, true)
+			draw_line(ruin + Vector2(-5, 2), ruin + Vector2(6, 2), Color(0.78, 0.69, 0.56, 0.39), 1.2, true)
+
+	func _draw_place(index: int) -> void:
+		var data: Dictionary = places[index]
+		var position: Vector2 = data.get("point", Vector2.ZERO)
+		var available := _available(index)
+		var is_active := index == _active_place()
+		var is_selected := index == selected or index == hovered
+		var point_color := Color(1.0, 0.74, 0.30) if available else Color(0.46, 0.43, 0.42)
+		if is_active:
+			point_color = Color(1.0, 0.91, 0.56)
+		if is_selected:
+			draw_circle(position, 22.0 + 2.0 * sin(clock * 3.0), Color(point_color.r, point_color.g, point_color.b, 0.13))
+		if String(data.get("kind", "rift")) == "bastion":
+			_draw_keep(position, point_color)
+		elif String(data.get("kind", "rift")) == "broker":
+			_draw_broker_mark(position, point_color)
+		else:
+			_draw_rift_mark(position, point_color, available, is_active)
+		var label_offset: Vector2 = data.get("label_offset", Vector2(0.0, 29.0))
+		var font_color := Color(0.97, 0.87, 0.68, 0.94) if available else Color(0.55, 0.53, 0.53, 0.78)
+		var typeface := font if font != null else ThemeDB.fallback_font
+		draw_string(typeface, position + label_offset, String(data.get("name", "RIFT")), HORIZONTAL_ALIGNMENT_CENTER, 132.0, 12, font_color)
+		var tag := "RIFT %02d" % int(data.get("layer", 1))
+		if String(data.get("kind", "")) == "broker":
+			tag = "BROKER  ·  LAYER %02d" % int(data.get("layer", 1))
+		elif String(data.get("kind", "")) == "boss":
+			tag = "WARDEN  ·  LAYER %02d" % int(data.get("layer", 1))
+		elif String(data.get("kind", "")) == "release":
+			tag = "BROKER + WARDEN  ·  LAYER 30"
+		draw_string(typeface, position + label_offset + Vector2(0, 14), tag, HORIZONTAL_ALIGNMENT_CENTER, 150.0, 9, Color(0.92, 0.56, 0.34, 0.84) if available else Color(0.44, 0.43, 0.45, 0.75))
+
+	func _draw_rift_mark(at: Vector2, color: Color, available: bool, active: bool) -> void:
+		var diamond := PackedVector2Array([at + Vector2(0, -9), at + Vector2(8, 0), at + Vector2(0, 9), at + Vector2(-8, 0)])
+		draw_circle(at, 14.0, Color(color.r, color.g, color.b, 0.10 if available else 0.04))
+		draw_colored_polygon(diamond, Color(0.20, 0.055, 0.06, 0.94) if available else Color(0.16, 0.15, 0.16, 0.95))
+		draw_polyline(PackedVector2Array([diamond[0], diamond[1], diamond[2], diamond[3], diamond[0]]), color, 1.6, true)
+		draw_arc(at, 17.0 if active else 12.0, 0.0, TAU, 26, Color(color.r, color.g, color.b, 0.82 if active else 0.5), 1.4, true)
+		draw_circle(at, 2.2, color)
+
+	func _draw_keep(at: Vector2, color: Color) -> void:
+		draw_rect(Rect2(at + Vector2(-10, -8), Vector2(20, 16)), Color(0.18, 0.13, 0.12, 1.0))
+		draw_rect(Rect2(at + Vector2(-12, -11), Vector2(7, 22)), Color(0.26, 0.20, 0.17, 1.0))
+		draw_rect(Rect2(at + Vector2(5, -11), Vector2(7, 22)), Color(0.26, 0.20, 0.17, 1.0))
+		for x in [-10.0, -4.0, 2.0, 8.0]:
+			draw_rect(Rect2(at + Vector2(x, -14), Vector2(3, 4)), color)
+		draw_rect(Rect2(at + Vector2(-2, 1), Vector2(4, 7)), Color(1.0, 0.52, 0.15, 0.92))
+		draw_rect(Rect2(at + Vector2(-14, -13), Vector2(28, 28)), color, false, 1.4)
+
+	func _draw_broker_mark(at: Vector2, color: Color) -> void:
+		draw_line(at + Vector2(-9, 7), at + Vector2(0, -7), color, 2.0, true)
+		draw_line(at + Vector2(0, -7), at + Vector2(9, 7), color, 2.0, true)
+		draw_line(at + Vector2(-9, 7), at + Vector2(9, 7), color, 2.0, true)
+		draw_line(at + Vector2(-6, 1), at + Vector2(6, 1), color, 1.5, true)
+		draw_circle(at, 14.0, Color(color.r, color.g, color.b, 0.16))
+
+	func _place_at(screen_position: Vector2) -> int:
+		var nearest := -1
+		var nearest_distance := 24.0 * maxf(0.5, zoom)
+		for i in places.size():
+			var data: Dictionary = places[i]
+			var point: Vector2 = data.get("point", Vector2.ZERO)
+			var distance := _to_screen(point).distance_to(screen_position)
+			if distance < nearest_distance:
+				nearest_distance = distance
+				nearest = i
+		return nearest
+
+	func _select(index: int) -> void:
+		if index < 0 or index >= places.size():
+			return
+		if selected == index:
+			return
+		selected = index
+		location_changed.emit(index)
+		queue_redraw()
+
+	func move_selection(step: int) -> void:
+		if places.is_empty():
+			return
+		_select(clampi(selected + step, 0, places.size() - 1))
+
+	func zoom_by(amount: float, anchor := Vector2(-1, -1)) -> void:
+		var focus := size * 0.5 if anchor.x < 0.0 else anchor
+		var fixed_point := _from_screen(focus)
+		zoom = clampf(zoom + amount, 0.78, 1.72)
+		var new_scale := _scale()
+		pan = focus - size * 0.5 - (fixed_point - MAP_SIZE * 0.5) * new_scale
+		queue_redraw()
+
+	func reset_view() -> void:
+		zoom = 1.0
+		pan = Vector2.ZERO
+		queue_redraw()
+
+	func _gui_input(event: InputEvent) -> void:
+		if event is InputEventMouseButton:
+			var button := event as InputEventMouseButton
+			if button.button_index == MOUSE_BUTTON_WHEEL_UP and button.pressed:
+				zoom_by(0.12, button.position)
+				accept_event()
+			elif button.button_index == MOUSE_BUTTON_WHEEL_DOWN and button.pressed:
+				zoom_by(-0.12, button.position)
+				accept_event()
+			elif button.button_index == MOUSE_BUTTON_LEFT:
+				if button.pressed:
+					dragging = true
+					dragged = false
+					drag_start = button.position
+					drag_pan = pan
+					var hit := _place_at(button.position)
+					if hit >= 0:
+						_select(hit)
+					accept_event()
+				else:
+					dragging = false
+					if not dragged:
+						var hit := _place_at(button.position)
+						if hit >= 0:
+							_select(hit)
+					accept_event()
+		elif event is InputEventMouseMotion:
+			var motion := event as InputEventMouseMotion
+			if dragging and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+				if motion.position.distance_to(drag_start) > 5.0:
+					dragged = true
+					pan = drag_pan + motion.position - drag_start
+					queue_redraw()
+			else:
+				var hit := _place_at(motion.position)
+				if hit != hovered:
+					hovered = hit
+					if hit >= 0:
+						_select(hit)
+					queue_redraw()
+			if dragging and not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+				dragging = false
+			accept_event()
+
+
 class VitaeBar extends Control:
 	var shown := 1.0
 	var ghost := 1.0
@@ -506,6 +862,7 @@ func _build() -> void:
 	_build_fade()
 	_build_save_chip()
 	_build_rift_map()
+	_build_world_map()
 	_build_loading()
 	_apply_ui_settings()
 	_kill_button_focus()
@@ -725,9 +1082,194 @@ func _build_rift_map() -> void:
 	foot.add_child(rift_enter_btn)
 
 
-func show_rift_map(entries: Array, current_layer: int, deepest: int, range_note := "") -> void:
+func _build_world_map() -> void:
+	world_map_panel = PanelContainer.new()
+	world_map_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	world_map_panel.anchor_top = 0.08
+	world_map_panel.anchor_bottom = 0.92
+	world_map_panel.offset_left = 28.0
+	world_map_panel.offset_right = -28.0
+	world_map_panel.offset_top = 0.0
+	world_map_panel.offset_bottom = 0.0
+	world_map_panel.add_theme_stylebox_override("panel", _stylebox(Color(0.018, 0.014, 0.022, 0.985), Color(0.60, 0.39, 0.18, 1.0), 2, 5))
+	world_map_panel.visible = false
+	world_map_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	root.add_child(world_map_panel)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 8)
+	world_map_panel.add_child(box)
+	var header := HBoxContainer.new()
+	header.add_theme_constant_override("separation", 12)
+	box.add_child(header)
+	var title := _label("THE DRAWN COAST", 29, AMBER)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(title)
+	var subtitle := _label("ASHEN BASTION  ·  CARTOGRAPHER'S CHART", 11, MUTED)
+	subtitle.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	header.add_child(subtitle)
+	var close := _map_button("CLOSE  ESC", MUTED)
+	close.custom_minimum_size = Vector2(112, 32)
+	close.pressed.connect(hide_world_map)
+	header.add_child(close)
+	box.add_child(HSeparator.new())
+	var content := HBoxContainer.new()
+	content.add_theme_constant_override("separation", 12)
+	content.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	box.add_child(content)
+	world_chart = WorldChart.new()
+	world_chart.custom_minimum_size = Vector2(720, 500)
+	world_chart.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	world_chart.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	world_chart.font = display_font
+	world_chart.location_changed.connect(_on_world_location_selected)
+	content.add_child(world_chart)
+	var side := VBoxContainer.new()
+	side.custom_minimum_size = Vector2(310, 0)
+	side.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	side.add_theme_constant_override("separation", 9)
+	content.add_child(side)
+	world_region = _label("THE FIRST SEAL", 11, GOLD)
+	side.add_child(world_region)
+	world_name = _label("ASHEN BASTION", 23, BONE)
+	world_name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	side.add_child(world_name)
+	world_unlock = _label("RIFT ROUTE  ·  LAYER 01", 12, AMBER)
+	side.add_child(world_unlock)
+	var detail_panel := PanelContainer.new()
+	detail_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	detail_panel.add_theme_stylebox_override("panel", _stylebox(Color(0.035, 0.026, 0.030, 0.94), Color(0.25, 0.20, 0.16, 0.9), 1, 3))
+	side.add_child(detail_panel)
+	world_detail = _label("", 13, BONE, false)
+	world_detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	world_detail.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	world_detail.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	detail_panel.add_child(world_detail)
+	var legend := _label("GOLD  ·  OPEN ROUTE\nASH  ·  SEALED\nCIRCLE  ·  RIFT GATE\nSQUARE  ·  ASHEN BASTION\nCANOPY  ·  BROKER STALL", 11, MUTED, false)
+	legend.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	side.add_child(legend)
+	var map_controls := HBoxContainer.new()
+	map_controls.add_theme_constant_override("separation", 6)
+	var zoom_in := _map_button("+", GOLD)
+	zoom_in.custom_minimum_size = Vector2(42, 32)
+	zoom_in.pressed.connect(func() -> void: world_chart.zoom_by(0.14))
+	map_controls.add_child(zoom_in)
+	var zoom_out := _map_button("−", GOLD)
+	zoom_out.custom_minimum_size = Vector2(42, 32)
+	zoom_out.pressed.connect(func() -> void: world_chart.zoom_by(-0.14))
+	map_controls.add_child(zoom_out)
+	var reset := _map_button("RECENTER", MUTED)
+	reset.custom_minimum_size = Vector2(98, 32)
+	reset.pressed.connect(world_chart.reset_view)
+	map_controls.add_child(reset)
+	var previous := _map_button("‹", MUTED)
+	previous.custom_minimum_size = Vector2(38, 32)
+	previous.pressed.connect(func() -> void: world_chart.move_selection(-1))
+	map_controls.add_child(previous)
+	var next := _map_button("›", MUTED)
+	next.custom_minimum_size = Vector2(38, 32)
+	next.pressed.connect(func() -> void: world_chart.move_selection(1))
+	map_controls.add_child(next)
+	side.add_child(map_controls)
+	world_ladder_btn = _map_button("OPEN RIFT LADDER", GOLD)
+	world_ladder_btn.custom_minimum_size = Vector2(0, 42)
+	world_ladder_btn.pressed.connect(_open_selected_world_rift)
+	side.add_child(world_ladder_btn)
+	var hint := _label("DRAG TO PAN  ·  WHEEL OR +/- TO ZOOM  ·  CLICK A LOCATION", 10, MUTED)
+	box.add_child(hint)
+	world_chart.set_world(WORLD_PLACES, 1, 1)
+	_on_world_location_selected(world_chart.selected)
+
+
+func _map_button(text: String, color: Color) -> Button:
+	var button := Button.new()
+	button.text = text
+	button.add_theme_font_size_override("font_size", 11)
+	button.add_theme_color_override("font_color", color)
+	button.add_theme_color_override("font_hover_color", Color(1.0, 0.95, 0.82))
+	button.add_theme_color_override("font_disabled_color", Color(0.38, 0.34, 0.34))
+	button.add_theme_stylebox_override("normal", _stylebox(Color(0.06, 0.035, 0.032, 0.94), Color(0.32, 0.23, 0.16, 0.92), 1, 2))
+	button.add_theme_stylebox_override("hover", _stylebox(Color(0.15, 0.075, 0.048, 0.98), Color(0.93, 0.61, 0.25, 1.0), 1, 2))
+	button.add_theme_stylebox_override("disabled", _stylebox(Color(0.035, 0.025, 0.028, 0.92), Color(0.19, 0.16, 0.15, 0.88), 1, 2))
+	return button
+
+
+func show_world_map(current_layer: int, deepest: int) -> void:
+	if world_map_panel == null:
+		return
+	if pause_panel != null and pause_panel.visible:
+		pause_panel.visible = false
+		if pause_shade != null:
+			pause_shade.visible = false
+	if net_panel != null:
+		net_panel.visible = false
+	if rift_map_panel != null:
+		rift_map_panel.visible = false
+	world_current_layer = maxi(1, current_layer)
+	world_deepest = maxi(1, deepest)
+	world_game_context = body != null and body.visible
+	if world_game_context:
+		get_tree().paused = true
+	world_chart.set_world(WORLD_PLACES, world_current_layer, world_deepest)
+	world_map_panel.visible = true
+	world_map_panel.modulate.a = 0.0
+	var tween := create_tween()
+	tween.tween_property(world_map_panel, "modulate:a", 1.0, 0.18)
+	_on_world_location_selected(world_chart.selected)
+
+
+func _on_world_location_selected(index: int) -> void:
+	if index < 0 or index >= WORLD_PLACES.size():
+		return
+	world_selected = index
+	var place: Dictionary = WORLD_PLACES[index]
+	var route_layer := int(place.get("layer", 1))
+	var kind := String(place.get("kind", "rift"))
+	var label := String(place.get("region", "THE COAST"))
+	world_region.text = label
+	world_name.text = String(place.get("name", "RIFT LOCATION"))
+	world_detail.text = String(place.get("detail", ""))
+	var accessible := route_layer <= world_deepest + 1
+	if route_layer <= world_deepest:
+		world_unlock.text = "CHARTED  ·  RIFT LAYER %02d" % route_layer
+		world_unlock.add_theme_color_override("font_color", Color(0.76, 0.61, 0.90))
+	elif accessible:
+		world_unlock.text = "OPEN ROUTE  ·  RIFT LAYER %02d" % route_layer
+		world_unlock.add_theme_color_override("font_color", GOLD)
+	else:
+		world_unlock.text = "SEALED  ·  CLEAR LAYER %02d FIRST" % (route_layer - 1)
+		world_unlock.add_theme_color_override("font_color", Color(0.58, 0.52, 0.51))
+	if kind == "broker":
+		world_unlock.text += "  ·  BROKER"
+	elif kind == "boss":
+		world_unlock.text += "  ·  WARDEN"
+	elif kind == "release":
+		world_unlock.text += "  ·  BROKER + WARDEN"
+	world_ladder_btn.disabled = not accessible
+	world_ladder_btn.text = "OPEN RIFT LADDER · %02d" % route_layer if accessible else "ROUTE SEALED"
+
+
+func _open_selected_world_rift() -> void:
+	if world_selected < 0 or world_selected >= WORLD_PLACES.size() or world_ladder_btn.disabled:
+		return
+	var target_layer := int(WORLD_PLACES[world_selected].get("layer", 1))
+	hide_world_map()
+	rift_ladder_requested.emit(target_layer)
+
+
+func hide_world_map() -> void:
+	if world_map_panel == null or not world_map_panel.visible:
+		return
+	world_map_panel.visible = false
+	if world_game_context:
+		get_tree().paused = false
+	world_game_context = false
+
+
+func show_rift_map(entries: Array, current_layer: int, deepest: int, range_note := "", preferred_layer := 0) -> void:
 	if rift_map_panel == null:
 		return
+	if world_map_panel != null and world_map_panel.visible:
+		hide_world_map()
 	if net_panel != null and net_panel.visible:
 		net_panel.visible = false
 	for child in rift_map_body.get_children():
@@ -764,8 +1306,9 @@ func show_rift_map(entries: Array, current_layer: int, deepest: int, range_note 
 		rift_enter_btn.disabled = true
 	if rift_detail != null:
 		rift_detail.text = "SELECT A RIFT TO READ IT"
+	var initial_layer := current_layer if preferred_layer <= 0 else preferred_layer
 	for i in rift_entries.size():
-		if int((rift_entries[i] as Dictionary).get("layer", 0)) == current_layer:
+		if int((rift_entries[i] as Dictionary).get("layer", 0)) == initial_layer:
 			rift_index = i
 			break
 	if not rift_entries.is_empty():
@@ -1841,11 +2384,11 @@ func _build_title() -> void:
 	)
 	menu2.add_child(pvp_btn)
 	var map_btn := _title_small("WORLD MAP", GOLD)
-	map_btn.tooltip_text = "Rift ladder, tiers and rewards"
+	map_btn.tooltip_text = "Geographic chart of the Drowning Coast and its rift routes"
 	map_btn.pressed.connect(func() -> void:
 		if not _title_input_ok():
 			return
-		rift_map_requested.emit()
+		world_map_requested.emit()
 	)
 	menu2.add_child(map_btn)
 	var chars_btn := _title_small("CHARACTERS", Color(0.95, 0.8, 0.55))
@@ -1890,7 +2433,7 @@ func _build_title() -> void:
 	title_lore_label = _label("", 11, BONE, false)
 	title_lore_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lore_box.add_child(title_lore_label)
-	var hint := _label("WASD MOVE  ·  LMB / RMB ABILITIES  ·  1 2 3 CAST  ·  SPACE DASH  ·  K PASSIVES  ·  TAB RELICS  ·  M RIFT MAP", 10, Color(0.5, 0.45, 0.46))
+	var hint := _label("WASD MOVE  ·  LMB / RMB ABILITIES  ·  1 2 3 CAST  ·  SPACE DASH  ·  K PASSIVES  ·  TAB RELICS  ·  M WORLD MAP  ·  L RIFT LADDER", 10, Color(0.5, 0.45, 0.46))
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(hint)
 	var footer := _label("BUILD %s  ·  A DARK FANTASY ACTION RPG  ·  THE RIFT NEVER ENDS" % String(ProjectSettings.get_setting("application/config/version", "0.9.0")), 9, Color(0.42, 0.37, 0.4))
@@ -2095,9 +2638,17 @@ func _build_pause() -> void:
 	map_btn.pressed.connect(func() -> void:
 		_close_pause_for_overlay()
 		get_tree().paused = true
-		toggle_rift_map()
+		world_map_requested.emit()
 	)
 	grid.add_child(map_btn)
+	var ladder_btn := _pause_button("RIFT LADDER", GOLD)
+	ladder_btn.tooltip_text = "Choose an unlocked Rift Layer"
+	ladder_btn.pressed.connect(func() -> void:
+		_close_pause_for_overlay()
+		get_tree().paused = true
+		toggle_rift_map()
+	)
+	grid.add_child(ladder_btn)
 	var coop := _pause_button("CO-OP ONLINE", Color(0.62, 0.92, 0.7))
 	coop.pressed.connect(func() -> void:
 		_close_pause_for_overlay()
@@ -2896,7 +3447,7 @@ func apply_class(data: Dictionary) -> void:
 	if controls_hint != null:
 		var primary_key := String(list[primary].get("glyph", "PRIMARY")) if primary < list.size() else "PRIMARY"
 		var secondary_key := String(list[secondary].get("glyph", "SECONDARY")) if secondary < list.size() else "SECONDARY"
-		controls_hint.text = "WASD MOVE  ·  LMB %s  ·  RMB %s  ·  1 2 3 CAST  ·  SPACE %s  ·  TAB RELICS  ·  K PASSIVES  ·  M MAP" % [
+		controls_hint.text = "WASD MOVE  ·  LMB %s  ·  RMB %s  ·  1 2 3 CAST  ·  SPACE %s  ·  TAB RELICS  ·  K PASSIVES  ·  M WORLD MAP  ·  L RIFT LADDER" % [
 			primary_key, secondary_key, String(data.get("dash", "DASH")).to_upper()]
 	if focus_row != null:
 		focus_row.visible = not is_health
@@ -3859,6 +4410,27 @@ func _input(event: InputEvent) -> void:
 			hide_net_panel()
 			get_viewport().set_input_as_handled()
 		return
+	if world_map_panel != null and world_map_panel.visible:
+		if event is InputEventKey and event.pressed and not event.echo:
+			if event.keycode == KEY_ESCAPE:
+				hide_world_map()
+				get_viewport().set_input_as_handled()
+			elif event.keycode == KEY_LEFT or event.keycode == KEY_UP:
+				world_chart.move_selection(-1)
+				get_viewport().set_input_as_handled()
+			elif event.keycode == KEY_RIGHT or event.keycode == KEY_DOWN:
+				world_chart.move_selection(1)
+				get_viewport().set_input_as_handled()
+			elif event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER:
+				_open_selected_world_rift()
+				get_viewport().set_input_as_handled()
+			elif event.keycode == KEY_PLUS or event.keycode == KEY_KP_ADD:
+				world_chart.zoom_by(0.14)
+				get_viewport().set_input_as_handled()
+			elif event.keycode == KEY_MINUS or event.keycode == KEY_KP_SUBTRACT:
+				world_chart.zoom_by(-0.14)
+				get_viewport().set_input_as_handled()
+		return
 	if rift_map_panel != null and rift_map_panel.visible:
 		if event is InputEventKey and event.pressed and not event.echo:
 			if event.keycode == KEY_UP or event.keycode == KEY_LEFT:
@@ -3872,14 +4444,20 @@ func _input(event: InputEvent) -> void:
 				get_viewport().set_input_as_handled()
 		return
 	if title_panel != null and title_panel.visible and not settings_open:
-		if event is InputEventKey and event.pressed and not event.echo \
-				and (event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER or event.keycode == KEY_SPACE):
-			if _title_input_ok():
-				if title_continue_btn != null and title_continue_btn.visible:
-					continue_pressed.emit()
-				else:
-					show_creator()
-			get_viewport().set_input_as_handled()
+		if event is InputEventKey and event.pressed and not event.echo:
+			if event.keycode == KEY_M:
+				world_map_requested.emit()
+				get_viewport().set_input_as_handled()
+			elif event.keycode == KEY_L:
+				rift_map_requested.emit()
+				get_viewport().set_input_as_handled()
+			elif event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER or event.keycode == KEY_SPACE:
+				if _title_input_ok():
+					if title_continue_btn != null and title_continue_btn.visible:
+						continue_pressed.emit()
+					else:
+						show_creator()
+				get_viewport().set_input_as_handled()
 		return
 	if shop_open:
 		if event is InputEventKey and event.pressed and not event.echo and (event.keycode == KEY_ESCAPE or event.keycode == KEY_P or event.keycode == KEY_E):
@@ -3894,6 +4472,13 @@ func _input(event: InputEvent) -> void:
 				get_viewport().set_input_as_handled()
 		return
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_M:
+		if world_map_panel != null and world_map_panel.visible:
+			hide_world_map()
+		elif not settings_open and not relic_window.visible and not death_panel.visible:
+			world_map_requested.emit()
+		get_viewport().set_input_as_handled()
+		return
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_L:
 		if rift_map_panel != null and rift_map_panel.visible:
 			hide_rift_map()
 		elif not settings_open and not relic_window.visible and not death_panel.visible:
@@ -3906,6 +4491,10 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	if event is InputEventKey and event.pressed and not event.echo and (event.keycode == KEY_ESCAPE or event.keycode == KEY_P):
+		if world_map_panel != null and world_map_panel.visible:
+			hide_world_map()
+			get_viewport().set_input_as_handled()
+			return
 		if rift_map_panel != null and rift_map_panel.visible:
 			hide_rift_map()
 			get_viewport().set_input_as_handled()
@@ -4151,6 +4740,14 @@ func set_relics(list: Array) -> void:
 		_refresh_relic_window()
 
 
+func set_build_summary(text: String) -> void:
+	if text == build_summary_text:
+		return
+	build_summary_text = text
+	if relic_window != null and relic_window.visible and relic_tab == "synergy":
+		_refresh_relic_window()
+
+
 func _family_count(family: String) -> int:
 	var count := 0
 	for item in relics:
@@ -4369,6 +4966,13 @@ func _build_relic_body() -> void:
 
 
 func _build_synergy_body() -> void:
+	var build_header := _label("CURRENT BUILD", 12, AMBER)
+	relic_body.add_child(build_header)
+	var build := _label(build_summary_text, 13, BONE, false)
+	build.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	build.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	relic_body.add_child(build)
+	relic_body.add_child(HSeparator.new())
 	var intro := _label("Two relics of one family unlock its rite. One of each unlocks the triad.", 13, MUTED)
 	intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	relic_body.add_child(intro)

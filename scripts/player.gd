@@ -781,6 +781,67 @@ func synergy() -> Dictionary:
 	return syn
 
 
+func build_summary() -> String:
+	var level_steps := float(level - 1)
+	var base_health := float(class_data.get("health", BASE_MAX_HEALTH))
+	var base_speed := float(class_data.get("speed", BASE_SPEED))
+	var base_regen := float(class_data.get("regen", BASE_REGEN))
+	var base_power := float(class_data.get("power", 1.0))
+	var expected_power := base_power * (1.0 + 0.045 * level_steps) * pow(1.15, float(boon_count("fury")))
+	var expected_health := base_health + 14.0 * level_steps + 40.0 * float(boon_count("vitality"))
+	var expected_speed := base_speed * (1.0 + 0.007 * level_steps) * pow(1.08, float(boon_count("swift")))
+	var expected_regen := base_regen + 0.09 * level_steps + 0.9 * float(boon_count("regen"))
+	var expected_cooldown := clampf(pow(0.85, float(boon_count("haste"))), 0.35, 1.0)
+	var scores := {
+		"SPELLPOWER": maxf(0.0, power / maxf(0.01, expected_power) - 1.0),
+		"CRITICAL": maxf(0.0, crit_chance - 0.06) * 1.8 + maxf(0.0, crit_damage - 1.75) * 0.25,
+		"VITALITY": maxf(0.0, max_health / maxf(1.0, expected_health) - 1.0) * 0.8 + maxf(0.0, regen - expected_regen) * 0.06,
+		"TEMPO": maxf(0.0, move_speed / maxf(0.01, expected_speed) - 1.0) * 0.8 + maxf(0.0, expected_cooldown - cooldown_mult) * 0.9,
+	}
+	var focus := "BALANCED"
+	var strongest := 0.09
+	for archetype in scores:
+		var score := float(scores[archetype])
+		if score > strongest:
+			strongest = score
+			focus = String(archetype)
+	var source_names: Array = []
+	var rite_names := {
+		"blood": "BLOOD RITE",
+		"ember": "EMBER RITE",
+		"rift": "RIFT RITE",
+		"triad": "BLOODMOON TRIAD",
+	}
+	for rite in synergy().get("active", []):
+		source_names.append(String(rite_names.get(String(rite), String(rite).to_upper())))
+	var boon_names := {
+		"fury": "BLOOD FURY",
+		"vitality": "DEEP VITAE",
+		"haste": "QUICKENED BLOOD",
+		"regen": "SANGUINE FLOW",
+		"fortune": "GILDED HOUR",
+		"swift": "CRIMSON STRIDE",
+	}
+	for boon in boons.keys():
+		var count := boon_count(String(boon))
+		if count > 0:
+			source_names.append("%s ×%d" % [String(boon_names.get(String(boon), String(boon).to_upper())), count])
+	if passive_nodes.size() > 0:
+		source_names.append("%d PASSIVES" % passive_nodes.size())
+	var source_text := "ACTIVE SOURCES  ·  " + "  /  ".join(source_names) if not source_names.is_empty() else "No active rites, boons, or passive nodes yet."
+	return "%s BUILD\nPOWER ×%.2f  ·  CRIT %d%% / ×%.2f\nVITAE %d  ·  REGEN %.1f/s  ·  SPEED %.1f  ·  COOLDOWN -%d%%\n%s" % [
+		focus,
+		power,
+		int(round(crit_chance * 100.0)),
+		crit_damage,
+		int(round(max_health)),
+		regen,
+		move_speed,
+		int(round((1.0 - cooldown_mult) * 100.0)),
+		source_text,
+	]
+
+
 func _recalculate() -> void:
 	var ratio := 1.0
 	if max_health > 0.0:

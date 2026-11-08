@@ -18,7 +18,7 @@ const FINGER_SIDES := 4
 ## interchangeable: a bow is carried upright in the left hand, a sword hangs
 ## blade-down in the right, and a staff is stood on the ground.
 const WEAPON_PROFILES := {
-	"staff": {"hand": "right", "carry": Vector3(0.12, 1.0, 0.20), "roll": 0.0, "offset": Vector3(0.0, 0.03, 0.01), "curl": 0.95},
+	"staff": {"hand": "right", "carry": Vector3(0.12, 1.0, 0.20), "roll": 0.0, "offset": Vector3(0.0, 0.03, 0.01), "curl": 0.95, "secondary_hand": "left", "secondary_mode": "shaft", "secondary_grip": Vector3(0.0, 0.34, 0.0)},
 	"hammer": {"hand": "right", "carry": Vector3(0.16, 1.0, 0.22), "roll": 0.0, "offset": Vector3(0.0, 0.02, 0.01), "curl": 1.0},
 	"sword": {"hand": "right", "carry": Vector3(0.10, -1.0, 0.28), "roll": 0.0, "offset": Vector3(0.0, 0.02, 0.02), "curl": 1.0},
 	"axe": {"hand": "right", "carry": Vector3(0.12, -1.0, 0.30), "roll": 0.0, "offset": Vector3(0.0, 0.02, 0.02), "curl": 1.0},
@@ -26,7 +26,7 @@ const WEAPON_PROFILES := {
 	"dagger": {"hand": "right", "carry": Vector3(0.08, -1.0, 0.22), "roll": 0.0, "offset": Vector3(0.0, 0.01, 0.01), "curl": 1.05},
 	"spear": {"hand": "right", "carry": Vector3(0.10, 1.0, 0.24), "roll": 0.0, "offset": Vector3(0.0, 0.02, 0.01), "curl": 0.98},
 	"trident": {"hand": "right", "carry": Vector3(0.10, 1.0, 0.24), "roll": 0.0, "offset": Vector3(0.0, 0.02, 0.01), "curl": 0.98},
-	"bow": {"hand": "left", "carry": Vector3(0.06, 1.0, 0.02), "face": -1.0, "roll": 0.0, "offset": Vector3(0.0, 0.02, 0.02), "curl": 0.55},
+	"bow": {"hand": "left", "carry": Vector3(0.06, 1.0, 0.02), "face": -1.0, "roll": 0.0, "offset": Vector3(0.0, 0.02, 0.02), "curl": 0.55, "secondary_hand": "right", "secondary_mode": "draw", "secondary_grip": Vector3(0.0, 0.0, 0.13)},
 }
 
 
@@ -489,11 +489,11 @@ static func dress(root: Node, class_id: String, scale_hint: float, skin: Color, 
 		return null
 	var prof := profile(weapon) if not weapon.is_empty() else {}
 	var hold_left := String(prof.get("hand", "right")) == "left"
+	var secondary_hand := String(prof.get("secondary_hand", ""))
 	var curl := float(prof.get("curl", 1.0))
 	var unit := maxf(0.6, scale_hint)
-	## The holding hand closes on the grip; the free hand stays relaxed.
-	var left_curl := curl if (not weapon.is_empty() and hold_left) else 0.6
-	var right_curl := curl if (not weapon.is_empty() and not hold_left) else 0.6
+	var left_curl := curl if (not weapon.is_empty() and (hold_left or secondary_hand == "left")) else 0.6
+	var right_curl := curl if (not weapon.is_empty() and (not hold_left or secondary_hand == "right")) else 0.6
 	if weapon.is_empty():
 		left_curl = 0.85
 		right_curl = 0.85
@@ -529,6 +529,17 @@ static func dress(root: Node, class_id: String, scale_hint: float, skin: Color, 
 		var dir_world := (model_basis * carry).normalized()
 		var face_world := (model_basis * Vector3(0.0, 0.0, face_sign)).normalized()
 		prop.basis = grip_basis(hand_world, dir_world, face_world, float(prof.get("roll", 0.0)))
+	if not secondary_hand.is_empty() and hand != null:
+		var secondary_left := secondary_hand == "left"
+		var upper := bone_index(skeleton, ["leftarm", "upperarm.l", "leftupperarm"] if secondary_left else ["rightarm", "upperarm.r", "rightupperarm"])
+		var forearm := bone_index(skeleton, ["leftforearm", "lowerarm.l", "leftlowerarm"] if secondary_left else ["rightforearm", "lowerarm.r", "rightlowerarm"])
+		var wrist := hand_bone(skeleton, secondary_left)
+		if upper >= 0 and forearm >= 0 and wrist >= 0:
+			var driver := Node.new()
+			driver.name = "WeaponGripDriver"
+			driver.set_script(load("res://scripts/weapon_grip_driver.gd"))
+			root.add_child(driver)
+			driver.call("configure", skeleton, prop, secondary_left, String(prof.get("secondary_mode", "shaft")), Vector3(prof.get("secondary_grip", Vector3.ZERO)) * unit)
 	return null
 
 
@@ -629,6 +640,9 @@ static func build_palm(parent: Node3D, left: bool, scale_hint: float, skin: Colo
 static func undress(root: Node) -> void:
 	if root == null:
 		return
+	for driver in root.find_children("WeaponGripDriver", "Node", true, false):
+		driver.get_parent().remove_child(driver)
+		driver.queue_free()
 	for pivot in root.find_children("WeaponHand", "Node3D", true, false):
 		pivot.get_parent().remove_child(pivot)
 	for child in root.find_children("*", "BoneAttachment3D", true, false):
