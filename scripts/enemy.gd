@@ -48,6 +48,10 @@ var special_pending := false
 var enraged := false
 var stagger := 0.0
 var gait := 0.0
+## Procedural combat pose, used by every mob: generated models arrive without
+## clips, and library rigs do not all carry attack or hit takes either.
+var attack_pose := 0.0
+var flinch := 0.0
 
 
 func _ready() -> void:
@@ -333,6 +337,7 @@ func _strike(dist: float) -> void:
 	if target == null or not target.alive:
 		_release_token()
 		return
+	attack_pose = 1.0
 	if ranged:
 		if bolt_fn.is_valid():
 			bolt_fn.call(global_position + Vector3(0.0, 1.2, 0.0), target.global_position + Vector3(0.0, 0.8, 0.0), damage)
@@ -370,6 +375,7 @@ func take_damage(amount: float, crit := false) -> void:
 	# elites keep their footing so their mechanics stay readable.
 	if not boss and amount >= max_health * 0.06:
 		stagger = 0.17 if not elite else 0.1
+		flinch = 1.0
 		if windup > 0.0:
 			windup = 0.0
 			_release_token()
@@ -431,18 +437,35 @@ func _die() -> void:
 ## Generated boss models arrive as static meshes without clips. Give them a
 ## readable gait and windup lean so they never slide around like statues.
 func _static_gait(delta: float) -> void:
-	if anim != null or model_root == null or dead:
+	if model_root == null or dead:
 		return
 	gait += delta
+	attack_pose = maxf(0.0, attack_pose - delta * 2.6)
+	flinch = maxf(0.0, flinch - delta * 3.4)
+	## Rigged models with real clips only get a light secondary motion; static
+	## generated meshes carry the whole read on this cycle.
+	var rig := 0.4 if anim != null else 1.0
 	var move_speed := Vector2(velocity.x, velocity.z).length()
 	var amp := clampf(move_speed / maxf(1.0, speed), 0.0, 1.0)
-	var bob := sin(gait * (6.5 + amp * 5.0)) * (0.03 + 0.10 * amp)
-	var sway := sin(gait * (3.2 + amp * 2.4)) * (0.02 + 0.06 * amp)
+	var cycle := gait * (6.5 + amp * 5.0)
+	var bob := sin(cycle) * (0.02 + 0.10 * amp) * rig
+	var sway := sin(cycle * 0.5) * (0.02 + 0.07 * amp) * rig
+	## Lean into a run, coil back on the windup, drive through the swing.
+	var pitch := amp * 0.10 * rig
 	if windup > 0.0:
-		bob -= 0.14 * minf(1.0, windup * 2.0)
+		var coil := minf(1.0, windup * 2.0)
+		bob -= 0.12 * coil * rig
 		sway *= 1.6
+		pitch -= 0.16 * coil * rig
+	if attack_pose > 0.0:
+		pitch += 0.34 * attack_pose * rig
+		bob += 0.05 * attack_pose * rig
+	if flinch > 0.0:
+		pitch -= 0.26 * flinch * rig
+		sway += sin(flinch * 20.0) * 0.05 * flinch * rig
 	model_root.position.y = bob
-	model_root.rotation.z = sway * 0.55
+	model_root.rotation.z = sway * 0.6
+	model_root.rotation.x = pitch
 
 
 ## World-space bounds of every mesh under a freshly instanced model, used to

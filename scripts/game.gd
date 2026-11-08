@@ -3689,7 +3689,7 @@ func _refresh_map() -> void:
 	var gate := Vector2i(-99, -99)
 	if portal != null and is_instance_valid(portal):
 		gate = _world_to_cell(portal.global_position)
-	hud.update_map(_world_to_cell(player.global_position), foes, elites, gate, portal_active)
+	hud.update_map(_world_to_cell(player.global_position), foes, elites, gate, portal_active, player.facing)
 	if boss_enemy != null and is_instance_valid(boss_enemy) and not boss_enemy.dead:
 		var ratio := boss_enemy.health / maxf(boss_enemy.max_health, 1.0)
 		hud.set_boss(boss_enemy.display_name, ratio, true)

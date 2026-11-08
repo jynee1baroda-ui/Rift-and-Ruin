@@ -235,6 +235,23 @@ class RiftMap extends Control:
 	var portal_cell := Vector2i(-99, -99)
 	var portal_on := false
 	var grid_size := 17
+	var player_facing := 0.0
+	var clock := 0.0
+	var has_lava := false
+
+	func _process(delta: float) -> void:
+		if not has_lava:
+			return
+		clock += delta
+		## Lava glow breathes, so the map reads as living terrain rather than
+		## a static tile grid. Twenty updates a second is plenty and cheap.
+		if fmod(clock, 0.05) < delta:
+			queue_redraw()
+
+	func _tone(cell: Vector2i) -> Color:
+		var h := float((cell.x * 73856093) ^ (cell.y * 19349663)) / 2147483647.0
+		var lift := 0.86 + fposmod(h * 37.0, 1.0) * 0.28
+		return Color(0.185, 0.155, 0.145) * lift
 
 	func _draw() -> void:
 		var span := float(maxi(grid_size, 1))
@@ -243,33 +260,88 @@ class RiftMap extends Control:
 			return
 		var cell_px := side / span
 		var origin := (size - Vector2(side, side)) * 0.5
-		draw_rect(Rect2(origin, Vector2(side, side)), Color(0.06, 0.025, 0.03, 0.92))
+		has_lava = not lava_cells.is_empty()
+		var board := Rect2(origin, Vector2(side, side))
+		## Basalt plate under everything, with a cool wash toward the edges so
+		## the map sits in the panel instead of stopping at a hard square.
+		draw_rect(board, Color(0.045, 0.028, 0.036, 0.97))
+		draw_rect(board.grow(-1.0), Color(0.10, 0.055, 0.055, 0.55))
+		var pulse := 0.5 + 0.5 * sin(clock * 1.6)
+		## Lava first: soft ember discs bleeding through the gaps in the stone,
+		## never squares, so no cell edge looks like a pixel.
 		for c in lava_cells:
-			var lr := Rect2(origin + Vector2(c) * cell_px, Vector2(cell_px, cell_px))
-			lr = lr.grow(-cell_px * 0.16)
-			draw_rect(lr, Color(0.78, 0.22, 0.05, 0.5))
+			var cp := origin + (Vector2(c) + Vector2(0.5, 0.5)) * cell_px
+			draw_circle(cp, cell_px * 1.05, Color(0.50, 0.12, 0.03, 0.45))
+			draw_circle(cp, cell_px * 0.70, Color(0.85, 0.26, 0.05, 0.66 + 0.12 * pulse))
+			draw_circle(cp, cell_px * 0.34, Color(1.0, 0.62, 0.22, 0.55 + 0.25 * pulse))
+		## Stone: cells overlap by a hair so corridors merge into one carved
+		## mass, then a smaller inset gives each plate its own lip.
+		for c in walkable_cells:
+			var wr := Rect2(origin + Vector2(c) * cell_px, Vector2(cell_px, cell_px)).grow(0.75)
+			draw_rect(wr, _tone(c))
+		## A faint chipped line per plate instead of an inset square: texture
+		## without turning the floor back into a grid of tiles.
 		for c in walkable_cells:
 			var wr := Rect2(origin + Vector2(c) * cell_px, Vector2(cell_px, cell_px))
-			wr = wr.grow(-0.35)
-			draw_rect(wr, Color(0.29, 0.25, 0.26, 0.95))
+			var h := float((c.x * 2654435761) ^ (c.y * 40503)) / 4294967295.0
+			var inset := wr.grow(-cell_px * 0.3)
+			var cx := inset.position.x + inset.size.x * h
+			draw_line(Vector2(cx, inset.position.y), Vector2(cx + cell_px * 0.12, inset.position.y + inset.size.y),
+				Color(0.09, 0.07, 0.07, 0.22), 1.0)
 		for c in bridge_cells:
-			var br := Rect2(origin + Vector2(c) * cell_px, Vector2(cell_px, cell_px))
-			draw_rect(br.grow(-0.2), Color(0.62, 0.48, 0.32, 0.95))
+			var br := Rect2(origin + Vector2(c) * cell_px, Vector2(cell_px, cell_px)).grow(-0.4)
+			draw_rect(br, Color(0.44, 0.33, 0.22, 0.96))
+			var planks := int(maxf(2.0, floor(cell_px / 5.0)))
+			for i in planks:
+				var y := br.position.y + br.size.y * (float(i) + 0.5) / float(planks)
+				draw_line(Vector2(br.position.x, y), Vector2(br.position.x + br.size.x, y), Color(0.20, 0.13, 0.09, 0.55), 1.0)
 		if portal_cell.x >= 0:
 			var pc := origin + (Vector2(portal_cell) + Vector2(0.5, 0.5)) * cell_px
-			var col := Color(0.88, 0.6, 1.0, 1.0) if portal_on else Color(0.5, 0.4, 0.62, 0.75)
-			draw_circle(pc, cell_px * 0.62, Color(col.r, col.g, col.b, 0.18))
-			draw_circle(pc, cell_px * 0.3, col)
+			var col := Color(0.86, 0.58, 1.0, 1.0) if portal_on else Color(0.46, 0.36, 0.58, 0.8)
+			draw_circle(pc, cell_px * 0.95, Color(col.r, col.g, col.b, 0.12))
+			draw_circle(pc, cell_px * 0.52, Color(col.r, col.g, col.b, 0.22))
+			draw_arc(pc, cell_px * 0.62, 0.0, TAU * 0.72, 20, col, maxf(1.0, cell_px * 0.09), true)
+			draw_arc(pc, cell_px * 0.40, PI, PI + TAU * 0.55, 16, col.lightened(0.3), maxf(1.0, cell_px * 0.08), true)
+			draw_circle(pc, maxf(1.6, cell_px * 0.14), col.lightened(0.5))
 		for c in enemy_cells:
 			var ep := origin + (Vector2(c) + Vector2(0.5, 0.5)) * cell_px
-			draw_circle(ep, maxf(1.5, cell_px * 0.22), Color(0.95, 0.22, 0.18, 0.95))
+			var r := maxf(2.2, cell_px * 0.26)
+			draw_circle(ep, r * 1.9, Color(0.9, 0.18, 0.12, 0.16))
+			_draw_diamond(ep, r, Color(0.92, 0.24, 0.18, 0.96))
 		for c in elite_cells:
 			var ep := origin + (Vector2(c) + Vector2(0.5, 0.5)) * cell_px
-			draw_circle(ep, maxf(2.4, cell_px * 0.33), Color(1.0, 0.65, 0.22, 1.0))
+			var r := maxf(3.0, cell_px * 0.36)
+			draw_circle(ep, r * 2.3, Color(1.0, 0.55, 0.15, 0.20))
+			_draw_diamond(ep, r, Color(1.0, 0.72, 0.26, 1.0))
+			draw_arc(ep, r * 1.7, 0.0, TAU, 18, Color(1.0, 0.78, 0.34, 0.55), maxf(1.0, cell_px * 0.07), true)
 		if player_cell.x >= 0:
 			var pp := origin + (Vector2(player_cell) + Vector2(0.5, 0.5)) * cell_px
-			draw_circle(pp, maxf(3.2, cell_px * 0.46), Color(1.0, 0.8, 0.32, 0.2))
-			draw_circle(pp, maxf(2.1, cell_px * 0.29), Color(1.0, 0.88, 0.45, 1.0))
+			draw_circle(pp, cell_px * 0.95, Color(1.0, 0.82, 0.34, 0.13))
+			draw_circle(pp, cell_px * 0.60, Color(1.0, 0.86, 0.45, 0.20))
+			## A heading arrow instead of a dot: the map should say where the
+			## hero is looking, not just where they are.
+			var nose := pp + Vector2(sin(player_facing), cos(player_facing)) * cell_px * 0.62
+			var back := pp - Vector2(sin(player_facing), cos(player_facing)) * cell_px * 0.22
+			var side_v := Vector2(cos(player_facing), -sin(player_facing)) * cell_px * 0.34
+			var tri := PackedVector2Array([nose, back + side_v, back - side_v])
+			draw_colored_polygon(tri, Color(1.0, 0.93, 0.62, 1.0))
+			var outline := tri.duplicate()
+			outline.append(tri[0])
+			draw_polyline(outline, Color(0.35, 0.20, 0.05, 0.9), 1.0, true)
+		draw_rect(board, Color(0.72, 0.47, 0.18, 0.55), false, 1.0)
+		## Compass, so the map has an orientation at a glance.
+		var nr := origin + Vector2(side - 9.0, 11.0)
+		draw_circle(nr, 7.0, Color(0.04, 0.02, 0.03, 0.8))
+		draw_colored_polygon(PackedVector2Array([
+			nr + Vector2(0.0, -4.5), nr + Vector2(2.6, 2.5), nr + Vector2(-2.6, 2.5)]),
+			Color(0.95, 0.72, 0.34, 0.9))
+
+	func _draw_diamond(at: Vector2, r: float, col: Color) -> void:
+		var pts := PackedVector2Array([
+			at + Vector2(0.0, -r), at + Vector2(r, 0.0), at + Vector2(0.0, r), at + Vector2(-r, 0.0)])
+		draw_colored_polygon(pts, col)
+		pts.append(pts[0])
+		draw_polyline(pts, col.lightened(0.4), 1.0, true)
 
 
 class VitaeBar extends Control:
@@ -855,7 +927,7 @@ func set_map_cells(walk: Dictionary, bridges: Dictionary, grid_size := 17) -> vo
 	minimap.queue_redraw()
 
 
-func update_map(player_cell: Vector2i, enemy_cells: Array, elite_cells: Array, portal_cell: Vector2i, portal_on: bool) -> void:
+func update_map(player_cell: Vector2i, enemy_cells: Array, elite_cells: Array, portal_cell: Vector2i, portal_on: bool, facing := 0.0) -> void:
 	if minimap == null:
 		return
 	minimap.player_cell = player_cell
@@ -863,6 +935,7 @@ func update_map(player_cell: Vector2i, enemy_cells: Array, elite_cells: Array, p
 	minimap.elite_cells = elite_cells
 	minimap.portal_cell = portal_cell
 	minimap.portal_on = portal_on
+	minimap.player_facing = facing
 	minimap.queue_redraw()
 
 
