@@ -2,7 +2,7 @@
 
 const CELL := 4.0
 const GRID := 17
-const CAMERA_OFFSET := Vector3(0.0, 15.4, 9.2)
+const CAMERA_OFFSET := Vector3(0.0, 24.5, 14.6)
 const ENGAGE_RANGE := 11.0
 const MAX_MELEE_ATTACKERS := 2
 const RECORD_PATH := "user://rift_record.cfg"
@@ -17,10 +17,10 @@ const KINDS := {
 	"wolf": {"key": "wolf", "name": "Gloam Wolf", "file": "gloam-wolf.glb", "health": 46.0, "damage": 8.0, "speed": 5.0, "range": 2.0, "interval": 1.5, "windup": 0.45, "scale": 1.0},
 	"crawler": {"key": "crawler", "name": "Cave Crawler", "file": "cave-crawler.glb", "health": 30.0, "damage": 6.0, "speed": 5.6, "range": 1.5, "interval": 1.1, "windup": 0.3, "scale": 1.7},
 	"bat": {"key": "bat", "name": "Hollow Bat", "file": "hollow-bat.glb", "health": 24.0, "damage": 5.0, "speed": 6.4, "range": 1.7, "interval": 1.1, "windup": 0.25, "scale": 1.3},
-	"acolyte": {"key": "acolyte", "name": "Hushed Acolyte", "file": "hushed-acolyte.glb", "health": 62.0, "damage": 10.0, "speed": 4.0, "range": 2.1, "interval": 1.8, "windup": 0.55, "scale": 1.0},
-	"slinger": {"key": "slinger", "name": "Hushed Slinger", "file": "hushed-slinger.glb", "health": 50.0, "damage": 7.0, "speed": 3.8, "range": 9.0, "interval": 2.4, "windup": 0.65, "scale": 1.0, "ranged": true},
+	"acolyte": {"key": "acolyte", "name": "Hushed Acolyte", "file": "res://art/generated/mob_acolyte/3d_1794101415355.glb", "texture": "res://art/generated/mob_acolyte/3d_1794101415355_texture_20250901.png", "height": 1.78, "health": 62.0, "damage": 10.0, "speed": 4.0, "range": 2.1, "interval": 1.8, "windup": 0.55},
+	"slinger": {"key": "slinger", "name": "Hushed Slinger", "file": "res://art/generated/mob_acolyte/3d_1794101415355.glb", "texture": "res://art/generated/mob_acolyte/3d_1794101415355_texture_20250901.png", "height": 1.62, "tint": Color(0.8, 0.6, 1.0), "health": 50.0, "damage": 7.0, "speed": 3.8, "range": 9.0, "interval": 2.4, "windup": 0.65, "ranged": true},
 	"alpha": {"key": "alpha", "name": "Gloam Alpha", "file": "gloam-alpha.glb", "health": 120.0, "damage": 15.0, "speed": 5.6, "range": 2.3, "interval": 1.7, "windup": 0.5, "scale": 1.15, "elite": true},
-	"brute": {"key": "brute", "name": "Hushed Brute", "file": "hushed-brute.glb", "health": 190.0, "damage": 22.0, "speed": 3.4, "range": 2.7, "interval": 2.4, "windup": 0.85, "scale": 1.0, "elite": true},
+	"brute": {"key": "brute", "name": "Hushed Brute", "file": "res://art/generated/mob_brute/3d_f87c220079fb4f2b841accb2_1794101648136.glb", "texture": "res://art/generated/mob_brute/3d_f87c220079fb4f2b841accb2_1794101648136_texture_20250901.png", "height": 2.35, "health": 190.0, "damage": 22.0, "speed": 3.4, "range": 2.7, "interval": 2.4, "windup": 0.85, "elite": true, "tint": Color(1.0, 0.9, 0.82)},
 	"prophet": {"key": "prophet", "name": "The Hushed Prophet", "file": "hushed-prophet.glb", "health": 460.0, "damage": 24.0, "speed": 3.1, "range": 3.2, "interval": 2.6, "windup": 0.9, "scale": 1.05, "boss": true},
 	"brood": {"key": "brood", "name": "The Brood Mother", "file": "brood-mother-boss.glb", "health": 520.0, "damage": 26.0, "speed": 3.3, "range": 3.6, "interval": 2.1, "windup": 0.75, "scale": 1.0, "boss": true},
 	"nail": {"key": "nail", "name": "The Iron Choir", "file": "res://art/generated/boss_iron_choir/3d_1794099354340.glb", "texture": "res://art/generated/boss_iron_choir/3d_1794099354340_texture_20250901.png", "health": 780.0, "damage": 34.0, "speed": 3.6, "range": 3.0, "interval": 2.2, "windup": 0.8, "height": 2.9, "boss": true, "tint": Color(0.86, 0.9, 1.0), "special": "slam"},
@@ -343,6 +343,7 @@ var online_peers := 1
 var net: Node
 var camera_pan := Vector3.ZERO
 var zoom_target := 1.0
+var boss_framing := 0.0
 var pan_drag := false
 var decor_props: Array = []
 var prop_fade_timer := 0.0
@@ -1511,7 +1512,7 @@ func _build_ground() -> void:
 	var plane := PlaneMesh.new()
 	plane.size = Vector2(420, 420)
 	sea.mesh = plane
-	sea.position.y = -1.72
+	sea.position.y = -1.05
 	sea.material_override = _lava_material(0.9, 0.95)
 	sea.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	floor_root.add_child(sea)
@@ -1563,7 +1564,7 @@ func _stone_material() -> ShaderMaterial:
 	mat.set_shader_parameter("rock_dark", Color(rock.r * 0.16, rock.g * 0.14, rock.b * 0.16))
 	mat.set_shader_parameter("seam_color", theme.get("seam", Color(1.0, 0.42, 0.10)))
 	mat.set_shader_parameter("plate_scale", float(theme.get("plate", 0.13)))
-	mat.set_shader_parameter("glow_strength", minf(float(theme.get("glow", 1.4)), 1.22))
+	mat.set_shader_parameter("glow_strength", minf(float(theme.get("glow", 1.4)), 0.92))
 	return mat
 
 
@@ -1599,7 +1600,7 @@ func _build_decor() -> void:
 			var roll := rng.randf()
 			if rock_scene != null and roll < minf(0.9, (0.2 if rim else 0.1) * decor_mult):
 				var size := rng.randf_range(1.8, 3.6) if rim else rng.randf_range(1.4, 3.4)
-				var rock := _spawn_model(rock_scene, size, floor_root, center + Vector3(rng.randf_range(-1, 1), -1.0, rng.randf_range(-1, 1)), rng.randf_range(0, 360))
+				var rock := _spawn_model_fit(rock_scene, size, floor_root, center + Vector3(rng.randf_range(-1, 1), -1.0, rng.randf_range(-1, 1)), rng.randf_range(0, 360))
 				if rock != null:
 					_apply_rock_material(rock, 1.4)
 			elif pillar_scene != null and roll < minf(0.9, (0.26 if rim else 0.16) * decor_mult):
@@ -1674,7 +1675,7 @@ func _build_lava_gardens() -> void:
 				_build_lava_plant(at)
 			if shard_scene != null and rng.randf() < 0.3:
 				var side := at + Vector3(rng.randf_range(-1.6, 1.6), 0.0, rng.randf_range(-1.6, 1.6))
-				var shard := _spawn_model(shard_scene, rng.randf_range(0.9, 1.9), floor_root, side, rng.randf_range(0, 360))
+				var shard := _spawn_model_fit(shard_scene, rng.randf_range(0.8, 1.4), floor_root, side, rng.randf_range(0, 360))
 				if shard != null and rng.randf() < 0.45:
 					_tint_glow(shard, seam, 0.4)
 			elif rng.randf() < 0.22:
@@ -1969,12 +1970,15 @@ func _build_outer_cliffs() -> void:
 	var radius := float(GRID) * CELL * 0.5
 	for i in 54:
 		var angle := TAU * float(i) / 54.0 + rng.randf_range(-0.05, 0.05)
-		var dist := radius + rng.randf_range(3.0, 16.0)
-		var pos := Vector3(cos(angle) * dist, -1.2, sin(angle) * dist)
-		var height := rng.randf_range(7.0, 17.0) if i % 3 != 0 else rng.randf_range(3.0, 6.0)
-		var rock := _spawn_model(rock_scene, height, floor_root, pos, rng.randf_range(0, 360))
+		var span := rng.randf_range(7.0, 13.5) if i % 3 != 0 else rng.randf_range(4.0, 7.0)
+		## Clear the arena by the boulder's own half width, or the ring eats
+		## into the playable floor and the camera ends up inside the rock.
+		var dist := radius + span * 0.55 + rng.randf_range(0.6, 5.0)
+		var pos := Vector3(cos(angle) * dist, -2.4, sin(angle) * dist)
+		var rock := _spawn_model_fit(rock_scene, span, floor_root, pos, rng.randf_range(0, 360))
 		if rock != null:
 			_apply_rock_material(rock, 1.2)
+			_track_prop(rock)
 
 
 func _scatter_stone_props(rock_scene: PackedScene, pillar_scene: PackedScene, pot_scene: PackedScene) -> void:
@@ -1988,7 +1992,7 @@ func _scatter_stone_props(rock_scene: PackedScene, pillar_scene: PackedScene, po
 		var angle := rng.randf() * TAU
 		var offset := Vector3(cos(angle), 0.0, sin(angle)) * rng.randf_range(1.1, 1.5)
 		if rock_scene != null and roll < 0.15:
-			var rock := _spawn_model(rock_scene, rng.randf_range(0.7, 1.7), floor_root, center + offset + Vector3(0.0, -0.12, 0.0), rng.randf_range(0, 360))
+			var rock := _spawn_model_fit(rock_scene, rng.randf_range(0.7, 1.5), floor_root, center + offset + Vector3(0.0, -0.12, 0.0), rng.randf_range(0, 360))
 			if rock != null:
 				_apply_rock_material(rock, 1.9)
 				_track_prop(rock)
@@ -2168,6 +2172,25 @@ func _spawn_model(scene: PackedScene, target_height: float, parent: Node3D, posi
 	return holder
 
 
+## Fit a prop so its largest dimension equals max_dim. Used for shard clusters
+## whose bounding box is wide and flat, where height fitting would flatten them.
+func _spawn_model_fit(scene: PackedScene, max_dim: float, parent: Node3D, position: Vector3, yaw_deg: float) -> Node3D:
+	if scene == null:
+		return null
+	var holder := Node3D.new()
+	var inst := scene.instantiate()
+	holder.add_child(inst)
+	var box := _measure(inst)
+	var widest := maxf(box.size.x, maxf(box.size.y, box.size.z))
+	if widest > 0.001:
+		inst.scale = Vector3.ONE * (max_dim / widest)
+		inst.position.y = -box.position.y * (max_dim / widest)
+	holder.position = position
+	holder.rotation_degrees.y = yaw_deg
+	parent.add_child(holder)
+	return holder
+
+
 func _apply_rock_material(root: Node3D, scale_value: float) -> void:
 	for node in root.find_children("*", "MeshInstance3D", true, false):
 		var mesh_inst := node as MeshInstance3D
@@ -2184,7 +2207,7 @@ func _apply_rock_material(root: Node3D, scale_value: float) -> void:
 			tinted = (original as StandardMaterial3D).duplicate()
 		else:
 			tinted = StandardMaterial3D.new()
-		tinted.albedo_color = Color(0.42, 0.36, 0.34)
+		tinted.albedo_color = Color(0.185, 0.155, 0.15)
 		tinted.roughness = 0.92
 		tinted.metallic = 0.08
 		mesh_inst.material_override = tinted
@@ -2303,13 +2326,13 @@ func _style_enemy(enemy: Enemy, kind: Dictionary) -> void:
 	torus.rings = 40
 	torus.ring_segments = 4
 	ring.mesh = torus
-	ring.material_override = FX.glow_material(Color(color.r, color.g, color.b, 0.5))
+	ring.material_override = FX.glow_material(Color(color.r, color.g, color.b, 0.30 if is_boss else 0.5))
 	ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	ring.position.y = 0.07
 	enemy.add_child(ring)
 	var light := OmniLight3D.new()
 	light.light_color = color
-	light.light_energy = 1.1 if is_boss else 1.2
+	light.light_energy = 0.85 if is_boss else 1.2
 	light.omni_range = 5.0 if is_boss else 3.6
 	light.shadow_enabled = false
 	light.position.y = 1.4
@@ -3741,6 +3764,9 @@ func _hammer_slam(ability: Dictionary, aim: Vector3) -> void:
 	var gold := Color(1.0, 0.82, 0.38, 1.0)
 	var landing := center + dir * radius * 0.5
 	FX.ring(fx_root, landing, Color(gold.r, gold.g, gold.b, 0.8), radius, 0.5, 0.06)
+	var swing := landing - center
+	swing.y = 0.0
+	FX.slash(fx_root, center + Vector3(0.0, 1.1, 0.0), swing, Color(1.0, 0.86, 0.5, 0.9), radius * 0.85, 0.22, 150.0)
 	FX.disc(fx_root, landing, Color(gold.r, gold.g, gold.b, 0.24), radius * 0.8, 0.45, 0.03)
 	FX.nova(fx_root, landing, gold, radius * 0.75)
 	FX.burst(fx_root, landing + Vector3(0.0, 0.3, 0.0), gold, 22, 6.5, 0.45, 0.55)
@@ -3842,6 +3868,7 @@ func _piercing_shot(ability: Dictionary, aim: Vector3) -> void:
 	bolt.global_position = player.global_position + Vector3(0.0, 1.05, 0.0) + dir * 0.9
 	FX.burst(fx_root, bolt.global_position, Color(teal.r, teal.g, teal.b, 0.9), 10, 4.0, 0.25, 0.28)
 	FX.beam(fx_root, player.global_position + Vector3(0.0, 1.05, 0.0), bolt.global_position + dir * 3.0, Color(teal.r, teal.g, teal.b, 0.4), 0.08, 0.12)
+	FX.slash(fx_root, player.global_position + Vector3(0.0, 1.05, 0.0), dir, Color(teal.r, teal.g, teal.b, 0.55), 1.5, 0.18, 60.0)
 
 
 ## Shadow Huntress: five arrows in a fan.
@@ -4002,6 +4029,7 @@ func _process(delta: float) -> void:
 	lava_timer -= delta
 	if lava_timer <= 0.0:
 		lava_timer = 0.5
+		lava_warn_timer = maxf(0.0, lava_warn_timer - 0.5)
 		var cell := _world_to_cell(player.global_position)
 		player.in_lava = _is_inside(cell) and not walkable.get(cell, false)
 		if player.in_lava:
@@ -4010,7 +4038,6 @@ func _process(delta: float) -> void:
 			if lava_warn_timer <= 0.0:
 				lava_warn_timer = 2.4
 				hud.toast("MOLTEN GROUND  ·  MOVE", Color(1.0, 0.45, 0.2), 1.2)
-	lava_warn_timer = maxf(0.0, lava_warn_timer - 0.5)
 
 
 func _update_move_marker() -> void:
@@ -4059,6 +4086,18 @@ func _pull_loot(delta: float) -> void:
 func _update_camera(delta: float) -> void:
 	var aim := player.aim_point
 	var look := player.global_position + (aim - player.global_position).limit_length(4.0) * 0.10
+	## Keep a warden in frame: lean toward it and pull the camera back, so a
+	## three metre boss is never cropped by the top of the screen.
+	var wanted_framing := 0.0
+	if boss_enemy != null and is_instance_valid(boss_enemy) and not boss_enemy.dead:
+		var to_boss := boss_enemy.global_position - player.global_position
+		to_boss.y = 0.0
+		var reach := to_boss.length()
+		if reach < 18.0:
+			wanted_framing = 0.16 + 0.14 * clampf(1.0 - reach / 18.0, 0.0, 1.0)
+			look = look.lerp(boss_enemy.global_position, 0.24)
+			look.y += 0.9
+	boss_framing = lerpf(boss_framing, wanted_framing, clampf(delta * 2.2, 0.0, 1.0))
 	_edge_pan(delta)
 	look += camera_pan
 	var follow := clampf(float(GameSettings.get_value("cam_follow")), 1.0, 12.0)
@@ -4072,7 +4111,7 @@ func _update_camera(delta: float) -> void:
 
 
 func _camera_desired() -> Vector3:
-	var desired := camera_focus + CAMERA_OFFSET * camera_zoom
+	var desired := camera_focus + CAMERA_OFFSET * (camera_zoom + boss_framing)
 	var limit := float(GRID) * CELL * 0.5 - 7.0
 	desired.x = clampf(desired.x, -limit, limit)
 	desired.z = clampf(desired.z, -limit, limit)

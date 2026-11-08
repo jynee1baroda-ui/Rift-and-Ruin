@@ -111,6 +111,41 @@ static func build_hand(skeleton: Skeleton3D, left: bool, scale_hint: float, skin
 
 ## A held weapon, built from primitives in the grip's local space. The hammer
 ## and staff sit along the bone, the bow across it.
+static func build_shield(scale_hint: float) -> Node3D:
+	var unit := maxf(0.6, scale_hint)
+	var root := Node3D.new()
+	root.name = "Shield"
+	var plate := StandardMaterial3D.new()
+	plate.albedo_color = Color(0.34, 0.31, 0.29)
+	plate.metallic = 0.8
+	plate.roughness = 0.36
+	var face := CylinderMesh.new()
+	face.top_radius = 0.30 * unit
+	face.bottom_radius = 0.32 * unit
+	face.height = 0.05 * unit
+	face.radial_segments = 20
+	var mesh := MeshInstance3D.new()
+	mesh.mesh = face
+	mesh.material_override = plate
+	root.add_child(mesh)
+	var rim_mat := StandardMaterial3D.new()
+	rim_mat.albedo_color = Color(1.0, 0.74, 0.30)
+	rim_mat.emission_enabled = true
+	rim_mat.emission = Color(1.0, 0.66, 0.22)
+	rim_mat.emission_energy_multiplier = 1.4
+	var rim := TorusMesh.new()
+	rim.inner_radius = 0.29 * unit
+	rim.outer_radius = 0.325 * unit
+	rim.rings = 28
+	rim.ring_segments = 4
+	var rim_mesh := MeshInstance3D.new()
+	rim_mesh.mesh = rim
+	rim_mesh.material_override = rim_mat
+	rim_mesh.rotation_degrees = Vector3(90.0, 0.0, 0.0)
+	root.add_child(rim_mesh)
+	return root
+
+
 static func build_weapon(kind: String, scale_hint: float) -> Node3D:
 	var unit := maxf(0.6, scale_hint)
 	var root := Node3D.new()
@@ -234,6 +269,14 @@ static func dress(root: Node, class_id: String, scale_hint: float, skin: Color, 
 		hand = left
 	var prop := build_weapon(weapon, scale_hint)
 	hand.add_child(prop)
+	if class_id == "iron_paladin" and left != null:
+		var shield := build_shield(scale_hint)
+		left.add_child(shield)
+		var shield_index := hand_bone(skeleton, true)
+		if shield_index >= 0:
+			var sb := skeleton.get_bone_global_pose(shield_index).basis.orthonormalized()
+			shield.basis = sb.inverse() * Basis(Quaternion(sb.y.normalized(), Vector3(0.0, 0.25, -0.97).normalized())) * sb
+			shield.position = Vector3(0.0, 0.10, 0.02)
 	## Align the shaft with a deliberate world direction instead of guessing the
 	## hand bone's local axes: the prop is rotated so its own +Y points along
 	## `want` while the hand keeps its pose.

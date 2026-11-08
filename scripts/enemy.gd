@@ -99,6 +99,7 @@ func setup(kind: Dictionary, model_scene: PackedScene, player: Player, path_call
 			body_mat.albedo_texture = load(tex_path)
 			body_mat.roughness = 0.82
 			body_mat.metallic = 0.12
+			body_mat.albedo_color = kind.get("tint", Color.WHITE)
 			for node in inst.find_children("*", "MeshInstance3D", true, false):
 				var piece := node as MeshInstance3D
 				if piece != null:
@@ -333,11 +334,18 @@ func _strike(dist: float) -> void:
 	if ranged:
 		if bolt_fn.is_valid():
 			bolt_fn.call(global_position + Vector3(0.0, 1.2, 0.0), target.global_position + Vector3(0.0, 0.8, 0.0), damage)
+			FX.beam(get_parent(), global_position + Vector3(0.0, 1.25, 0.0), target.global_position + Vector3(0.0, 0.85, 0.0), Color(1.0, 0.42, 0.2, 0.55), 0.07, 0.16)
 		_release_token()
 		return
 	if dist <= attack_range * 1.4:
+		var swing := target.global_position - global_position
+		swing.y = 0.0
+		if swing.length() > 0.05:
+			var hit_color := Color(1.0, 0.52, 0.24, 0.9) if boss else Color(1.0, 0.3, 0.2, 0.85)
+			FX.slash(get_parent(), global_position + Vector3(0.0, 1.05, 0.0), swing, hit_color, attack_range + 0.7, 0.24, 140.0)
 		target.take_damage(damage)
 		FX.burst(get_parent(), target.global_position + Vector3(0.0, 1.0, 0.0), Color(0.9, 0.12, 0.1, 0.9), 12, 4.0, 0.3, 0.4)
+		FX.shards(get_parent(), target.global_position + Vector3(0.0, 0.8, 0.0), Color(1.0, 0.55, 0.4, 0.9), 6, 0.9, 1.2, 0.3)
 		if boss:
 			FX.nova(get_parent(), global_position, Color(1.0, 0.5, 0.14, 0.9), 6.4)
 			FX.ring(get_parent(), global_position, Color(1.0, 0.72, 0.32, 0.85), attack_range + 2.8, 0.5, 0.09)

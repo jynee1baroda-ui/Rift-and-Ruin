@@ -12,6 +12,7 @@ config_version=5
 
 config/name="Rift & Ruin"
 run/main_scene="res://client/main.tscn"
+config/version="0.9.0"
 config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.svg"
 run/main_scene.summer_client="res://client/main.tscn"
@@ -21,6 +22,7 @@ run/main_scene.summer_authority="res://authority/main.tscn"
 
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
+window/size/resizable=true
 
 [dotnet]
 

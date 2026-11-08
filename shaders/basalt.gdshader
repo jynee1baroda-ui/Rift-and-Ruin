@@ -110,18 +110,26 @@ void fragment() {
 	vec3 seam_dark = mix(rock_dark.rgb, rock_color.rgb * 0.55, t_detail);
 	col = mix(col, seam_dark, crack * 0.72 + fine_crack * 0.3);
 	float pulse = 0.70 + 0.30 * sin(TIME * 0.85 + hash21(floor(p)) * 6.283);
-	float heat = crack * (0.09 + heat_zone * glow_chance * 0.95) * (0.55 + 0.45 * lava_zone) * 0.62;
-	heat += fine_crack * lava_zone * 0.07;
-	heat += tex_seam * tex_heat * lava_zone * 0.16;
-	heat += tex_heat * tex_mix * (0.015 + 0.09 * lava_zone);
+	float heat = crack * heat_zone * glow_chance * (0.35 + 0.65 * lava_zone) * 0.30;
+	heat += fine_crack * lava_zone * 0.03;
+	heat += tex_seam * tex_heat * lava_zone * 0.06;
+	heat += tex_heat * tex_mix * (0.008 + 0.05 * lava_zone);
 	ALBEDO = col * COLOR.rgb;
 	EMISSION = seam_color.rgb * heat * glow_strength * pulse * COLOR.rgb * COLOR.a;
+	// Side walls share this material with the floor: give them their true
+	// normal and a darker albedo so the arena edge reads as a cliff.
+	vec3 world_in = normalize((INV_VIEW_MATRIX * vec4(NORMAL, 0.0)).xyz);
+	float flatness = smoothstep(0.35, 0.85, abs(world_in.y));
+	ALBEDO *= mix(0.34, 1.0, flatness);
+	EMISSION *= mix(0.15, 1.0, flatness);
 	float e = 0.11;
 	float h0 = height_at(world.xz) + t_detail * 0.34;
 	float hx = height_at(world.xz + vec2(e, 0.0)) + clamp((texture(basalt_tex, UV + vec2(0.031, 0.0)).r - 0.035) * 6.8, 0.0, 1.0) * 0.34;
 	float hz = height_at(world.xz + vec2(0.0, e)) + clamp((texture(basalt_tex, UV + vec2(0.0, 0.031)).r - 0.035) * 6.8, 0.0, 1.0) * 0.34;
-	vec3 world_normal = normalize(vec3((h0 - hx) * bump_strength, 1.0, (h0 - hz) * bump_strength));
-	NORMAL = normalize((VIEW_MATRIX * vec4(world_normal, 0.0)).xyz);
+	if (flatness > 0.4) {
+		vec3 world_normal = normalize(vec3((h0 - hx) * bump_strength, 1.0, (h0 - hz) * bump_strength));
+		NORMAL = normalize((VIEW_MATRIX * vec4(world_normal, 0.0)).xyz);
+	}
 	ROUGHNESS = clamp(roughness_value - grain * 0.10 + t_detail * 0.10, 0.0, 1.0);
 	METALLIC = 0.05;
 }

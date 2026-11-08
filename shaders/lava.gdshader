@@ -69,19 +69,22 @@ void fragment() {
 	float edge = cells.y - cells.x;
 	float seam = 1.0 - smoothstep(0.006, 0.042, edge);
 	float wobble = noise2(world.xz * 1.7 + flow * 4.0);
-	float molten = smoothstep(0.46, 0.82, fbm_lava(world.xz * 0.09 + flow * 2.0));
+	float molten = smoothstep(0.34, 0.70, fbm_lava(world.xz * 0.09 + flow * 2.0));
 	float heat = smoothstep(0.24, 0.92, seam * 1.05 + wobble * 0.14 + molten * 0.4);
 	float core = smoothstep(0.74, 1.0, heat);
 	float vein = 1.0 - smoothstep(0.0, 0.018, abs(edge - 0.07));
 	float plates = smoothstep(0.03, 0.24, cells.x);
-	vec3 crust = mix(crust_color.rgb * 0.85, crust_color.rgb * 2.4, wobble * 0.55 + plates * 0.45);
+	vec3 crust = mix(crust_color.rgb * 1.15, crust_color.rgb * 3.1, wobble * 0.55 + plates * 0.45);
 	vec3 melt = mix(hot_color.rgb * 0.8, hot_color.rgb, clamp(molten * 1.1, 0.0, 1.0));
 	melt = mix(melt, core_color.rgb, clamp(core * 0.85 + molten * 0.18, 0.0, 1.0));
-	float fill = clamp(heat * 1.15 + molten * 0.22 - 0.18, 0.0, 1.0);
+	float fill = clamp(heat * 1.25 + molten * 0.42 - 0.12, 0.0, 1.0);
 	vec3 col = mix(crust, melt, fill);
 	float pulse = 0.86 + 0.14 * sin(TIME * 0.55 + hash21(floor(p * 0.5)) * 6.283);
 	float glow = clamp((heat * 0.75 + core * 0.55 + vein * 0.85 + molten * 0.3) * glow_strength * pulse, 0.0, 2.6);
 	col += core_color.rgb * (core * 0.12 + vein * 0.35);
+	// The sea runs to the horizon; without this it reads as bright panels.
+	float far_fade = 1.0 - smoothstep(45.0, 150.0, distance(CAMERA_POSITION_WORLD, world));
 	ALBEDO = col;
-	EMISSION = col * glow * 0.9;
+	EMISSION = col * glow * 0.9 * mix(0.25, 1.0, far_fade);
+	ALBEDO *= mix(0.35, 1.0, far_fade);
 }

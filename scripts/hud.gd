@@ -1052,8 +1052,8 @@ func _build_boss() -> void:
 	boss_panel.anchor_right = 0.5
 	boss_panel.offset_left = -270.0
 	boss_panel.offset_right = 270.0
-	boss_panel.offset_top = 262.0
-	boss_panel.offset_bottom = 316.0
+	boss_panel.offset_top = 196.0
+	boss_panel.offset_bottom = 248.0
 	boss_panel.add_theme_stylebox_override("panel", _stylebox(Color(0.05, 0.012, 0.02, 0.92), Color(0.62, 0.14, 0.1, 1.0), 1))
 	boss_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	boss_panel.visible = false
@@ -1683,6 +1683,13 @@ func _build_title() -> void:
 		open_settings()
 	)
 	menu2.add_child(options_btn)
+	var quit_btn := _title_small("QUIT", Color(0.88, 0.46, 0.4))
+	quit_btn.tooltip_text = "Close Rift & Ruin"
+	quit_btn.pressed.connect(func() -> void:
+		ui_click.emit()
+		get_tree().quit()
+	)
+	menu2.add_child(quit_btn)
 	var lore_panel := PanelContainer.new()
 	lore_panel.custom_minimum_size = Vector2(0, 62)
 	lore_panel.add_theme_stylebox_override("panel", _stylebox(Color(0.05, 0.025, 0.04, 0.9), Color(0.32, 0.22, 0.14, 1.0), 1, 2))
@@ -1695,10 +1702,10 @@ func _build_title() -> void:
 	title_lore_label = _label("", 11, BONE, false)
 	title_lore_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lore_box.add_child(title_lore_label)
-	var hint := _label("WASD MOVE  ·  LMB LANCE  ·  RMB NOVA  ·  1 2 3 CAST  ·  SPACE RIFTSTEP  ·  TAB RELICS  ·  M RIFT MAP", 10, Color(0.5, 0.45, 0.46))
+	var hint := _label("WASD MOVE  ·  LMB / RMB ABILITIES  ·  1 2 3 CAST  ·  SPACE DASH  ·  K PASSIVES  ·  TAB RELICS  ·  M RIFT MAP", 10, Color(0.5, 0.45, 0.46))
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(hint)
-	var footer := _label("A DARK FANTASY ACTION RPG  ·  THE RIFT NEVER ENDS", 9, Color(0.42, 0.37, 0.4))
+	var footer := _label("BUILD %s  ·  A DARK FANTASY ACTION RPG  ·  THE RIFT NEVER ENDS" % String(ProjectSettings.get_setting("application/config/version", "0.9.0")), 9, Color(0.42, 0.37, 0.4))
 	footer.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(footer)
 	title_panel.modulate.a = 0.0
@@ -3832,7 +3839,11 @@ func set_boss(name_text: String, ratio: float, active: bool) -> void:
 	boss_panel.visible = active
 	if controls_hint != null:
 		controls_hint.visible = not active
+	if wave_label != null and active:
+		wave_label.visible = false
 	if not active:
+		if wave_label != null:
+			wave_label.visible = true
 		return
 	boss_name.text = name_text
 	boss_bar.value = clampf(ratio, 0.0, 1.0) * 100.0

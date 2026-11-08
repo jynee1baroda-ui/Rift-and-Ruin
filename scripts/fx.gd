@@ -350,6 +350,53 @@ static func shards(parent: Node, global_pos: Vector3, color: Color, amount := 12
 	)
 
 
+## A crescent of light sweeping through the space in front of a body: the
+## readable cue for a sword, hammer or shield blow.
+static func slash(parent: Node, origin: Vector3, dir: Vector3, color: Color, reach := 2.0, duration := 0.28, arc_deg := 130.0) -> void:
+	if parent == null or not parent.is_inside_tree():
+		return
+	var flat := Vector3(dir.x, 0.0, dir.z)
+	if flat.length() < 0.05:
+		return
+	flat = flat.normalized()
+	var group := Node3D.new()
+	parent.add_child(group)
+	group.global_position = origin
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	mat.albedo_color = color
+	mat.disable_receive_shadows = true
+	mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	var segments := 7
+	var spread := deg_to_rad(arc_deg)
+	var start := atan2(flat.z, flat.x) - spread * 0.5
+	var segment_len := maxf(0.22, reach * spread / float(maxi(1, segments - 1)) * 0.85)
+	for i in segments:
+		var t := float(i) / float(segments - 1)
+		var angle := start + spread * t
+		var tip := Vector3(cos(angle), 0.0, sin(angle)) * reach
+		var blade := MeshInstance3D.new()
+		var box := BoxMesh.new()
+		box.size = Vector3(segment_len, 0.02, 0.045)
+		blade.mesh = box
+		blade.material_override = mat
+		blade.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		group.add_child(blade)
+		blade.position = tip
+		blade.rotation.y = -angle - PI * 0.5
+		blade.scale = Vector3(0.85, 1.0, 0.6)
+		var tween := blade.create_tween()
+		tween.set_parallel(true)
+		tween.tween_property(blade, "scale", Vector3(1.25, 1.0, 0.9), duration * 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tween.tween_property(blade, "scale", Vector3(0.2, 1.0, 0.2), duration * 0.65).set_delay(duration * 0.35)
+	var fade := group.create_tween()
+	fade.tween_interval(duration * 0.3)
+	fade.tween_property(mat, "albedo_color:a", 0.0, duration * 0.7)
+	fade.tween_callback(group.queue_free)
+
+
 ## A hot ground fault: glowing seams that split out of an impact point. Flat on
 ## the floor, so it sells weight under the effect and marks the hit radius.
 static func fault(parent: Node, global_pos: Vector3, color: Color, radius := 2.6, branches := 7, duration := 0.9) -> void:
@@ -362,24 +409,34 @@ static func fault(parent: Node, global_pos: Vector3, color: Color, radius := 2.6
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	mat.albedo_color = color
+	mat.albedo_color = Color(color.r, color.g, color.b, color.a * 0.42)
 	mat.disable_receive_shadows = true
 	mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
 	for i in branches:
 		var angle := TAU * float(i) / float(maxi(1, branches)) + randf_range(-0.18, 0.18)
-		var length := radius * randf_range(0.55, 1.05)
-		var seam := MeshInstance3D.new()
-		var box := BoxMesh.new()
-		box.size = Vector3(randf_range(0.05, 0.11), 0.02, length)
-		seam.mesh = box
-		seam.material_override = mat
-		seam.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		group.add_child(seam)
-		seam.position = Vector3(0.0, 0.0, -length * 0.5).rotated(Vector3.UP, angle)
-		seam.rotation.y = angle
-		seam.scale = Vector3(1.0, 1.0, 0.08)
-		var tween := seam.create_tween()
-		tween.tween_property(seam, "scale", Vector3(1.0, 1.0, 1.0), 0.07).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		## Three short segments that kink as they run outward: a spider crack
+		## rather than a beam fired from the middle of the floor.
+		var steps := 3
+		var step_len := radius * randf_range(0.15, 0.22)
+		var cursor := Vector3.ZERO
+		for s in steps:
+			var seam := MeshInstance3D.new()
+			var box := BoxMesh.new()
+			var width := 0.062 * (1.0 - 0.26 * float(s))
+			box.size = Vector3(width, 0.012, step_len)
+			seam.mesh = box
+			seam.material_override = mat
+			seam.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			group.add_child(seam)
+			var dir := Vector3(0.0, 0.0, -1.0).rotated(Vector3.UP, angle)
+			seam.position = cursor + dir * (step_len * 0.5) + Vector3(0.0, randf_range(0.0, 0.02), 0.0)
+			seam.rotation.y = angle
+			seam.scale = Vector3(1.0, 1.0, 0.01)
+			var tween := seam.create_tween()
+			tween.tween_interval(0.05 * float(s))
+			tween.tween_property(seam, "scale", Vector3(0.85, 1.0, 1.0), 0.10).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+			cursor += dir * step_len
+			angle += randf_range(-0.55, 0.55)
 	tween_fade_group(group, mat, duration)
 
 

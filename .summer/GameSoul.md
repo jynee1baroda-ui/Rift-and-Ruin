@@ -21,6 +21,7 @@ An isometric, click-to-move action RPG in a volcanic wasteland split by lava rif
 - Taking a hit grants only a 0.12 s grace window; ordinary foes stagger for 0.17 s on a solid hit and lose their windup, elites 0.1 s, bosses never.
 - Lava plates burn; eruptions telegraph and explode. Standing still is punished.
 - The camera leans lower and closer than before, drifts toward your aim, and eases between positions.
+- The camera sits at `CAMERA_OFFSET` (24.5 m up, 14.6 m back) so roughly twenty metres of floor are visible: an ARPG read, not a close third person shot. It leans toward a living warden within 18 m and pulls back up to 0.30 extra zoom, so the layer boss and its nameplate are never cropped by the top of the screen.
 - Packs aggro at 13 m, so fights are deliberate and readable instead of a screen-wide swarm.
 
 ## Home Hub and the Mirror Ring
@@ -154,6 +155,15 @@ Three classes are playable: the Blood Sorceress (VESNA, vitae), the Iron Paladin
 - `scripts/fx.gd`, `scripts/projectile.gd`, `scripts/loot.gd`, `scripts/hazard.gd` — effects, blood bolts, drops, lava eruptions.
 - `shaders/basalt.gdshader`, `shaders/lava.gdshader`, `shaders/portal.gdshader` — world look.
 - Assets: Summer Library `dungeon-dark-fantasy` (monsters, pillars, braziers, pots), generated Blood Sorceress character, generated basalt rocks and rift gate, generated music/ambience/SFX.
+
+## Readability pass (launcher and fight framing)
+- The shell is a real launcher: RIFT & RUIN, a CONTINUE card naming the saved hero and its layer, then CO-OP, PVP, WORLD MAP, CHARACTERS, HALL, OPTIONS and QUIT, with the build number in the footer. QUIT closes the game and cannot strand the embedded Play harness.
+- Grading: the violet rim light and violet ambient were washing every surface, so rim energy is 0.40, ambient is a dark warm violet at 0.34, sun is 1.55 and volumetric fog density is 0.00085. The floor now reads near-black basalt with amber seams instead of an orange sheet, and the lava sea stays molten where it shows between plates.
+- `basalt.gdshader` gives the trench and arena side walls their true normal and a darker albedo. Without that they were lit as if they were floor and the arena edge rendered as a pale glowing ring.
+- Outer cliffs are sized by their widest axis (`_spawn_model_fit`) and pushed out by half their own width, so the ring never eats into the playable floor and the camera never sits inside a boulder.
+- Hazards warn at most once every 2.4 s: the toast timer now ticks in the 0.5 s lava tick instead of every frame, which had stacked four MOLTEN GROUND lines on screen.
+- `FX.fault` is a spider crack of three kinked, tapering segments per branch rather than ten long beams from the centre.
+- Mob art: acolytes and slingers share a generated robed-cultist model with per-kind tint, and elites use a generated iron-husk brute with its own texture. Wolves, alphas, crawlers, bats and the two library wardens keep the curated kit models.
 
 ## Attribution
 - Dungeon kit props and monsters: Summer curated `dungeon-dark-fantasy` collection (CC0 kit by SigilsVault; monsters Summer licence).
