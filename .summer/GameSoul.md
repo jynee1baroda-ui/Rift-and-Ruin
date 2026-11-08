@@ -45,17 +45,27 @@ An isometric, click-to-move action RPG in a volcanic wasteland split by lava rif
 - Entering any layer prints a quiet one-line whisper under the status text (LAYER_LORE), so each rift has a voice without stopping play.
 
 ## Core Loop (implemented)
-1. Ten rift layers, each a different place and a different floor plan: ASHEN CAUSEWAY (bridged causeway), MOLTEN WARRENS (twisting warrens), SUNKEN CATHEDRAL (four chapels), CINDER CHASM (split canyon), THE ASHEN BAZAAR (market plaza), EMBER SPIRES (nine pillar islands), GLASS FOUNDRY (stepped terraces), BONE ORCHARD (crossing aisles), BLACK OBSIDIAN MAW (ring arena), THE LAST FURNACE (core and outer ring). Each theme carries its own rock, seam, lava crust/hot/core colours, fog, sun tint, prop density and plant density. Lava spits are filled in, the gate scar leaves a land gap, and bridges are widened so every floor is walkable end to end.
-2. Packs of cultists, wolves, bats, crawlers, slingers and alphas spawn away from the player. Every 6th layer is a boss floor: the Hushed Prophet or the Brood Mother with two brutes, a boss bar, boss music and triple loot.
+1. Thirty rift layers, each a different place and a different floor plan (ten originals plus twenty added in the depth pass; see THEMES in game.gd for the full ladder). Each theme carries its own rock, seam, lava crust/hot/core colours, fog, sun tint, prop density and plant density. Lava spits are filled in, the gate scar leaves a land gap, and bridges are widened so every floor is walkable end to end.
+2. Packs of cultists, wolves, bats, crawlers, slingers and alphas spawn away from the player. Every 6th layer is a warden floor: the Hushed Prophet (6), the Brood Mother (12), the Iron Choir (18), the Bone Tide (24) and The Drowning (30), each with its own model, special attack, boss bar, boss music and triple loot. Layer 18/24/30 use new generated models fitted to a target height.
+2b. Every 5th layer (5, 11, 17, 23, 29) is the Ashen Broker's floor: no hostiles, the broker on his dais, ambient metal and a gate onward.
 3. Killing drops colour-coded relics, life orbs and coin. Walking over a relic shows a stat comparison card; click the card (or Enter) to bind it to a relic slot.
 4. Clearing every pack opens a rift gate. Stepping into it starts the next layer: more enemies, +24% enemy life and +11% damage per layer, better rarity odds. Every 5th layer is the Ashen Broker's bazaar instead.
 5. Death ends the run and shows the layer reached; R starts a fresh run at layer 1 with a level-1 sorceress.
 
 ## Levels and scaling
 - The player gains XP from kills (12 + 2 per layer, x3 elites, x10 bosses) and levels up with a burst, a heal and a toast.
-- Each level adds 12 max vitae, 4.5% ability power, 0.09 vitae regen and 0.7% move speed.
+- Each level adds 14 max vitae, 4.5% ability power, 0.09 vitae regen and 0.7% move speed, plus one passive point for THE BLOODIED PATH.
 - Descending a layer also lifts the sorceress to that layer's level, so character level tracks rift depth instead of falling behind it. Layer 10 is a level 10 sorceress even before her kills are counted.
-- Enemy life is 1 + 0.24 x (layer - 1) of base and enemy damage is 1 + 0.11 x (layer - 1); bosses use 1 + 0.28 x (layer - 1) life.
+- Enemy life is 1 + 0.16 x (layer - 1) of base and enemy damage is 1 + 0.075 x (layer - 1); bosses use 1 + 0.20 x (layer - 1) life. A layer-30 warden has about 11x a layer-6 warden's life.
+- Regeneration now scales with the health pool: out of combat it is max(regen, 3.5% of max vitae) per second, in combat max(0.5, 0.35% of max vitae), so deep layers stay survivable without trivialising the early game.
+
+## THE BLOODIED PATH (passive tree, K)
+- Three branches of six nodes: MIGHT (damage, crit), VITAE (life, regen, heal on kill), GRACE (speed, cooldowns, cost). One point per level, prerequisites are enforced, and the tree is saved with the run.
+
+## Characters and saves
+- `scripts/roster.gd` keeps a character list in `user://roster.cfg` with one save per hero (`user://saves/<id>.cfg`), holding name, class, level, layer, deepest, coin and time.
+- The title's CHARACTERS button opens the list (portrait, class, level, layer, deepest, coin) with LOAD and a two-press DELETE; CREATE NEW opens the class creator.
+- Continue loads the last played hero; the creator prefills each class's own name (VESNA / ARDEN / SERA).
 
 ## Rift Boons (per-layer progression)
 - Clearing every pack opens the gate and deals three boons; click one or press 1-3 before you descend.
@@ -80,7 +90,9 @@ An isometric, click-to-move action RPG in a volcanic wasteland split by lava rif
 - Settings > Interface has Save Settings Automatically and the window has SAVE SETTINGS; RESET DEFAULTS restores everything.
 
 ## Classes and Abilities
-Only the Blood Sorceress is playable. The creator shows the full class ring: the Iron Paladin (the wall that walks), the Shadow Huntress (nothing is out of range) and a fourth, unnamed seat are visible, readable and sealed, with the direction that each arrives later as a full 3D character in the same lighting, palette and weight as the sorceress. Class art lives in `res://art/portraits/` and is used both as the card thumbnail and as the preview for a sealed seat.
+Three classes are playable: the Blood Sorceress (VESNA, vitae), the Iron Paladin (ARDEN, RESOLVE) and the Shadow Huntress (SERA, FOCUS). Each has its own generated 3D character, its own three abilities, dash and skill icons, driven from `scripts/hero_classes.gd`. The fourth seat is visible, readable and sealed. Class art lives in `res://art/portraits/` and is used both as the card thumbnail and as the preview for a sealed seat.
+- Iron Paladin: Hammer of Noon (frontal slam), Aegis Rush (charge, shield + heal), Hallow (4 s burning ground); dash Shieldrush.
+- Shadow Huntress: Piercing Shot, Fan of Arrows, Shade Step (blink + crit window); dash Shadestep.
 - 1 Blood Nova — AoE detonation around the player, 6 life.
 - 2 Crimson Lance — piercing blood spear toward the cursor, 3 life.
 - 3 Sanguine Siphon — 2 s drain on nearby foes that heals a share of damage.
@@ -129,6 +141,9 @@ Only the Blood Sorceress is playable. The creator shows the full class ring: the
 - Three active ability slots plus a movement dash.
 
 ## Tech Map
+- `scripts/hand_grip.gd` - finger joints and weapon sockets: every humanoid gets a BoneAttachment3D per hand carrying four three-joint fingers and a thumb, plus a grip node holding the class weapon (hammer, staff, bow built from primitives).
+- `scripts/hero_pose.gd` - signature bind-pose stances per class, aimed by bone direction so no character is ever left in a T or A pose; used by the creator turntable.
+- `scripts/hero_classes.gd`, `scripts/passives.gd`, `scripts/roster.gd` - class data, passive tree, character list.
 - `scripts/settings.gd` - GameSettings: defaults, load/save to user://settings.cfg, reset.
 - `res://main.tscn` — WorldEnvironment, sun/rim/fill lights, camera, game root.
 - `scripts/game.gd` — floor generation, mesh building, spawning, combat resolution, loot, portal, HUD wiring.

@@ -315,6 +315,81 @@ static func sparkle(parent: Node, global_pos: Vector3, color: Color) -> void:
 	ring(parent, global_pos, Color(color.r, color.g, color.b, 0.8), 1.6, 0.5, 0.05)
 
 
+## Sharp flying fragments. Hard-edged additive shards read as struck stone and
+## metal instead of the soft round motes a plain particle burst gives.
+static func shards(parent: Node, global_pos: Vector3, color: Color, amount := 12, reach := 1.6, rise := 2.0, lifetime := 0.55) -> void:
+	if parent == null or not parent.is_inside_tree():
+		return
+	var group := Node3D.new()
+	parent.add_child(group)
+	group.global_position = global_pos
+	var mat := glow_material(color, true)
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(0.035, 0.035, 0.19)
+	for i in amount:
+		var shard := MeshInstance3D.new()
+		shard.mesh = mesh
+		shard.material_override = mat
+		shard.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		var angle := TAU * float(i) / float(maxi(1, amount)) + randf_range(-0.25, 0.25)
+		var out := Vector3(cos(angle), 0.0, sin(angle)) * reach * randf_range(0.55, 1.2)
+		var up := Vector3(0.0, rise * randf_range(0.45, 1.0), 0.0)
+		group.add_child(shard)
+		shard.position = Vector3(0.0, 0.16, 0.0)
+		shard.rotation = Vector3(randf_range(-0.5, 0.5), angle, randf_range(1.1, 2.0))
+		var spin := shard.rotation + Vector3(randf_range(2.0, 6.0), randf_range(1.0, 3.5), randf_range(2.0, 7.0))
+		var tween := shard.create_tween()
+		tween.set_parallel(true)
+		tween.tween_property(shard, "position", shard.position + out + up, lifetime).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tween.tween_property(shard, "rotation", spin, lifetime)
+		tween.tween_property(shard, "scale", Vector3(0.15, 0.15, 0.15), lifetime).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	var timer := parent.get_tree().create_timer(lifetime + 0.12)
+	timer.timeout.connect(func() -> void:
+		if is_instance_valid(group):
+			group.queue_free()
+	)
+
+
+## A hot ground fault: glowing seams that split out of an impact point. Flat on
+## the floor, so it sells weight under the effect and marks the hit radius.
+static func fault(parent: Node, global_pos: Vector3, color: Color, radius := 2.6, branches := 7, duration := 0.9) -> void:
+	if parent == null or not parent.is_inside_tree():
+		return
+	var group := Node3D.new()
+	parent.add_child(group)
+	group.global_position = global_pos + Vector3(0.0, 0.04, 0.0)
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	mat.albedo_color = color
+	mat.disable_receive_shadows = true
+	mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	for i in branches:
+		var angle := TAU * float(i) / float(maxi(1, branches)) + randf_range(-0.18, 0.18)
+		var length := radius * randf_range(0.55, 1.05)
+		var seam := MeshInstance3D.new()
+		var box := BoxMesh.new()
+		box.size = Vector3(randf_range(0.05, 0.11), 0.02, length)
+		seam.mesh = box
+		seam.material_override = mat
+		seam.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		group.add_child(seam)
+		seam.position = Vector3(0.0, 0.0, -length * 0.5).rotated(Vector3.UP, angle)
+		seam.rotation.y = angle
+		seam.scale = Vector3(1.0, 1.0, 0.08)
+		var tween := seam.create_tween()
+		tween.tween_property(seam, "scale", Vector3(1.0, 1.0, 1.0), 0.07).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tween_fade_group(group, mat, duration)
+
+
+static func tween_fade_group(group: Node3D, mat: StandardMaterial3D, duration: float) -> void:
+	var tween := group.create_tween()
+	tween.tween_interval(duration * 0.35)
+	tween.tween_property(mat, "albedo_color:a", 0.0, duration * 0.65).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tween.tween_callback(group.queue_free)
+
+
 static func beam(parent: Node, from: Vector3, target: Vector3, color: Color, width := 0.09, duration := 0.3) -> void:
 	if parent == null or not parent.is_inside_tree():
 		return

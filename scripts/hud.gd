@@ -22,6 +22,12 @@ signal rift_enter_requested(layer: int)
 signal leave_run_pressed
 signal character_created(hero_name: String, klass: String)
 signal story_closed
+signal passives_requested
+signal passive_buy(id: String)
+signal roster_requested
+signal roster_load(id: String)
+signal roster_delete(id: String)
+signal roster_create
 
 const INK := Color(0.035, 0.025, 0.045, 0.92)
 const AMBER := Color(1.0, 0.72, 0.28)
@@ -88,6 +94,7 @@ var boon_shade: ColorRect
 var boon_cards: HBoxContainer
 var boons_open := false
 var boon_keys: Array = []
+var boon_picks := 1
 var prompt_label: Label
 var shop_window: PanelContainer
 var shop_body: VBoxContainer
@@ -140,6 +147,7 @@ var shop_lore: Label
 var net_panel: PanelContainer
 var net_title: Label
 var net_status: Label
+var net_party_box: VBoxContainer
 var net_detail: Label
 var net_mode := "coop"
 var rift_detail: Label
@@ -154,6 +162,7 @@ var creator_panel: Control
 var creator_name: LineEdit
 var creator_lore: Label
 var creator_preview: Node3D
+var creator_stage: Node3D
 var creator_class := "blood_sorceress"
 var creator_locked := false
 var creator_create_btn: Button
@@ -161,15 +170,36 @@ var creator_portrait: TextureRect
 var creator_scene_holder: Control
 var creator_hint: Label
 var creator_glyph: Label
+var ability_row: HBoxContainer
+var dash_action_label: Label
+var active_class: Dictionary = {}
+var focus_row: VBoxContainer
+var focus_bar: ProgressBar
+var focus_label: Label
+var focus_fill: StyleBoxFlat
+var focus_shown := -1.0
+var focus_color_now := Color(1, 1, 1)
 var codex_panel: PanelContainer
 var codex_title: Label
 var codex_body: Label
 var codex_page_label: Label
 var codex_page := 0
+var passive_panel: PanelContainer
+var passive_points_label: Label
+var passive_owned: Array = []
+var passive_points := 0
+var passive_buttons: Array = []
+var roster_panel: PanelContainer
+var roster_list: VBoxContainer
+var roster_delete_armed := ""
+var roster_delete_ms := 0
 var hero_name_label: Label
+var hero_class_label: Label
 var story_panel: PanelContainer
 var story_title: Label
 var story_body: Label
+var story_body_box: VBoxContainer
+var story_scroll: ScrollContainer
 
 const LORE_BOOK := [
 	{"title": "THE DROWNING",
@@ -397,6 +427,8 @@ func _build() -> void:
 	_build_creator()
 	_build_story_card()
 	_build_codex()
+	_build_passives()
+	_build_roster()
 	_build_fade()
 	_build_save_chip()
 	_build_rift_map()
@@ -554,15 +586,15 @@ func hide_loading() -> void:
 
 func _build_rift_map() -> void:
 	rift_map_panel = PanelContainer.new()
-	rift_map_panel.set_anchors_preset(Control.PRESET_CENTER)
+	rift_map_panel.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	rift_map_panel.anchor_left = 0.5
 	rift_map_panel.anchor_right = 0.5
-	rift_map_panel.anchor_top = 0.5
-	rift_map_panel.anchor_bottom = 0.5
+	rift_map_panel.anchor_top = 0.0
+	rift_map_panel.anchor_bottom = 0.0
 	rift_map_panel.offset_left = -382.0
 	rift_map_panel.offset_right = 382.0
-	rift_map_panel.offset_top = -170.0
-	rift_map_panel.offset_bottom = 170.0
+	rift_map_panel.offset_top = 118.0
+	rift_map_panel.offset_bottom = 118.0
 	rift_map_panel.add_theme_stylebox_override("panel", _stylebox(Color(0.03, 0.016, 0.035, 0.97), Color(0.52, 0.3, 0.14, 1.0), 2, 5))
 	rift_map_panel.visible = false
 	rift_map_panel.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -588,7 +620,7 @@ func _build_rift_map() -> void:
 	close.add_theme_stylebox_override("hover", _stylebox(Color(0.13, 0.06, 0.05, 0.95), Color(0.9, 0.55, 0.2, 1.0), 1))
 	close.pressed.connect(hide_rift_map)
 	head.add_child(close)
-	var sub := _label("A broker waits on every 5th layer.  A Rift Warden hunts every 6th.  There is no floor below the last one you survive.", 11, MUTED)
+	var sub := _label("Every fifth layer the Ashen Broker opens his stall with no hostiles. Every sixth, a Rift Warden hunts you. There is no floor below the last one you survive.", 11, MUTED)
 	sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(sub)
 	box.add_child(HSeparator.new())
@@ -1020,8 +1052,8 @@ func _build_boss() -> void:
 	boss_panel.anchor_right = 0.5
 	boss_panel.offset_left = -270.0
 	boss_panel.offset_right = 270.0
-	boss_panel.offset_top = 196.0
-	boss_panel.offset_bottom = 250.0
+	boss_panel.offset_top = 262.0
+	boss_panel.offset_bottom = 316.0
 	boss_panel.add_theme_stylebox_override("panel", _stylebox(Color(0.05, 0.012, 0.02, 0.92), Color(0.62, 0.14, 0.1, 1.0), 1))
 	boss_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	boss_panel.visible = false
@@ -1062,13 +1094,15 @@ func _build_health() -> void:
 	box.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	box.offset_left = 30.0
 	box.offset_bottom = -104.0
-	box.offset_top = -236.0
-	box.offset_right = 330.0
+	box.offset_top = -252.0
+	box.offset_right = 366.0
 	box.add_theme_constant_override("separation", 3)
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	body.add_child(box)
-	hero_name_label = _label("", 12, Color(0.78, 0.62, 0.5))
+	hero_name_label = _label("", 14, Color(0.88, 0.74, 0.60))
 	box.add_child(hero_name_label)
+	hero_class_label = _label("", 11, Color(0.70, 0.55, 0.47))
+	box.add_child(hero_class_label)
 	var level_row := HBoxContainer.new()
 	level_row.add_theme_constant_override("separation", 8)
 	level_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1118,6 +1152,27 @@ func _build_health() -> void:
 	vitae_bar.custom_minimum_size = Vector2(0, 22)
 	vitae_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_child(vitae_bar)
+	focus_row = VBoxContainer.new()
+	focus_row.add_theme_constant_override("separation", 1)
+	focus_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	focus_row.visible = false
+	box.add_child(focus_row)
+	focus_label = _label("", 11, GOLD)
+	focus_row.add_child(focus_label)
+	focus_bar = ProgressBar.new()
+	focus_bar.custom_minimum_size = Vector2(0, 9)
+	focus_bar.show_percentage = false
+	focus_bar.max_value = 100.0
+	focus_bar.value = 100.0
+	var focus_bg := StyleBoxFlat.new()
+	focus_bg.bg_color = Color(0.05, 0.04, 0.02, 0.9)
+	focus_bg.set_corner_radius_all(2)
+	focus_fill = StyleBoxFlat.new()
+	focus_fill.bg_color = Color(0.95, 0.75, 0.3, 0.95)
+	focus_fill.set_corner_radius_all(2)
+	focus_bar.add_theme_stylebox_override("background", focus_bg)
+	focus_bar.add_theme_stylebox_override("fill", focus_fill)
+	focus_row.add_child(focus_bar)
 	bloodrush_label = _label("BLOODRUSH ×0", 11, GOLD)
 	bloodrush_label.visible = false
 	box.add_child(bloodrush_label)
@@ -1163,9 +1218,11 @@ func _build_abilities() -> void:
 	row.add_theme_constant_override("separation", 10)
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_child(row)
-	var icon_paths := [ICON_NOVA, ICON_LANCE, ICON_SIPHON]
-	for ability_index in Player.ABILITIES.size():
-		var ability: Dictionary = Player.ABILITIES[ability_index]
+	ability_row = row
+	var start_class: Dictionary = HeroClasses.definition("blood_sorceress")
+	var start_list: Array = start_class.get("abilities", [])
+	for ability_index in start_list.size():
+		var ability: Dictionary = start_list[ability_index]
 		var panel := Panel.new()
 		panel.custom_minimum_size = Vector2(148, 70)
 		panel.add_theme_stylebox_override("panel", _stylebox(Color(0.045, 0.028, 0.05, 0.94), Color(0.34, 0.2, 0.14, 1.0), 1, 2))
@@ -1182,51 +1239,44 @@ func _build_abilities() -> void:
 		accent.offset_bottom = 2.0
 		accent.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		panel.add_child(accent)
-		var key_label := _label(String(ability.key), 13, AMBER)
+		var key_label := _label(str(ability_index + 1), 13, AMBER)
 		key_label.position = Vector2(8, 3)
 		panel.add_child(key_label)
-		if ability_index < 2:
-			var mouse_hint := _label("RMB" if ability_index == 0 else "LMB", 10, Color(0.74, 0.6, 0.48))
-			mouse_hint.position = Vector2(112, 52)
-			panel.add_child(mouse_hint)
-		var icon_path := String(icon_paths[ability_index])
-		if ResourceLoader.exists(icon_path):
-			var icon_box := Panel.new()
-			icon_box.position = Vector2(8, 18)
-			icon_box.size = Vector2(46, 46)
-			icon_box.custom_minimum_size = Vector2(46, 46)
-			icon_box.clip_contents = true
-			icon_box.add_theme_stylebox_override("panel", _stylebox(Color(0.015, 0.01, 0.02, 0.95), Color(0.58, 0.38, 0.17, 0.95), 1, 2))
-			icon_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			panel.add_child(icon_box)
-			var icon := TextureRect.new()
+		var mouse_hint := _label("", 10, Color(0.74, 0.6, 0.48))
+		mouse_hint.position = Vector2(110, 52)
+		panel.add_child(mouse_hint)
+		var icon_path := String(ability.get("icon", ""))
+		var icon_box := Panel.new()
+		icon_box.position = Vector2(8, 18)
+		icon_box.size = Vector2(46, 46)
+		icon_box.custom_minimum_size = Vector2(46, 46)
+		icon_box.clip_contents = true
+		icon_box.add_theme_stylebox_override("panel", _stylebox(Color(0.015, 0.01, 0.02, 0.95), Color(0.58, 0.38, 0.17, 0.95), 1, 2))
+		icon_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		panel.add_child(icon_box)
+		var icon := TextureRect.new()
+		if not icon_path.is_empty() and ResourceLoader.exists(icon_path):
 			icon.texture = load(icon_path)
-			icon.set_anchors_preset(Control.PRESET_FULL_RECT)
-			icon.offset_left = 2.0
-			icon.offset_top = 2.0
-			icon.offset_right = -2.0
-			icon.offset_bottom = -2.0
-			icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-			icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-			icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			icon_box.add_child(icon)
+		icon.set_anchors_preset(Control.PRESET_FULL_RECT)
+		icon.offset_left = 2.0
+		icon.offset_top = 2.0
+		icon.offset_right = -2.0
+		icon.offset_bottom = -2.0
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		icon_box.add_child(icon)
 		var name_label := _label(String(ability.glyph), 16, BONE)
 		name_label.position = Vector2(60, 8)
 		panel.add_child(name_label)
-		var cost := float(ability.cost)
+		var cost := float(ability.get("cost", 0.0))
 		var cost_label := _label("FREE" if cost <= 0.0 else "%d VITAE" % int(cost), 11, CRIMSON)
 		cost_label.position = Vector2(60, 30)
 		panel.add_child(cost_label)
-		var cd_label := _label("", 20, GOLD)
-		cd_label.anchor_left = 1.0
-		cd_label.anchor_right = 1.0
-		cd_label.anchor_top = 0.5
-		cd_label.anchor_bottom = 0.5
-		cd_label.offset_left = -50.0
-		cd_label.offset_right = -6.0
-		cd_label.offset_top = 6.0
-		cd_label.offset_bottom = 30.0
-		cd_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		var cd_label := _label("", 15, Color(1.0, 0.92, 0.7))
+		cd_label.position = Vector2(8, 32)
+		cd_label.size = Vector2(46, 20)
+		cd_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		panel.add_child(cd_label)
 		var overlay := ColorRect.new()
 		overlay.color = Color(0.02, 0.0, 0.02, 0.72)
@@ -1237,7 +1287,9 @@ func _build_abilities() -> void:
 		overlay.offset_bottom = 0.0
 		overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		panel.add_child(overlay)
-		slots.append({"panel": panel, "overlay": overlay, "cd": cd_label, "name": name_label, "cost": cost_label, "was_cd": false})
+		cd_label.move_to_front()
+		slots.append({"panel": panel, "overlay": overlay, "cd": cd_label, "name": name_label, "cost": cost_label,
+			"was_cd": false, "accent": accent, "icon": icon, "hint": mouse_hint, "icon_box": icon_box})
 	var dash := Panel.new()
 	dash.custom_minimum_size = Vector2(124, 70)
 	dash.add_theme_stylebox_override("panel", _stylebox(Color(0.045, 0.028, 0.06, 0.94), Color(0.3, 0.24, 0.4, 1.0), 1, 2))
@@ -1277,9 +1329,11 @@ func _build_abilities() -> void:
 		dash_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 		dash_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		dash_box.add_child(dash_icon)
-	var dash_name := _label("RIFTSTEP", 13, BONE)
-	dash_name.position = Vector2(50, 18)
-	dash.add_child(dash_name)
+	dash_action_label = _label("RIFTSTEP", 11, BONE)
+	dash_action_label.position = Vector2(50, 20)
+	dash_action_label.size = Vector2(70, 18)
+	dash_action_label.clip_text = true
+	dash.add_child(dash_action_label)
 	var dash_cd := _label("", 20, GOLD)
 	dash_cd.anchor_left = 1.0
 	dash_cd.anchor_right = 1.0
@@ -1291,7 +1345,7 @@ func _build_abilities() -> void:
 	dash_cd.offset_bottom = 24.0
 	dash_cd.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	dash.add_child(dash_cd)
-	slots.append({"panel": dash, "overlay": null, "cd": dash_cd, "name": dash_name, "cost": null, "was_cd": false})
+	slots.append({"panel": dash, "overlay": null, "cd": dash_cd, "name": dash_action_label, "cost": null, "was_cd": false})
 
 
 func _on_slot_input(event: InputEvent, index: int) -> void:
@@ -1547,9 +1601,8 @@ func _build_title() -> void:
 	box.add_child(buttons)
 	var continue_btn := Button.new()
 	title_continue_btn = continue_btn
-	continue_btn.text = "CONTINUE\nLAYER %d  ·  LEVEL %d  ·  %d COIN" % [
-		int(RunSave.read().get("layer", 1)), int(RunSave.read().get("level", 1)), int(RunSave.read().get("coins", 0))]
-	continue_btn.visible = RunSave.has_save()
+	continue_btn.text = _continue_text(Roster.last_played())
+	continue_btn.visible = not Roster.last_played().is_empty() or RunSave.has_save()
 	continue_btn.custom_minimum_size = Vector2(292, 58)
 	continue_btn.add_theme_font_size_override("font_size", 15)
 	continue_btn.add_theme_color_override("font_color", GOLD)
@@ -1607,6 +1660,14 @@ func _build_title() -> void:
 		rift_map_requested.emit()
 	)
 	menu2.add_child(map_btn)
+	var chars_btn := _title_small("CHARACTERS", Color(0.95, 0.8, 0.55))
+	chars_btn.tooltip_text = "Load, create or delete heroes"
+	chars_btn.pressed.connect(func() -> void:
+		if not _title_input_ok():
+			return
+		roster_requested.emit()
+	)
+	menu2.add_child(chars_btn)
 	var hall_btn := _title_small("HALL", MUTED)
 	hall_btn.tooltip_text = "Hall of Wardens: the rift's history"
 	hall_btn.pressed.connect(func() -> void:
@@ -1650,7 +1711,7 @@ func _build_title() -> void:
 func _title_small(text: String, color: Color) -> Button:
 	var btn := Button.new()
 	btn.text = text
-	btn.custom_minimum_size = Vector2(118, 34)
+	btn.custom_minimum_size = Vector2(104, 34)
 	btn.add_theme_font_size_override("font_size", 12)
 	btn.add_theme_color_override("font_color", color)
 	btn.add_theme_color_override("font_hover_color", Color(1.0, 0.95, 0.85))
@@ -1698,17 +1759,26 @@ func _cycle_hall() -> void:
 
 
 func refresh_title() -> void:
-	var has_save := RunSave.has_save()
+	var entry := Roster.last_played()
+	var has_save := not entry.is_empty() or RunSave.has_save()
 	if title_continue_btn != null:
 		title_continue_btn.visible = has_save
 		if has_save:
-			var saved := RunSave.read()
-			title_continue_btn.text = "CONTINUE\nLAYER %d  ·  LEVEL %d  ·  %d COIN" % [
-				int(saved.get("layer", 1)), int(saved.get("level", 1)), int(saved.get("coins", 0))]
+			title_continue_btn.text = _continue_text(entry)
 	if title_begin_btn != null:
 		title_begin_btn.text = "NEW RIFT" if has_save else "ENTER THE RIFT"
 	if record_label != null:
 		record_label.text = "DEEPEST RIFT  ·  LAYER %d" % record_layer
+
+
+func _continue_text(entry: Dictionary) -> String:
+	if entry.is_empty():
+		var saved := RunSave.read()
+		return "CONTINUE  ·  LAST HERO\nLAYER %d  ·  LEVEL %d  ·  %d COIN" % [
+			int(saved.get("layer", 1)), int(saved.get("level", 1)), int(saved.get("coins", 0))]
+	var class_text := HeroClasses.display_name(String(entry.get("class_id", "blood_sorceress")))
+	return "CONTINUE  %s\n%s  ·  LEVEL %d  ·  LAYER %d" % [
+		String(entry.get("name", "VESNA")), class_text, int(entry.get("level", 1)), int(entry.get("layer", 1))]
 
 
 func show_title_again() -> void:
@@ -1741,8 +1811,8 @@ func _build_pause() -> void:
 	pause_panel.anchor_bottom = 0.5
 	pause_panel.offset_left = -382.0
 	pause_panel.offset_right = 382.0
-	pause_panel.offset_top = -248.0
-	pause_panel.offset_bottom = 248.0
+	pause_panel.offset_top = -284.0
+	pause_panel.offset_bottom = 284.0
 	pause_panel.add_theme_stylebox_override("panel", _stylebox(Color(0.04, 0.02, 0.05, 0.97), Color(0.55, 0.34, 0.14, 1.0), 2, 4))
 	pause_panel.visible = false
 	root.add_child(pause_panel)
@@ -1788,7 +1858,7 @@ func _build_pause() -> void:
 		"Clear the packs, then claim a boon (1 - 3).",
 		"Kills drop coin. Elites and bosses pay more.",
 		"THE ASHEN BROKER waits on every 5th layer.",
-		"A RIFT WARDEN stalks every 6th layer.",
+		"A different RIFT WARDEN stalks every 6th layer.",
 		"Relics stack at most twice per family.",
 		"Click a glowing drop to claim the relic.",
 		"Your level rises with kills and depth.",
@@ -1819,6 +1889,13 @@ func _build_pause() -> void:
 		toggle_relic_window()
 	)
 	grid.add_child(character)
+	var passives := _pause_button("PASSIVES", Color(0.6, 0.9, 0.8))
+	passives.tooltip_text = "Spend one point per level on the Bloodied Path"
+	passives.pressed.connect(func() -> void:
+		_close_pause_for_overlay()
+		passives_requested.emit()
+	)
+	grid.add_child(passives)
 	var map_btn := _pause_button("WORLD MAP")
 	map_btn.pressed.connect(func() -> void:
 		_close_pause_for_overlay()
@@ -2052,14 +2129,17 @@ func _boon_card(entry: Dictionary) -> Button:
 	btn.add_theme_stylebox_override("hover", _stylebox(Color(0.16, 0.07, 0.06, 0.99), col.lightened(0.3), 2, 4))
 	btn.add_theme_stylebox_override("pressed", _stylebox(Color(0.24, 0.1, 0.08, 1.0), col.lightened(0.45), 2, 4))
 	btn.pressed.connect(func() -> void: _choose_boon(String(entry.get("key", ""))))
+	btn.set_meta("key", String(entry.get("key", "")))
 	return btn
 
 
-func show_boons(list: Array, warden_line := "") -> void:
+func show_boons(list: Array, warden_line := "", picks := 1) -> void:
 	if boon_panel == null:
 		return
+	boon_picks = maxi(1, picks)
 	if boon_sub != null:
-		boon_sub.text = warden_line if not warden_line.is_empty() else "Claim one boon. It holds until you fall."
+		var prompt := "Claim one boon. It holds until you fall." if boon_picks <= 1 else "The rift yields twice at this depth. Choose two."
+		boon_sub.text = warden_line if not warden_line.is_empty() else prompt
 	for child in boon_cards.get_children():
 		child.queue_free()
 	boon_keys.clear()
@@ -2089,11 +2169,19 @@ func show_boons(list: Array, warden_line := "") -> void:
 func _choose_boon(key: String) -> void:
 	if not boons_open:
 		return
+	boon_chosen.emit(key)
+	boon_picks -= 1
+	if boon_picks > 0:
+		for child in boon_cards.get_children():
+			if child is Button and String(child.get_meta("key", "")) == key:
+				(child as Button).disabled = true
+		if boon_sub != null:
+			boon_sub.text = "The rift yields again. Choose one more."
+		return
 	boons_open = false
 	boon_panel.visible = false
 	boon_shade.visible = false
 	get_tree().paused = false
-	boon_chosen.emit(key)
 
 
 func hide_boons() -> void:
@@ -2476,8 +2564,8 @@ func _build_net_panel() -> void:
 	net_panel.anchor_bottom = 0.5
 	net_panel.offset_left = -330.0
 	net_panel.offset_right = 330.0
-	net_panel.offset_top = -186.0
-	net_panel.offset_bottom = 186.0
+	net_panel.offset_top = -232.0
+	net_panel.offset_bottom = 78.0
 	net_panel.add_theme_stylebox_override("panel", _stylebox(Color(0.03, 0.015, 0.045, 0.98), Color(0.55, 0.35, 0.72, 1.0), 2, 5))
 	net_panel.visible = false
 	net_panel.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -2509,6 +2597,12 @@ func _build_net_panel() -> void:
 	var rule := HSeparator.new()
 	rule.custom_minimum_size = Vector2(0, 10)
 	box.add_child(rule)
+	net_party_box = VBoxContainer.new()
+	net_party_box.add_theme_constant_override("separation", 3)
+	box.add_child(net_party_box)
+	var rule2 := HSeparator.new()
+	rule2.custom_minimum_size = Vector2(0, 6)
+	box.add_child(rule2)
 	var actions := HBoxContainer.new()
 	actions.add_theme_constant_override("separation", 10)
 	box.add_child(actions)
@@ -2572,7 +2666,62 @@ func hide_net_panel() -> void:
 func set_hero(name_text: String, class_text: String) -> void:
 	if hero_name_label == null:
 		return
-	hero_name_label.text = "%s  -  %s" % [name_text.to_upper(), class_text.to_upper()] if not name_text.is_empty() else ""
+	hero_name_label.text = name_text.to_upper() if not name_text.is_empty() else ""
+	if hero_class_label != null:
+		hero_class_label.text = class_text.to_upper() if not class_text.is_empty() else ""
+
+
+## Swap the ability bar to a class: labels, costs, mouse hints, icons, accent.
+func apply_class(data: Dictionary) -> void:
+	active_class = data
+	var list: Array = data.get("abilities", [])
+	var is_health := String(data.get("cost_kind", "health")) == "health"
+	var noun := "VITAE" if is_health else String(data.get("focus_name", "FOCUS"))
+	var accent: Color = data.get("color", AMBER)
+	var primary := int(data.get("primary", 0))
+	var secondary := int(data.get("secondary", 1))
+	for i in mini(list.size(), 3):
+		if i >= slots.size():
+			break
+		var ability: Dictionary = list[i]
+		var slot: Dictionary = slots[i]
+		slot["name"].text = String(ability.get("glyph", ""))
+		var cost := float(ability.get("cost", 0.0))
+		slot["cost"].text = "FREE" if cost <= 0.0 else "%d %s" % [int(cost), noun]
+		slot["cost"].add_theme_color_override("font_color", CRIMSON if is_health else accent)
+		var icon_path := String(ability.get("icon", ""))
+		if slot["icon"] != null and not icon_path.is_empty() and ResourceLoader.exists(icon_path):
+			slot["icon"].texture = load(icon_path)
+		if slot["accent"] != null:
+			slot["accent"].color = Color(accent.r, accent.g, accent.b, 0.85)
+		if slot["hint"] != null:
+			slot["hint"].text = "LMB" if i == primary else ("RMB" if i == secondary else "")
+	if dash_action_label != null:
+		dash_action_label.text = String(data.get("dash", "RIFTSTEP")).to_upper()
+	if controls_hint != null:
+		var primary_key := String(list[primary].get("glyph", "PRIMARY")) if primary < list.size() else "PRIMARY"
+		var secondary_key := String(list[secondary].get("glyph", "SECONDARY")) if secondary < list.size() else "SECONDARY"
+		controls_hint.text = "WASD MOVE  ·  LMB %s  ·  RMB %s  ·  1 2 3 CAST  ·  SPACE %s  ·  TAB RELICS  ·  K PASSIVES  ·  M MAP" % [
+			primary_key, secondary_key, String(data.get("dash", "DASH")).to_upper()]
+	if focus_row != null:
+		focus_row.visible = not is_health
+
+
+func set_focus(value: float, maximum: float, label_text: String, color: Color) -> void:
+	if focus_row == null or focus_bar == null:
+		return
+	if maximum <= 0.0:
+		focus_row.visible = false
+		return
+	focus_row.visible = true
+	focus_bar.max_value = maximum
+	focus_bar.value = clampf(value, 0.0, maximum)
+	if focus_label != null:
+		focus_label.text = "%s  %d / %d" % [label_text, int(value), int(maximum)]
+		focus_label.add_theme_color_override("font_color", color.lightened(0.3))
+	if color != focus_color_now:
+		focus_color_now = color
+		focus_fill.bg_color = color
 
 
 func set_net_status(status_text: String, detail_text: String, ok: bool) -> void:
@@ -2583,25 +2732,56 @@ func set_net_status(status_text: String, detail_text: String, ok: bool) -> void:
 	net_detail.text = detail_text
 
 
-## Create-character: the only implemented class is the Blood Sorceress; the
-## other three seats are shown locked so the class ring is already visible.
+## The party roster. Only what the client actually knows is shown: your own
+## character from local save data, then one chip per peer entity the Summer
+## World has spawned on this client. No invented names or fake lobbies.
+func set_party_roster(self_name: String, self_class: String, self_level: int, self_layer: int, peers: int) -> void:
+	if net_party_box == null:
+		return
+	for child in net_party_box.get_children():
+		child.queue_free()
+	var members := maxi(1, peers)
+	var head := _label("RIFT PARTY  -  %d MEMBER%s" % [members, "" if members == 1 else "S"], 12, MUTED, false)
+	net_party_box.add_child(head)
+	var color: Color = HeroClasses.color(String(self_class).to_lower().replace(" ", "_"))
+	var you := _label("1   %s  -  %s  -  LV %d  -  LAYER %d" % [self_name.to_upper(), self_class.to_upper(), self_level, self_layer], 13, color, false)
+	net_party_box.add_child(you)
+	for i in range(1, members):
+		var peer := _label("%d   RIFT RUNNER  -  CONNECTED" % (i + 1), 13, Color(0.66, 0.62, 0.7), false)
+		net_party_box.add_child(peer)
+	if peers <= 1:
+		var solo := _label("No other runners in this World yet.", 11, Color(0.5, 0.46, 0.5), false)
+		net_party_box.add_child(solo)
+
+
+## Create-character: three playable classes plus the unwritten fourth seat,
 const CLASS_SEATS := [
 	{"key": "blood_sorceress", "name": "BLOOD SORCERESS", "role": "Life is the fuel",
+		"default_name": "VESNA",
+		"pose_clip": "Charged_Spell_Cast", "pose_at": 0.42,
 		"text": "She burns her own blood to cast. Every spell is a decision about how much of herself she is willing to spend.",
 		"seal": "", "color": Color(0.95, 0.3, 0.32), "playable": true,
+		"model": "res://art/generated/blood_sorceress/character.tscn", "model_scale": 1.35,
 		"portrait": "res://art/portraits/blood_sorceress.png"},
 	{"key": "iron_paladin", "name": "IRON PALADIN", "role": "The wall that walks",
+		"default_name": "ARDEN",
+		"pose_clip": "Attack", "pose_at": 0.34,
 		"text": "A knight in rift-scarred plate, carrying the last lit sun of a drowned city. He holds the line so the others can breathe, and he does not move when the ground does.",
-		"seal": "SECOND SEAT  ·  STILL IN THE FORGE", "color": Color(0.78, 0.72, 0.5), "playable": false,
+		"seal": "SECOND SEAT", "color": Color(0.78, 0.72, 0.5), "playable": true,
+		"model": "res://art/generated/iron_paladin/character.tscn", "model_scale": 1.0,
 		"portrait": "res://art/portraits/iron_paladin.png"},
 	{"key": "shadow_huntress", "name": "SHADOW HUNTRESS", "role": "Nothing is out of range",
+		"default_name": "SERA",
+		"pose_clip": "Attack", "pose_at": 0.40,
 		"text": "She hunts what the rift lets loose and she never lets it close. Her arrows remember every name the seam has taken, and she says them out loud before she fires.",
-		"seal": "THIRD SEAT  ·  STILL IN THE FORGE", "color": Color(0.55, 0.8, 0.75), "playable": false,
+		"seal": "THIRD SEAT", "color": Color(0.55, 0.8, 0.75), "playable": true,
+		"model": "res://art/generated/shadow_huntress/character.tscn", "model_scale": 1.0,
 		"portrait": "res://art/portraits/shadow_huntress.png"},
 	{"key": "fourth_seat", "name": "THE FOURTH SEAT", "role": "Unwritten",
+		"default_name": "UNNAMED",
 		"text": "The rift has room for one more. Nobody has come back up to say who it is, only that the seat is warm.",
 		"seal": "FOURTH SEAT  ·  UNWRITTEN", "color": Color(0.62, 0.5, 0.7), "playable": false,
-		"portrait": ""},
+		"model": "", "model_scale": 1.0, "portrait": ""},
 ]
 
 
@@ -2642,7 +2822,7 @@ func _build_creator() -> void:
 	back.add_theme_stylebox_override("hover", _stylebox(Color(0.13, 0.06, 0.05, 0.95), Color(0.9, 0.55, 0.2, 1.0), 1))
 	back.pressed.connect(hide_creator)
 	head.add_child(back)
-	var sub := _label("THE FIRST SEAT IS OPEN  ·  THREE REMAIN SEALED", 11, CRIMSON)
+	var sub := _label("THREE SEATS ARE OPEN  ·  ONE REMAINS SEALED", 11, CRIMSON)
 	outer.add_child(sub)
 	var columns := HBoxContainer.new()
 	columns.add_theme_constant_override("separation", 18)
@@ -2663,7 +2843,7 @@ func _build_creator() -> void:
 	fbox.add_theme_constant_override("separation", 4)
 	filler.add_child(fbox)
 	fbox.add_child(_label("THE OTHER SEATS", 11, GOLD))
-	var fbody := _label("Three seats wait below the Bastion. Each will arrive as a full 3D character in the same light and the same weight as the Blood Sorceress: the Iron Paladin with a hammer that remembers the sun, the Shadow Huntress who fires from beyond the seam, and a fourth name the rift has not given up yet.\n\nClick a sealed seat to read what is known.", 12, BONE, false)
+	var fbody := _label("The Blood Sorceress pays in vitae. The Iron Paladin holds the line behind a sunlit shield. The Shadow Huntress kills from beyond the seam with focus and speed. One seat is still unwritten, and the rift has not given up its name.\n\nClick any seat to read it and see it turn.", 12, BONE, false)
 	fbody.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	fbox.add_child(fbody)
 	var right := VBoxContainer.new()
@@ -2703,23 +2883,27 @@ func _build_creator() -> void:
 func _class_card(seat: Dictionary) -> Control:
 	var btn := Button.new()
 	btn.custom_minimum_size = Vector2(0, 78)
-	btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	btn.add_theme_constant_override("h_separation", 12)
 	var color: Color = seat.get("color", BONE)
 	var playable := bool(seat.get("playable", false))
 	var portrait := String(seat.get("portrait", ""))
 	var has_art := not portrait.is_empty() and ResourceLoader.exists(portrait)
-	btn.text = "  %s\n  %s%s" % [String(seat.get("name", "")), String(seat.get("role", "")), "" if playable else "  -  SEALED"]
-	btn.add_theme_font_size_override("font_size", 14)
-	btn.add_theme_color_override("font_color", color if playable else Color(0.58, 0.53, 0.55))
-	btn.add_theme_color_override("font_hover_color", Color(1.0, 0.94, 0.8))
 	var normal_box := _stylebox(Color(0.05, 0.028, 0.035, 0.95), color.darkened(0.6) if playable else Color(0.26, 0.22, 0.26), 1, 3)
 	var hover_box := _stylebox(Color(0.11, 0.05, 0.05, 0.98), color if playable else Color(0.34, 0.3, 0.34), 1, 3)
-	if has_art:
-		normal_box.content_margin_left = 66.0
-		hover_box.content_margin_left = 66.0
+	normal_box.content_margin_left = 10.0
+	hover_box.content_margin_left = 10.0
 	btn.add_theme_stylebox_override("normal", normal_box)
 	btn.add_theme_stylebox_override("hover", hover_box)
+	# The row is a real layout, not button text: the portrait can never sit on
+	# top of the class name at any UI scale.
+	var row := HBoxContainer.new()
+	row.set_anchors_preset(Control.PRESET_FULL_RECT)
+	row.offset_left = 12.0
+	row.offset_right = -12.0
+	row.offset_top = 7.0
+	row.offset_bottom = -7.0
+	row.add_theme_constant_override("h_separation", 14)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	btn.add_child(row)
 	if has_art:
 		var tex: Variant = load(portrait)
 		if tex is Texture2D:
@@ -2728,19 +2912,29 @@ func _class_card(seat: Dictionary) -> Control:
 			atlas.region = Rect2(170.0, 60.0, 560.0, 660.0)
 			var tile := TextureRect.new()
 			tile.texture = atlas
-			tile.anchor_left = 0.0
-			tile.anchor_right = 0.0
-			tile.anchor_top = 0.5
-			tile.anchor_bottom = 0.5
-			tile.offset_left = 8.0
-			tile.offset_right = 56.0
-			tile.offset_top = -33.0
-			tile.offset_bottom = 33.0
+			tile.custom_minimum_size = Vector2(50, 64)
 			tile.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 			tile.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 			tile.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			tile.modulate = Color(1, 1, 1, 1) if playable else Color(0.72, 0.68, 0.7, 1.0)
-			btn.add_child(tile)
+			row.add_child(tile)
+	var info := VBoxContainer.new()
+	info.alignment = BoxContainer.ALIGNMENT_CENTER
+	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	info.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	info.add_theme_constant_override("separation", 1)
+	row.add_child(info)
+	var name_label := _label(String(seat.get("name", "")), 15, color if playable else Color(0.62, 0.57, 0.59), false)
+	info.add_child(name_label)
+	var sub := String(seat.get("role", "")) + ("" if playable else "   ·   SEALED")
+	var role_label := _label(sub, 11, Color(0.86, 0.78, 0.66) if playable else Color(0.5, 0.46, 0.48), false)
+	info.add_child(role_label)
+	btn.mouse_entered.connect(func() -> void:
+		name_label.add_theme_color_override("font_color", Color(1.0, 0.95, 0.85))
+	)
+	btn.mouse_exited.connect(func() -> void:
+		name_label.add_theme_color_override("font_color", color if playable else Color(0.62, 0.57, 0.59))
+	)
 	btn.pressed.connect(_set_creator_class.bind(String(seat.get("key", ""))))
 	return btn
 
@@ -2769,21 +2963,10 @@ func _build_creator_preview() -> Control:
 	holder.add_child(viewport)
 	var stage := Node3D.new()
 	viewport.add_child(stage)
-	var scene: Variant = load("res://art/generated/blood_sorceress/character.tscn")
-	if scene is PackedScene:
-		creator_preview = (scene as PackedScene).instantiate()
-		creator_preview.scale = Vector3.ONE * 1.08
-		creator_preview.rotation.y = 0.0
-		stage.add_child(creator_preview)
-		var idle_anim := creator_preview.find_child("AnimationPlayer", true, false) as AnimationPlayer
-		if idle_anim != null:
-			for clip in ["Idle", "idle", "IDLE"]:
-				if idle_anim.has_animation(clip):
-					idle_anim.play(clip)
-					break
+	creator_stage = stage
 	var cam := Camera3D.new()
 	cam.fov = 32.0
-	cam.look_at_from_position(Vector3(0.0, 1.15, 4.1), Vector3(0.0, 0.88, 0.0), Vector3.UP)
+	cam.look_at_from_position(Vector3(0.0, 1.2, 4.6), Vector3(0.0, 0.95, 0.0), Vector3.UP)
 	stage.add_child(cam)
 	var key := OmniLight3D.new()
 	key.light_color = Color(1.0, 0.82, 0.7)
@@ -2830,15 +3013,15 @@ func _set_creator_class(key: String) -> void:
 			creator_class = key
 			creator_locked = not bool(seat.get("playable", false))
 			creator_lore.text = String(seat.get("text", ""))
-			var portrait := String(seat.get("portrait", ""))
-			if creator_scene_holder != null:
-				creator_scene_holder.visible = not creator_locked
-			if creator_portrait != null:
-				creator_portrait.visible = creator_locked and not portrait.is_empty() and ResourceLoader.exists(portrait)
-				if creator_portrait.visible:
-					creator_portrait.texture = load(portrait)
-			if creator_glyph != null:
-				creator_glyph.visible = creator_locked and (portrait.is_empty() or not ResourceLoader.exists(portrait))
+			if creator_name != null:
+				var current := creator_name.text.strip_edges()
+				var is_default := current.is_empty()
+				for other in CLASS_SEATS:
+					if current.to_upper() == String(other.get("default_name", "")).to_upper():
+						is_default = true
+				if is_default:
+					creator_name.text = String(seat.get("default_name", "VESNA"))
+			_preview_class(seat)
 			if creator_hint != null:
 				creator_hint.text = String(seat.get("seal", ""))
 				creator_hint.visible = creator_locked and not creator_hint.text.is_empty()
@@ -2846,6 +3029,75 @@ func _set_creator_class(key: String) -> void:
 				creator_create_btn.disabled = creator_locked
 				creator_create_btn.text = "ENTER THE RIFT" if not creator_locked else "CLASS SEALED"
 			return
+
+
+## Swap the 3D turntable to the selected class. A class without a model yet
+## shows its concept portrait, and the unnamed seat shows its mark.
+func _preview_class(seat: Dictionary) -> void:
+	if creator_stage == null:
+		return
+	if creator_preview != null and is_instance_valid(creator_preview):
+		creator_preview.queue_free()
+	creator_preview = null
+	var path := String(seat.get("model", "res://art/generated/blood_sorceress/character.tscn"))
+	var has_model := ResourceLoader.exists(path)
+	if has_model:
+		var scene: Variant = load(path)
+		if scene is PackedScene:
+			creator_preview = (scene as PackedScene).instantiate()
+			creator_preview.rotation.y = 0.0
+			creator_stage.add_child(creator_preview)
+			HandGrip.dress(creator_preview, String(seat.get("key", "")), 1.0, seat.get("glove", Color(0.22, 0.18, 0.18)))
+			var box := _preview_bounds(creator_preview)
+			var height := maxf(0.4, box.size.y)
+			var fit := 1.72 / height
+			creator_preview.scale = Vector3.ONE * fit
+			var centre := box.get_center()
+			creator_preview.position = Vector3(-centre.x * fit, -box.position.y * fit + 0.04, -centre.z * fit)
+			var idle_anim := creator_preview.find_child("AnimationPlayer", true, false) as AnimationPlayer
+			if idle_anim != null:
+				idle_anim.stop()
+			var skeleton := HandGrip.find_skeleton(creator_preview)
+			HeroPose.stance(skeleton, String(seat.get("key", "")))
+	var portrait := String(seat.get("portrait", ""))
+	var show_portrait := not has_model and not portrait.is_empty() and ResourceLoader.exists(portrait)
+	if creator_scene_holder != null:
+		creator_scene_holder.visible = has_model
+	if creator_portrait != null:
+		creator_portrait.visible = show_portrait
+		if show_portrait:
+			creator_portrait.texture = load(portrait)
+	if creator_glyph != null:
+		creator_glyph.visible = not has_model and not show_portrait
+
+
+## Bounds of every mesh in a freshly built preview, measured in the preview's
+## own space so the turntable can centre and fit it exactly.
+func _preview_bounds(node: Node3D) -> AABB:
+	var result := AABB()
+	var first := true
+	var to_local := node.global_transform.affine_inverse()
+	for child in node.find_children("*", "MeshInstance3D", true, false):
+		var mesh := child as MeshInstance3D
+		if mesh == null or mesh.mesh == null:
+			continue
+		var box := (to_local * mesh.global_transform) * mesh.get_aabb()
+		if first:
+			result = box
+			first = false
+		else:
+			result = result.merge(box)
+	var skeleton := HandGrip.find_skeleton(node)
+	if skeleton != null:
+		for i in skeleton.get_bone_count():
+			var point := to_local * (skeleton.global_transform * skeleton.get_bone_global_rest(i).origin)
+			var dot := AABB(point - Vector3(0.02, 0.0, 0.02), Vector3(0.04, 0.0, 0.04))
+			if first:
+				result = dot
+				first = false
+			else:
+				result = result.merge(dot)
+	return result
 
 
 func show_creator() -> void:
@@ -2887,28 +3139,33 @@ func _process_creator(delta: float) -> void:
 func _build_story_card() -> void:
 	story_panel = PanelContainer.new()
 	story_panel.set_anchors_preset(Control.PRESET_CENTER)
-	story_panel.offset_left = -432.0
-	story_panel.offset_right = 432.0
-	story_panel.offset_top = -304.0
-	story_panel.offset_bottom = 304.0
+	story_panel.offset_left = -372.0
+	story_panel.offset_right = 372.0
+	story_panel.offset_top = -186.0
+	story_panel.offset_bottom = 186.0
 	story_panel.add_theme_stylebox_override("panel", _stylebox(Color(0.02, 0.01, 0.024, 0.98), Color(0.5, 0.3, 0.13, 1.0), 2, 5))
 	story_panel.visible = false
 	story_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	root.add_child(story_panel)
 	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 12)
+	box.add_theme_constant_override("separation", 8)
 	story_panel.add_child(box)
-	story_title = _label("THE DROWNING", 36, AMBER)
+	story_title = _label("THE DROWNING", 24, AMBER)
 	story_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(story_title)
-	story_body = _label("", 14, BONE, false)
-	story_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	story_body.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	box.add_child(story_body)
+	story_scroll = ScrollContainer.new()
+	story_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	story_scroll.custom_minimum_size = Vector2(0, 226)
+	story_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	box.add_child(story_scroll)
+	story_body_box = VBoxContainer.new()
+	story_body_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	story_body_box.add_theme_constant_override("separation", 7)
+	story_scroll.add_child(story_body_box)
 	var begin := Button.new()
 	begin.text = "DESCEND"
-	begin.custom_minimum_size = Vector2(220, 46)
-	begin.add_theme_font_size_override("font_size", 18)
+	begin.custom_minimum_size = Vector2(190, 38)
+	begin.add_theme_font_size_override("font_size", 15)
 	begin.add_theme_color_override("font_color", AMBER)
 	begin.add_theme_color_override("font_hover_color", Color(1.0, 0.95, 0.8))
 	begin.add_theme_stylebox_override("normal", _stylebox(Color(0.14, 0.06, 0.05, 0.97), Color(0.55, 0.3, 0.12, 1.0), 1, 3))
@@ -2923,7 +3180,20 @@ func show_story(title_text: String, body_text: String) -> void:
 	if story_panel == null:
 		return
 	story_title.text = title_text
-	story_body.text = body_text
+	if story_body_box != null:
+		for child in story_body_box.get_children():
+			child.queue_free()
+		var clean := body_text.replace("\r\n", "\n").replace("\r", "\n")
+		for paragraph in clean.split("\n\n", false):
+			var text := String(paragraph).strip_edges()
+			if text.is_empty():
+				continue
+			var line := _label(text, 13, BONE, false)
+			line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			line.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			story_body_box.add_child(line)
+	if story_scroll != null:
+		story_scroll.set_deferred("scroll_vertical", 0)
 	story_panel.visible = true
 	story_panel.modulate.a = 0.0
 	get_tree().paused = true
@@ -3043,6 +3313,264 @@ func hide_codex() -> void:
 		codex_panel.visible = false
 
 
+## The passive tree: three short branches, one point per level. It reads state
+## from the game every time it opens, so it never shows a stale tree.
+func _build_passives() -> void:
+	passive_panel = PanelContainer.new()
+	passive_panel.set_anchors_preset(Control.PRESET_CENTER)
+	passive_panel.offset_left = -460.0
+	passive_panel.offset_right = 460.0
+	passive_panel.offset_top = -306.0
+	passive_panel.offset_bottom = 306.0
+	passive_panel.add_theme_stylebox_override("panel", _stylebox(Color(0.022, 0.011, 0.026, 0.99), Color(0.5, 0.3, 0.13, 1.0), 2, 5))
+	passive_panel.visible = false
+	passive_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	root.add_child(passive_panel)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 8)
+	passive_panel.add_child(box)
+	var head := HBoxContainer.new()
+	box.add_child(head)
+	var title := _label("THE BLOODIED PATH", 30, AMBER)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(title)
+	passive_points_label = _label("POINTS  0", 15, GOLD)
+	passive_points_label.custom_minimum_size = Vector2(120, 30)
+	passive_points_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	passive_points_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	head.add_child(passive_points_label)
+	var close := Button.new()
+	close.text = "CLOSE"
+	close.custom_minimum_size = Vector2(82, 30)
+	close.add_theme_font_size_override("font_size", 12)
+	close.add_theme_color_override("font_color", MUTED)
+	close.add_theme_color_override("font_hover_color", AMBER)
+	close.add_theme_stylebox_override("normal", _stylebox(Color(0.05, 0.03, 0.04, 0.9), Color(0.24, 0.16, 0.12, 1.0), 1))
+	close.add_theme_stylebox_override("hover", _stylebox(Color(0.13, 0.06, 0.05, 0.95), Color(0.9, 0.55, 0.2, 1.0), 1))
+	close.pressed.connect(close_passives)
+	head.add_child(close)
+	var hint := _label("One point per level. Follow a branch in order; deeper nodes need the ones above them.", 11, MUTED, false)
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(hint)
+	var cols := HBoxContainer.new()
+	cols.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	cols.add_theme_constant_override("separation", 14)
+	box.add_child(cols)
+	for branch in ["might", "vitae", "grace"]:
+		var col := VBoxContainer.new()
+		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		col.add_theme_constant_override("separation", 7)
+		cols.add_child(col)
+		var color: Color = Passives.BRANCH_COLORS.get(branch, AMBER)
+		var heading := _label(String(Passives.BRANCH_NAMES.get(branch, branch)), 12, color)
+		heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		col.add_child(heading)
+		for entry in Passives.nodes_in(branch):
+			var btn := Button.new()
+			btn.custom_minimum_size = Vector2(0, 62)
+			btn.alignment = HORIZONTAL_ALIGNMENT_CENTER
+			btn.add_theme_font_size_override("font_size", 12)
+			btn.add_theme_color_override("font_color", BONE)
+			btn.add_theme_color_override("font_hover_color", Color(1.0, 0.95, 0.85))
+			btn.add_theme_color_override("font_disabled_color", Color(0.42, 0.38, 0.4))
+			btn.text = "%s\n%s" % [String(entry.get("name", "")), String(entry.get("desc", ""))]
+			var id := String(entry.get("id", ""))
+			btn.pressed.connect(func() -> void: passive_buy.emit(id))
+			col.add_child(btn)
+			passive_buttons.append({"id": id, "button": btn, "branch": branch})
+
+
+func show_passives(owned: Array, points: int) -> void:
+	if passive_panel == null:
+		return
+	passive_owned = owned.duplicate()
+	passive_points = points
+	if passive_points_label != null:
+		passive_points_label.text = "POINTS  %d" % points
+		passive_points_label.add_theme_color_override("font_color", GOLD if points > 0 else Color(0.55, 0.5, 0.45))
+	for entry in passive_buttons:
+		var id := String(entry.get("id", ""))
+		var btn: Button = entry.get("button")
+		if btn == null:
+			continue
+		var data := Passives.node(id)
+		var color: Color = Passives.BRANCH_COLORS.get(String(entry.get("branch", "")), AMBER)
+		var is_owned := passive_owned.has(id)
+		var can_buy := points > 0 and Passives.available(passive_owned, id)
+		btn.disabled = not is_owned and not can_buy
+		btn.text = "%s\n%s" % [String(data.get("name", id)), String(data.get("desc", ""))]
+		if is_owned:
+			btn.add_theme_stylebox_override("normal", _stylebox(Color(color.r * 0.18, color.g * 0.12, color.b * 0.12, 0.98), color, 1, 3))
+			btn.add_theme_color_override("font_color", color.lightened(0.35))
+		elif can_buy:
+			btn.add_theme_stylebox_override("normal", _stylebox(Color(0.07, 0.035, 0.04, 0.96), color.darkened(0.25), 1, 3))
+			btn.add_theme_stylebox_override("hover", _stylebox(Color(0.16, 0.07, 0.06, 0.99), color, 1, 3))
+			btn.add_theme_color_override("font_color", BONE)
+		else:
+			btn.add_theme_stylebox_override("normal", _stylebox(Color(0.04, 0.025, 0.03, 0.9), Color(0.2, 0.16, 0.18, 1.0), 1, 3))
+	passive_panel.visible = true
+	passive_panel.modulate.a = 0.0
+	var tween := create_tween()
+	tween.tween_property(passive_panel, "modulate:a", 1.0, 0.18)
+
+
+func close_passives() -> void:
+	if passive_panel != null:
+		passive_panel.visible = false
+	if body != null and body.visible:
+		show_pause()
+
+
+## The character list: every hero on this computer, with the run summary its
+## own save file carries. Load, delete (two presses) or open the creator.
+func _build_roster() -> void:
+	roster_panel = PanelContainer.new()
+	roster_panel.set_anchors_preset(Control.PRESET_CENTER)
+	roster_panel.offset_left = -410.0
+	roster_panel.offset_right = 410.0
+	roster_panel.offset_top = -300.0
+	roster_panel.offset_bottom = 300.0
+	roster_panel.add_theme_stylebox_override("panel", _stylebox(Color(0.026, 0.013, 0.03, 0.99), Color(0.5, 0.32, 0.14, 1.0), 2, 5))
+	roster_panel.visible = false
+	roster_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	root.add_child(roster_panel)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 10)
+	roster_panel.add_child(box)
+	var head := HBoxContainer.new()
+	box.add_child(head)
+	var title := _label("YOUR CHARACTERS", 30, AMBER)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(title)
+	var create := Button.new()
+	create.text = "CREATE NEW"
+	create.custom_minimum_size = Vector2(140, 32)
+	create.add_theme_font_size_override("font_size", 12)
+	create.add_theme_color_override("font_color", Color(0.7, 0.95, 0.78))
+	create.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 0.9))
+	create.add_theme_stylebox_override("normal", _stylebox(Color(0.06, 0.09, 0.06, 0.96), Color(0.3, 0.55, 0.35, 1.0), 1, 3))
+	create.add_theme_stylebox_override("hover", _stylebox(Color(0.1, 0.18, 0.1, 0.99), Color(0.6, 0.95, 0.65, 1.0), 1, 3))
+	create.pressed.connect(func() -> void:
+		roster_panel.visible = false
+		roster_create.emit()
+	)
+	head.add_child(create)
+	var close := Button.new()
+	close.text = "CLOSE"
+	close.custom_minimum_size = Vector2(82, 32)
+	close.add_theme_font_size_override("font_size", 12)
+	close.add_theme_color_override("font_color", MUTED)
+	close.add_theme_color_override("font_hover_color", AMBER)
+	close.add_theme_stylebox_override("normal", _stylebox(Color(0.05, 0.03, 0.04, 0.9), Color(0.24, 0.16, 0.12, 1.0), 1))
+	close.add_theme_stylebox_override("hover", _stylebox(Color(0.13, 0.06, 0.05, 0.95), Color(0.9, 0.55, 0.2, 1.0), 1))
+	close.pressed.connect(func() -> void: roster_panel.visible = false)
+	head.add_child(close)
+	var hint := _label("Each hero keeps its own run: layer, level, relics, boons and passive tree.", 11, MUTED, false)
+	box.add_child(hint)
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	box.add_child(scroll)
+	roster_list = VBoxContainer.new()
+	roster_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	roster_list.add_theme_constant_override("separation", 8)
+	scroll.add_child(roster_list)
+
+
+func show_roster(entries: Array) -> void:
+	if roster_panel == null:
+		return
+	for child in roster_list.get_children():
+		roster_list.remove_child(child)
+		child.queue_free()
+	roster_delete_armed = ""
+	if entries.is_empty():
+		var empty := _label("No heroes yet. Create one and the rift will remember them.", 13, MUTED, false)
+		empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		roster_list.add_child(empty)
+	for entry in entries:
+		if typeof(entry) == TYPE_DICTIONARY:
+			roster_list.add_child(_roster_row(entry))
+	roster_panel.visible = true
+	roster_panel.modulate.a = 0.0
+	var tween := create_tween()
+	tween.tween_property(roster_panel, "modulate:a", 1.0, 0.18)
+
+
+func _roster_row(entry: Dictionary) -> Control:
+	var row := PanelContainer.new()
+	row.add_theme_stylebox_override("panel", _stylebox(Color(0.045, 0.025, 0.035, 0.96), Color(0.28, 0.2, 0.14, 1.0), 1, 3))
+	var line := HBoxContainer.new()
+	line.add_theme_constant_override("separation", 12)
+	row.add_child(line)
+	var class_id := String(entry.get("class_id", "blood_sorceress"))
+	var data := HeroClasses.definition(class_id)
+	var color: Color = data.get("color", AMBER)
+	var portrait := String(data.get("portrait", ""))
+	if not portrait.is_empty() and ResourceLoader.exists(portrait):
+		var tex: Variant = load(portrait)
+		if tex is Texture2D:
+			var atlas := AtlasTexture.new()
+			atlas.atlas = tex
+			atlas.region = Rect2(170.0, 60.0, 560.0, 660.0)
+			var tile := TextureRect.new()
+			tile.texture = atlas
+			tile.custom_minimum_size = Vector2(40, 52)
+			tile.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			tile.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			line.add_child(tile)
+	var info := VBoxContainer.new()
+	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	info.alignment = BoxContainer.ALIGNMENT_CENTER
+	info.add_theme_constant_override("separation", 0)
+	line.add_child(info)
+	info.add_child(_label(String(entry.get("name", "UNNAMED")), 17, color, false))
+	var summary := "%s  ·  LEVEL %d  ·  LAYER %d  ·  DEEPEST %d  ·  %d COIN" % [
+		String(data.get("name", "BLOOD SORCERESS")), int(entry.get("level", 1)),
+		int(entry.get("layer", 1)), int(entry.get("best", 1)), int(entry.get("coins", 0))]
+	info.add_child(_label(summary, 11, Color(0.78, 0.7, 0.62), false))
+	var load_btn := Button.new()
+	load_btn.text = "LOAD"
+	load_btn.custom_minimum_size = Vector2(94, 34)
+	load_btn.add_theme_font_size_override("font_size", 13)
+	load_btn.add_theme_color_override("font_color", GOLD)
+	load_btn.add_theme_color_override("font_hover_color", Color(1.0, 0.95, 0.8))
+	load_btn.add_theme_stylebox_override("normal", _stylebox(Color(0.12, 0.07, 0.04, 0.96), Color(0.6, 0.42, 0.16, 1.0), 1, 3))
+	load_btn.add_theme_stylebox_override("hover", _stylebox(Color(0.22, 0.12, 0.06, 0.99), Color(1.0, 0.7, 0.28, 1.0), 1, 3))
+	var id := String(entry.get("id", ""))
+	load_btn.pressed.connect(func() -> void:
+		roster_panel.visible = false
+		roster_load.emit(id)
+	)
+	line.add_child(load_btn)
+	var del := Button.new()
+	del.text = "DELETE"
+	del.custom_minimum_size = Vector2(86, 34)
+	del.add_theme_font_size_override("font_size", 11)
+	del.add_theme_color_override("font_color", Color(0.85, 0.5, 0.45))
+	del.add_theme_color_override("font_hover_color", Color(1.0, 0.75, 0.65))
+	del.add_theme_stylebox_override("normal", _stylebox(Color(0.09, 0.04, 0.04, 0.96), Color(0.42, 0.2, 0.16, 1.0), 1, 3))
+	del.add_theme_stylebox_override("hover", _stylebox(Color(0.18, 0.07, 0.06, 0.99), Color(0.85, 0.35, 0.25, 1.0), 1, 3))
+	del.pressed.connect(func() -> void:
+		var now := Time.get_ticks_msec()
+		if roster_delete_armed == id and now - roster_delete_ms < 4000:
+			roster_delete_armed = ""
+			roster_delete.emit(id)
+			return
+		roster_delete_armed = id
+		roster_delete_ms = now
+		del.text = "CONFIRM"
+		var timer := get_tree().create_timer(4.0)
+		timer.timeout.connect(func() -> void:
+			if roster_delete_armed == id and is_instance_valid(del):
+				roster_delete_armed = ""
+				del.text = "DELETE"
+		)
+	)
+	line.add_child(del)
+	return row
+
+
 func _build_fade() -> void:
 	fade_rect = ColorRect.new()
 	fade_rect.color = Color(0.0, 0.0, 0.0, 1.0)
@@ -3099,6 +3627,16 @@ func _input(event: InputEvent) -> void:
 				_set_codex_page(codex_page + 1)
 				get_viewport().set_input_as_handled()
 		return
+	if passive_panel != null and passive_panel.visible:
+		if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
+			close_passives()
+			get_viewport().set_input_as_handled()
+		return
+	if roster_panel != null and roster_panel.visible:
+		if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
+			roster_panel.visible = false
+			get_viewport().set_input_as_handled()
+		return
 	if net_panel != null and net_panel.visible:
 		if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
 			hide_net_panel()
@@ -3143,6 +3681,11 @@ func _input(event: InputEvent) -> void:
 			hide_rift_map()
 		elif not settings_open and not relic_window.visible and not death_panel.visible:
 			toggle_rift_map()
+		get_viewport().set_input_as_handled()
+		return
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_K:
+		if not settings_open and not relic_window.visible and not death_panel.visible and body.visible:
+			passives_requested.emit()
 		get_viewport().set_input_as_handled()
 		return
 	if event is InputEventKey and event.pressed and not event.echo and (event.keycode == KEY_ESCAPE or event.keycode == KEY_P):
@@ -3312,6 +3855,10 @@ func set_bloodrush(count: int, ratio: float) -> void:
 
 
 func set_cooldowns(cooldowns: Array, dash_cooldown: float, health := 0.0, costs: Array = []) -> void:
+	var list: Array = active_class.get("abilities", HeroClasses.abilities("blood_sorceress"))
+	var is_health := String(active_class.get("cost_kind", "health")) == "health"
+	var noun := "VITAE" if is_health else String(active_class.get("focus_name", "FOCUS"))
+	var accent: Color = active_class.get("color", CRIMSON)
 	for i in slots.size():
 		var slot: Dictionary = slots[i]
 		var cd := 0.0
@@ -3319,20 +3866,21 @@ func set_cooldowns(cooldowns: Array, dash_cooldown: float, health := 0.0, costs:
 		var affordable := true
 		if i < cooldowns.size():
 			cd = float(cooldowns[i])
-			total = float(Player.ABILITIES[i].cooldown)
+			if i < list.size():
+				total = float(list[i].get("cooldown", 1.0))
 			var cost := 0.0
 			if i < costs.size():
 				cost = float(costs[i])
-			else:
-				cost = float(Player.ABILITIES[i].cost)
+			elif i < list.size():
+				cost = float(list[i].get("cost", 0.0))
 			affordable = cost <= 0.0 or health > cost + 1.0
 			var cost_label: Label = slot.get("cost")
 			if cost_label != null:
-				cost_label.text = "FREE" if cost <= 0.0 else "%d VITAE" % int(cost)
+				cost_label.text = "FREE" if cost <= 0.0 else "%d %s" % [int(cost), noun]
 				if not affordable:
 					cost_label.add_theme_color_override("font_color", Color(1.0, 0.3, 0.24))
 				else:
-					cost_label.add_theme_color_override("font_color", GOLD if cost <= 0.0 else CRIMSON)
+					cost_label.add_theme_color_override("font_color", GOLD if cost <= 0.0 else (CRIMSON if is_health else accent))
 		else:
 			cd = dash_cooldown
 			total = 2.2
@@ -3781,3 +4329,4 @@ func _process(delta: float) -> void:
 	if low_health > 0.0:
 		pulse = 0.22 + 0.12 * sin(Time.get_ticks_msec() / 220.0)
 	vignette.modulate.a = clampf(vignette_alpha + pulse, 0.0, 1.0)
+

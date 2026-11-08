@@ -47,6 +47,7 @@ var special_windup := 0.0
 var special_pending := false
 var enraged := false
 var stagger := 0.0
+var gait := 0.0
 
 
 func _ready() -> void:
@@ -91,7 +92,26 @@ func setup(kind: Dictionary, model_scene: PackedScene, player: Player, path_call
 		var inst := model_scene.instantiate()
 		model_root.add_child(inst)
 		anim = _find_animation_player(inst)
-		model_root.scale = Vector3.ONE * model_scale
+		var tex_path := String(kind.get("texture", ""))
+		HandGrip.dress(inst, "", model_scale, kind.get("glove", Color(0.20, 0.17, 0.16)))
+		if not tex_path.is_empty() and ResourceLoader.exists(tex_path):
+			var body_mat := StandardMaterial3D.new()
+			body_mat.albedo_texture = load(tex_path)
+			body_mat.roughness = 0.82
+			body_mat.metallic = 0.12
+			for node in inst.find_children("*", "MeshInstance3D", true, false):
+				var piece := node as MeshInstance3D
+				if piece != null:
+					piece.material_override = body_mat
+		if kind.has("height"):
+			var span := _mesh_bounds(inst)
+			if span.size.y > 0.05:
+				inst.position.y -= span.position.y
+				model_root.scale = Vector3.ONE * (float(kind.get("height", 1.8)) / span.size.y)
+			else:
+				model_root.scale = Vector3.ONE * model_scale
+		else:
+			model_root.scale = Vector3.ONE * model_scale
 	else:
 		_build_fallback_model()
 	_build_hp_bar()
@@ -183,6 +203,7 @@ func _physics_process(delta: float) -> void:
 		velocity.y -= GRAVITY * delta
 		move_and_slide()
 		return
+	_static_gait(delta)
 	if frozen:
 		velocity = Vector3.ZERO
 		play_anim(["idle", "walk"], 0.8)
@@ -395,6 +416,41 @@ func _die() -> void:
 	tween.tween_property(model_root, "position:y", -1.6, 0.8)
 	tween.tween_callback(queue_free)
 	died.emit(self)
+
+
+## Generated boss models arrive as static meshes without clips. Give them a
+## readable gait and windup lean so they never slide around like statues.
+func _static_gait(delta: float) -> void:
+	if anim != null or model_root == null or dead:
+		return
+	gait += delta
+	var move_speed := Vector2(velocity.x, velocity.z).length()
+	var amp := clampf(move_speed / maxf(1.0, speed), 0.0, 1.0)
+	var bob := sin(gait * (6.5 + amp * 5.0)) * (0.03 + 0.10 * amp)
+	var sway := sin(gait * (3.2 + amp * 2.4)) * (0.02 + 0.06 * amp)
+	if windup > 0.0:
+		bob -= 0.14 * minf(1.0, windup * 2.0)
+		sway *= 1.6
+	model_root.position.y = bob
+	model_root.rotation.z = sway * 0.55
+
+
+## World-space bounds of every mesh under a freshly instanced model, used to
+## fit imported boss rigs that arrive at an arbitrary real-world scale.
+func _mesh_bounds(root: Node) -> AABB:
+	var result := AABB()
+	var first := true
+	for node in root.find_children("*", "MeshInstance3D", true, false):
+		var mesh := node as MeshInstance3D
+		if mesh == null or mesh.mesh == null:
+			continue
+		var box := mesh.global_transform * mesh.get_aabb()
+		if first:
+			result = box
+			first = false
+		else:
+			result = result.merge(box)
+	return result
 
 
 func play_anim(prefixes: Array, speed := 1.0) -> bool:

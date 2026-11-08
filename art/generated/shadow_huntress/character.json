@@ -1,0 +1,142 @@
+{
+  "id": "character-370e510d-77ad-4015-99bb-355ad484baf4",
+  "rig": {
+    "path": "res://art/generated/shadow_huntress/rig.glb",
+    "assetId": "370e510d-77ad-4015-99bb-355ad484baf4",
+    "fileUrl": "https://res.cloudinary.com/dol86wsz1/raw/upload/v1794097184/summer_3d/character_370e510d-77ad-4015-99bb-355ad484baf4_runtime_1794097182862_9lsrbhx0.glb",
+    "sourceFileUrl": "https://res.cloudinary.com/dol86wsz1/raw/upload/v1794097172/summer_3d/rig_image-to-3d-9q9vej-animation-batch_1794097170606_k8wjqfm3.glb",
+    "artifactFingerprint": "publicId:summer_3d/character_370e510d-77ad-4015-99bb-355ad484baf4_runtime_1794097182862_9lsrbhx0.glb"
+  },
+  "status": "ready",
+  "version": 2,
+  "provider": {
+    "mode": "managed",
+    "name": "fal",
+    "rigTaskId": "01a1b884-7999-725a-ba4c-9fbe163661a2"
+  },
+  "animations": [
+    {
+      "id": "animation-370e510d-77ad-4015-99bb-355ad484baf4-11",
+      "loop": true,
+      "name": "Idle",
+      "path": "res://art/generated/shadow_huntress/rig.glb",
+      "assetId": "9c990ce7-17a3-4ff6-b0dc-74135be8c89c",
+      "fileUrl": "https://res.cloudinary.com/dol86wsz1/raw/upload/v1794097177/summer_animations/animation_image-to-3d-9q9vej-11_1794097175583_55r2okl7.glb",
+      "actionId": 11,
+      "description": "Idle animation for Shadow Huntress.",
+      "semanticRole": "idle",
+      "artifactFingerprint": "assetId:9c990ce7-17a3-4ff6-b0dc-74135be8c89c"
+    },
+    {
+      "id": "animation-370e510d-77ad-4015-99bb-355ad484baf4-1",
+      "loop": true,
+      "name": "Walk",
+      "path": "res://art/generated/shadow_huntress/rig.glb",
+      "assetId": "9bbe8754-f280-4e7b-8228-082ebdc61af3",
+      "fileUrl": "https://res.cloudinary.com/dol86wsz1/raw/upload/v1794097177/summer_animations/animation_image-to-3d-9q9vej-1_1794097175862_8229uoqo.glb",
+      "actionId": 1,
+      "description": "Walk animation for Shadow Huntress.",
+      "semanticRole": "walk",
+      "artifactFingerprint": "assetId:9bbe8754-f280-4e7b-8228-082ebdc61af3"
+    },
+    {
+      "id": "animation-370e510d-77ad-4015-99bb-355ad484baf4-15",
+      "loop": true,
+      "name": "Run",
+      "path": "res://art/generated/shadow_huntress/rig.glb",
+      "assetId": "ef1d2d95-79cb-4f19-ae85-c2d5df48f89c",
+      "fileUrl": "https://res.cloudinary.com/dol86wsz1/raw/upload/v1794097177/summer_animations/animation_image-to-3d-9q9vej-15_1794097175935_ofjwqhqo.glb",
+      "actionId": 15,
+      "description": "Run animation for Shadow Huntress.",
+      "semanticRole": "run",
+      "artifactFingerprint": "assetId:ef1d2d95-79cb-4f19-ae85-c2d5df48f89c"
+    },
+    {
+      "id": "animation-370e510d-77ad-4015-99bb-355ad484baf4-4",
+      "loop": false,
+      "name": "Attack",
+      "path": "res://art/generated/shadow_huntress/rig.glb",
+      "assetId": "e8db6f17-af0d-4af4-b9ff-a5fd51ad0d2c",
+      "fileUrl": "https://res.cloudinary.com/dol86wsz1/raw/upload/v1794097176/summer_animations/animation_image-to-3d-9q9vej-4_1794097175763_i2aovon7.glb",
+      "actionId": 4,
+      "description": "Attack animation for Shadow Huntress.",
+      "semanticRole": "attack",
+      "artifactFingerprint": "assetId:e8db6f17-af0d-4af4-b9ff-a5fd51ad0d2c"
+    },
+    {
+      "id": "animation-370e510d-77ad-4015-99bb-355ad484baf4-129",
+      "loop": false,
+      "name": "Mage Spell Cast",
+      "path": "res://art/generated/shadow_huntress/rig.glb",
+      "assetId": "dd85e56c-dbf9-4a46-8796-7dfca01aab83",
+      "fileUrl": "https://res.cloudinary.com/dol86wsz1/raw/upload/v1794097176/summer_animations/animation_image-to-3d-9q9vej-129_1794097175829_ri5zxzh7.glb",
+      "actionId": 129,
+      "description": "Mage Spell Cast animation for Shadow Huntress.",
+      "semanticRole": "custom",
+      "artifactFingerprint": "assetId:dd85e56c-dbf9-4a46-8796-7dfca01aab83"
+    }
+  ],
+  "characterId": "370e510d-77ad-4015-99bb-355ad484baf4",
+  "displayName": "Shadow Huntress",
+  "forwardAxis": "-Z",
+  "directoryName": "shadow_huntress_370e510d",
+  "runtimeBundle": {
+    "clips": [
+      "Idle",
+      "Walk",
+      "Run",
+      "Attack",
+      "Mage Spell Cast"
+    ],
+    "fileUrl": "https://res.cloudinary.com/dol86wsz1/raw/upload/v1794097184/summer_3d/character_370e510d-77ad-4015-99bb-355ad484baf4_runtime_1794097182862_9lsrbhx0.glb",
+    "publicId": "summer_3d/character_370e510d-77ad-4015-99bb-355ad484baf4_runtime_1794097182862_9lsrbhx0.glb",
+    "validation": {
+      "ok": true,
+      "clips": [
+        {
+          "name": "Idle",
+          "channels": 66,
+          "duration": 1.9
+        },
+        {
+          "name": "Walk",
+          "channels": 66,
+          "duration": 1
+        },
+        {
+          "name": "Run",
+          "channels": 66,
+          "duration": 0.833
+        },
+        {
+          "name": "Attack",
+          "channels": 66,
+          "duration": 2.833
+        },
+        {
+          "name": "Mage Spell Cast",
+          "channels": 66,
+          "duration": 2.3
+        }
+      ],
+      "errors": [],
+      "sizeBytes": 16739072
+    },
+    "skeletonFingerprint": "mufby4"
+  },
+  "rootYawRadians": 3.141592653589793,
+  "unriggedSource": {
+    "assetId": "370e510d-77ad-4015-99bb-355ad484baf4",
+    "fileUrl": "https://res.cloudinary.com/dol86wsz1/raw/upload/v1794096999/summer_3d/3d_370e510d77ad401599bb355a_1794096998092.glb"
+  },
+  "scaleMultiplier": 1,
+  "sourceForwardAxis": "+Z",
+  "groundOffsetMeters": 0,
+  "targetHeightMeters": 1.78,
+  "skeletonFingerprint": "mufby4",
+  "packageRevision": "sha256:f0e158bb9cd0239681b18b12acc9a73bc14cc6f0350335d6f49ff0348a09d69c",
+  "normalization": {
+    "targetHeightMeters": 1.78,
+    "forwardAxis": "-Z"
+  }
+}

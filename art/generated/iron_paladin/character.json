@@ -1,0 +1,142 @@
+{
+  "id": "character-70aba6ab-fd48-4ea0-a417-28c7412ffd33",
+  "rig": {
+    "path": "res://art/generated/iron_paladin/rig.glb",
+    "assetId": "70aba6ab-fd48-4ea0-a417-28c7412ffd33",
+    "fileUrl": "https://res.cloudinary.com/dol86wsz1/raw/upload/v1794097142/summer_3d/character_70aba6ab-fd48-4ea0-a417-28c7412ffd33_runtime_1794097141131_v8qv8pbd.glb",
+    "sourceFileUrl": "https://res.cloudinary.com/dol86wsz1/raw/upload/v1794097131/summer_3d/rig_image-to-3d-1qb1629-animation-batch_1794097129765_ffw4jn54.glb",
+    "artifactFingerprint": "publicId:summer_3d/character_70aba6ab-fd48-4ea0-a417-28c7412ffd33_runtime_1794097141131_v8qv8pbd.glb"
+  },
+  "status": "ready",
+  "version": 2,
+  "provider": {
+    "mode": "managed",
+    "name": "fal",
+    "rigTaskId": "01a1b884-65e6-7467-b001-4a6cdd976369"
+  },
+  "animations": [
+    {
+      "id": "animation-70aba6ab-fd48-4ea0-a417-28c7412ffd33-11",
+      "loop": true,
+      "name": "Idle",
+      "path": "res://art/generated/iron_paladin/rig.glb",
+      "assetId": "b4c754b9-9097-41cd-a7b2-3cc871539bf2",
+      "fileUrl": "https://res.cloudinary.com/dol86wsz1/raw/upload/v1794097135/summer_animations/animation_image-to-3d-1qb1629-11_1794097134492_qbrvn6rt.glb",
+      "actionId": 11,
+      "description": "Idle animation for Iron Paladin.",
+      "semanticRole": "idle",
+      "artifactFingerprint": "assetId:b4c754b9-9097-41cd-a7b2-3cc871539bf2"
+    },
+    {
+      "id": "animation-70aba6ab-fd48-4ea0-a417-28c7412ffd33-1",
+      "loop": true,
+      "name": "Walk",
+      "path": "res://art/generated/iron_paladin/rig.glb",
+      "assetId": "f088caa0-4588-4749-9b6e-fa86dddf05e2",
+      "fileUrl": "https://res.cloudinary.com/dol86wsz1/raw/upload/v1794097135/summer_animations/animation_image-to-3d-1qb1629-1_1794097134402_u3d0ab1y.glb",
+      "actionId": 1,
+      "description": "Walk animation for Iron Paladin.",
+      "semanticRole": "walk",
+      "artifactFingerprint": "assetId:f088caa0-4588-4749-9b6e-fa86dddf05e2"
+    },
+    {
+      "id": "animation-70aba6ab-fd48-4ea0-a417-28c7412ffd33-15",
+      "loop": true,
+      "name": "Run",
+      "path": "res://art/generated/iron_paladin/rig.glb",
+      "assetId": "fd93579a-0e0f-435b-b6f0-92a70faa3167",
+      "fileUrl": "https://res.cloudinary.com/dol86wsz1/raw/upload/v1794097135/summer_animations/animation_image-to-3d-1qb1629-15_1794097134245_5n2h368k.glb",
+      "actionId": 15,
+      "description": "Run animation for Iron Paladin.",
+      "semanticRole": "run",
+      "artifactFingerprint": "assetId:fd93579a-0e0f-435b-b6f0-92a70faa3167"
+    },
+    {
+      "id": "animation-70aba6ab-fd48-4ea0-a417-28c7412ffd33-4",
+      "loop": false,
+      "name": "Attack",
+      "path": "res://art/generated/iron_paladin/rig.glb",
+      "assetId": "ea76089f-2dcd-45e6-bccb-fce57f3b475c",
+      "fileUrl": "https://res.cloudinary.com/dol86wsz1/raw/upload/v1794097135/summer_animations/animation_image-to-3d-1qb1629-4_1794097134524_z1lou79g.glb",
+      "actionId": 4,
+      "description": "Attack animation for Iron Paladin.",
+      "semanticRole": "attack",
+      "artifactFingerprint": "assetId:ea76089f-2dcd-45e6-bccb-fce57f3b475c"
+    },
+    {
+      "id": "animation-70aba6ab-fd48-4ea0-a417-28c7412ffd33-129",
+      "loop": false,
+      "name": "Mage Spell Cast",
+      "path": "res://art/generated/iron_paladin/rig.glb",
+      "assetId": "b3fa5b07-dec4-4b10-9df4-104cf85ab944",
+      "fileUrl": "https://res.cloudinary.com/dol86wsz1/raw/upload/v1794097135/summer_animations/animation_image-to-3d-1qb1629-129_1794097134544_r8zog1br.glb",
+      "actionId": 129,
+      "description": "Mage Spell Cast animation for Iron Paladin.",
+      "semanticRole": "custom",
+      "artifactFingerprint": "assetId:b3fa5b07-dec4-4b10-9df4-104cf85ab944"
+    }
+  ],
+  "characterId": "70aba6ab-fd48-4ea0-a417-28c7412ffd33",
+  "displayName": "Iron Paladin",
+  "forwardAxis": "-Z",
+  "directoryName": "iron_paladin_70aba6ab",
+  "runtimeBundle": {
+    "clips": [
+      "Idle",
+      "Walk",
+      "Run",
+      "Attack",
+      "Mage Spell Cast"
+    ],
+    "fileUrl": "https://res.cloudinary.com/dol86wsz1/raw/upload/v1794097142/summer_3d/character_70aba6ab-fd48-4ea0-a417-28c7412ffd33_runtime_1794097141131_v8qv8pbd.glb",
+    "publicId": "summer_3d/character_70aba6ab-fd48-4ea0-a417-28c7412ffd33_runtime_1794097141131_v8qv8pbd.glb",
+    "validation": {
+      "ok": true,
+      "clips": [
+        {
+          "name": "Idle",
+          "channels": 66,
+          "duration": 1.9
+        },
+        {
+          "name": "Walk",
+          "channels": 66,
+          "duration": 1
+        },
+        {
+          "name": "Run",
+          "channels": 66,
+          "duration": 0.833
+        },
+        {
+          "name": "Attack",
+          "channels": 66,
+          "duration": 2.833
+        },
+        {
+          "name": "Mage Spell Cast",
+          "channels": 66,
+          "duration": 2.3
+        }
+      ],
+      "errors": [],
+      "sizeBytes": 14959708
+    },
+    "skeletonFingerprint": "hragu7"
+  },
+  "rootYawRadians": 3.141592653589793,
+  "unriggedSource": {
+    "assetId": "70aba6ab-fd48-4ea0-a417-28c7412ffd33",
+    "fileUrl": "https://res.cloudinary.com/dol86wsz1/raw/upload/v1794096992/summer_3d/3d_70aba6abfd484ea0a41728c7_1794096991325.glb"
+  },
+  "scaleMultiplier": 1,
+  "sourceForwardAxis": "+Z",
+  "groundOffsetMeters": 0,
+  "targetHeightMeters": 1.95,
+  "skeletonFingerprint": "hragu7",
+  "packageRevision": "sha256:40788a833fedd7bb59a177245f64a7c78bf3d2eaa6b8eecfdf2ca1f01690192a",
+  "normalization": {
+    "targetHeightMeters": 1.95,
+    "forwardAxis": "-Z"
+  }
+}

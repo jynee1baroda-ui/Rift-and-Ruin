@@ -8,6 +8,8 @@ signal damaged(amount: float)
 signal healed(amount: float)
 signal life_spent(amount: float)
 signal leveled_up(level: int)
+signal focus_changed(current: float, maximum: float)
+signal passives_changed
 
 const BASE_MAX_HEALTH := 220.0
 const BASE_SPEED := 7.2
@@ -19,18 +21,22 @@ const BLOODRUSH_MAX := 10
 const MAX_RELICS := 3
 const FAMILY_STACK_LIMIT := 2
 
-const ABILITIES := [
-	{"name": "Blood Nova", "cost": 6.0, "cooldown": 3.2, "key": "1", "glyph": "NOVA", "desc": "Detonate your life force around you."},
-	{"name": "Crimson Lance", "cost": 3.0, "cooldown": 0.6, "key": "2", "glyph": "LANCE", "desc": "Hurl a piercing spear of blood."},
-	{"name": "Sanguine Siphon", "cost": 0.0, "cooldown": 7.5, "key": "3", "glyph": "SIPHON", "desc": "Drain nearby foes and drink their life."},
-]
-
-## How long each cast locks the cast pose. The lance is the primary attack, so
-## it recovers almost immediately; the nova needs a beat, the siphon more.
-const CAST_TIME := [0.24, 0.12, 0.3]
+const ABILITY_SLOTS := 3
 
 var max_health := BASE_MAX_HEALTH
 var health := BASE_MAX_HEALTH
+var class_id := "blood_sorceress"
+var class_data: Dictionary = HeroClasses.definition("blood_sorceress")
+var abilities: Array = HeroClasses.abilities("blood_sorceress")
+var focus := 0.0
+var focus_max := 0.0
+var focus_regen := 0.0
+var focus_name := ""
+var focus_color := Color(0.95, 0.3, 0.32)
+var shield := 0.0
+var shield_timer := 0.0
+var crit_bonus := 0.0
+var crit_bonus_amount := 0.0
 var level := 1
 var xp := 0.0
 var move_speed := BASE_SPEED
@@ -60,6 +66,10 @@ var moving := false
 var in_lava := false
 var bloodrush := 0
 var bloodrush_timer := 0.0
+var passive_nodes: Array = []
+var passive_points := 0
+var passive_bonus: Dictionary = {}
+var boons: Dictionary = {}
 
 var model_root: Node3D
 var anim: AnimationPlayer
@@ -84,14 +94,106 @@ func _ready() -> void:
 	_build_aura()
 
 
-func setup(model_scene: PackedScene) -> void:
+func setup(model_scene: PackedScene, model_scale := 1.35, tint := Color(0, 0, 0, 0)) -> void:
 	if model_scene != null:
 		var inst := model_scene.instantiate()
 		model_root.add_child(inst)
-		model_root.scale = Vector3.ONE * 1.35
+		model_root.scale = Vector3.ONE * model_scale
 		anim = _find_animation_player(inst)
+		HandGrip.dress(inst, class_id, model_scale, class_data.get("glove", Color(0.24, 0.2, 0.2)))
+		if tint.a > 0.0:
+			tint_model(inst, tint)
 	else:
 		_build_fallback_model()
+
+
+## While a class's own character model is still being generated, the shared rig
+## is tinted so the class still reads at a glance.
+func tint_model(node: Node, color: Color) -> void:
+	var overlay := StandardMaterial3D.new()
+	overlay.albedo_color = Color(color.r, color.g, color.b, 0.42)
+	overlay.emission_enabled = true
+	overlay.emission = color
+	overlay.emission_energy_multiplier = 0.35
+	overlay.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	overlay.cull_mode = BaseMaterial3D.CULL_DISABLED
+	for child in node.find_children("*", "MeshInstance3D", true, false):
+		var mesh := child as MeshInstance3D
+		if mesh != null:
+			mesh.material_overlay = overlay
+
+
+func set_model(model_scene: PackedScene, model_scale := 1.35, tint := Color(0, 0, 0, 0)) -> void:
+	if model_root == null:
+		return
+	if anim != null:
+		anim.stop()
+		anim = null
+	for child in model_root.get_children():
+		model_root.remove_child(child)
+		child.queue_free()
+	model_root.rotation = Vector3.ZERO
+	model_root.scale = Vector3.ONE
+	setup(model_scene, model_scale, tint)
+
+
+func set_class(id: String) -> void:
+	class_id = id if HeroClasses.CLASSES.has(id) else "blood_sorceress"
+	class_data = HeroClasses.definition(class_id)
+	abilities = class_data.get("abilities", [])
+	focus_name = String(class_data.get("focus_name", ""))
+	focus_max = float(class_data.get("focus_max", 0.0))
+	focus_regen = float(class_data.get("focus_regen", 0.0))
+	focus_color = class_data.get("focus_color", Color(0.95, 0.3, 0.32))
+	focus = focus_max
+	cooldowns = [0.0, 0.0, 0.0]
+	_recalculate()
+	health = max_health
+	health_changed.emit(health, max_health)
+	focus_changed.emit(focus, focus_max)
+
+
+func set_passives(nodes: Array, points: int) -> void:
+	passive_nodes.clear()
+	for id in nodes:
+		passive_nodes.append(String(id))
+	passive_points = maxi(0, points)
+	_recalculate()
+	passives_changed.emit()
+
+
+func buy_passive(id: String) -> bool:
+	if passive_points <= 0 or not Passives.available(passive_nodes, id):
+		return false
+	passive_nodes.append(id)
+	passive_points -= 1
+	_recalculate()
+	passives_changed.emit()
+	return true
+
+
+func add_boon(key: String) -> void:
+	boons[key] = int(boons.get(key, 0)) + 1
+	_recalculate()
+
+
+func set_boons(keys: Array) -> void:
+	boons.clear()
+	for key in keys:
+		boons[String(key)] = int(boons.get(String(key), 0)) + 1
+	_recalculate()
+
+
+func boon_count(key: String) -> int:
+	return int(boons.get(key, 0))
+
+
+func primary_index() -> int:
+	return int(class_data.get("primary", 0))
+
+
+func secondary_index() -> int:
+	return int(class_data.get("secondary", 1))
 
 
 func _find_animation_player(node: Node) -> AnimationPlayer:
@@ -198,6 +300,14 @@ func _physics_process(delta: float) -> void:
 		bloodrush_timer = maxf(0.0, bloodrush_timer - delta)
 		if bloodrush_timer <= 0.0:
 			bloodrush = 0
+	if shield_timer > 0.0:
+		shield_timer = maxf(0.0, shield_timer - delta)
+		if shield_timer <= 0.0:
+			shield = 0.0
+	crit_bonus = maxf(0.0, crit_bonus - delta)
+	if focus_max > 0.0 and focus < focus_max:
+		focus = minf(focus_max, focus + focus_regen * delta)
+		focus_changed.emit(focus, focus_max)
 	var rate := regen_now()
 	if rate > 0.0 and health < max_health:
 		heal(rate * delta)
@@ -266,7 +376,13 @@ func _face_direction(direction: Vector3, delta: float) -> void:
 
 func _update_anim(walking: bool) -> void:
 	if cast_timer > 0.0:
-		play_anim(["charged_spell", "cast", "attack", "spell", "punch"])
+		match class_id:
+			"iron_paladin":
+				play_anim(["attack", "slash", "punch", "cast"])
+			"shadow_huntress":
+				play_anim(["attack", "shoot", "bow", "cast"])
+			_:
+				play_anim(["charged_spell", "cast", "attack", "spell", "punch"])
 	elif dash_time > 0.0:
 		play_anim(["run", "walk"], 1.6)
 	elif walking:
@@ -312,21 +428,32 @@ func stop() -> void:
 
 
 func ability_cost(index: int) -> float:
-	if index < 0 or index >= ABILITIES.size():
+	if index < 0 or index >= abilities.size():
 		return 0.0
-	var cost: float = ABILITIES[index].cost
-	if index == 0 and has_unique("nova_free"):
+	var entry: Dictionary = abilities[index]
+	var cost := float(entry.get("cost", 0.0))
+	if String(entry.get("id", "")) == "nova" and has_unique("nova_free"):
 		cost = 0.0
-	return cost * life_cost_mult
+	if is_health_cost():
+		return cost * life_cost_mult
+	return cost
+
+
+func is_health_cost() -> bool:
+	return String(class_data.get("cost_kind", "health")) == "health"
 
 
 func ability_ready(index: int) -> bool:
-	if not alive or index < 0 or index >= ABILITIES.size():
+	if not alive or index < 0 or index >= abilities.size():
 		return false
 	if cooldowns[index] > 0.0:
 		return false
 	var cost := ability_cost(index)
-	return cost <= 0.0 or health > cost + 1.0
+	if cost <= 0.0:
+		return true
+	if is_health_cost():
+		return health > cost + 1.0
+	return focus >= cost
 
 
 func try_ability(index: int) -> bool:
@@ -335,15 +462,37 @@ func try_ability(index: int) -> bool:
 	var aim := aim_point
 	if (aim - global_position).length_squared() > 0.01:
 		_face_direction((aim - global_position), 1.0)
-	cooldowns[index] = float(ABILITIES[index].cooldown) * cooldown_mult
+	var entry: Dictionary = abilities[index]
+	cooldowns[index] = float(entry.get("cooldown", 1.0)) * cooldown_mult
 	var cost := ability_cost(index)
 	if cost > 0.0:
-		health = maxf(1.0, health - cost)
-		life_spent.emit(cost)
-		health_changed.emit(health, max_health)
-	cast_timer = float(CAST_TIME[index]) if index < CAST_TIME.size() else 0.25
+		if is_health_cost():
+			health = maxf(1.0, health - cost)
+			life_spent.emit(cost)
+			health_changed.emit(health, max_health)
+		else:
+			focus = maxf(0.0, focus - cost)
+			focus_changed.emit(focus, focus_max)
+	cast_timer = float(entry.get("cast", 0.22))
 	ability_used.emit(index, aim)
 	return true
+
+
+func apply_shield(amount: float, duration: float) -> void:
+	shield = maxf(shield, amount)
+	shield_timer = maxf(shield_timer, duration)
+
+
+func apply_crit_window(amount: float, duration: float) -> void:
+	crit_bonus_amount = amount
+	crit_bonus = duration
+
+
+func teleport_to(point: Vector3) -> void:
+	var target := Vector3(point.x, global_position.y, point.z)
+	global_position = target
+	velocity = Vector3.ZERO
+	path.clear()
 
 
 func add_bloodrush() -> void:
@@ -356,10 +505,11 @@ func in_combat() -> bool:
 
 
 func regen_now() -> float:
-	var rate := COMBAT_REGEN
+	var bloodrush_bonus := 0.07 * float(bloodrush)
 	if combat_timer <= 0.0:
-		rate = regen * clampf(calm_time / 1.2, 0.2, 1.0)
-	return rate + 0.07 * float(bloodrush)
+		var calm := maxf(regen, max_health * 0.035)
+		return calm * clampf(calm_time / 1.2, 0.2, 1.0) + bloodrush_bonus
+	return maxf(COMBAT_REGEN, max_health * 0.0035) + bloodrush_bonus
 
 
 func try_dash() -> bool:
@@ -381,6 +531,17 @@ func try_dash() -> bool:
 func take_damage(amount: float) -> void:
 	if not alive or invulnerable > 0.0 or amount <= 0.0:
 		return
+	if shield > 0.0:
+		var absorbed := minf(shield, amount)
+		shield -= absorbed
+		amount -= absorbed
+		combat_timer = 3.5
+		if shield <= 0.01:
+			shield = 0.0
+			shield_timer = 0.0
+		if amount <= 0.01:
+			damaged.emit(absorbed)
+			return
 	health = maxf(0.0, health - amount)
 	combat_timer = 3.5
 	# A short grace window only: long i-frames made swarms harmless.
@@ -423,6 +584,10 @@ func die() -> void:
 func revive() -> void:
 	alive = true
 	health = max_health
+	focus = focus_max
+	shield = 0.0
+	shield_timer = 0.0
+	crit_bonus = 0.0
 	path.clear()
 	velocity = Vector3.ZERO
 	cooldowns = [0.0, 0.0, 0.0]
@@ -438,6 +603,7 @@ func revive() -> void:
 	if aura != null:
 		aura.emitting = true
 	health_changed.emit(health, max_health)
+	focus_changed.emit(focus, focus_max)
 
 
 func has_unique(key: String) -> bool:
@@ -550,22 +716,40 @@ func _recalculate() -> void:
 	if max_health > 0.0:
 		ratio = health / max_health
 	var syn := synergy()
+	passive_bonus = Passives.totals(passive_nodes)
 	var level_steps := float(level - 1)
-	max_health = BASE_MAX_HEALTH + 12.0 * level_steps + relic_total("vitality") + float(syn.life)
-	max_health *= 1.0 + float(syn.life_pct)
-	move_speed = BASE_SPEED * (1.0 + 0.007 * level_steps + (relic_total("move_speed") + float(syn.move_speed)) / 100.0)
-	crit_chance = 0.06 + (relic_total("crit") + float(syn.crit)) / 100.0
-	crit_damage = 1.75 + (relic_total("crit_damage") + float(syn.crit_damage)) / 100.0
-	regen = BASE_REGEN + 0.09 * level_steps + relic_total("regen") + float(syn.regen)
+	var base_health := float(class_data.get("health", BASE_MAX_HEALTH))
+	var base_speed := float(class_data.get("speed", BASE_SPEED))
+	var base_regen := float(class_data.get("regen", BASE_REGEN))
+	var base_power := float(class_data.get("power", 1.0))
+	var fury := float(boon_count("fury"))
+	var vitality_boons := 40.0 * float(boon_count("vitality"))
+	max_health = base_health + 14.0 * level_steps + relic_total("vitality") + float(syn.life) \
+		+ float(passive_bonus.get("health_flat", 0.0)) + vitality_boons
+	max_health *= 1.0 + float(syn.life_pct) + float(passive_bonus.get("health_pct", 0.0)) / 100.0
+	move_speed = base_speed * (1.0 + 0.007 * level_steps + (relic_total("move_speed") + float(syn.move_speed)) / 100.0)
+	move_speed *= 1.0 + float(passive_bonus.get("speed_pct", 0.0)) / 100.0
+	move_speed *= pow(1.08, float(boon_count("swift")))
+	crit_chance = 0.06 + (relic_total("crit") + float(syn.crit)) / 100.0 + float(passive_bonus.get("crit", 0.0)) / 100.0
+	crit_damage = 1.75 + (relic_total("crit_damage") + float(syn.crit_damage)) / 100.0 + float(passive_bonus.get("crit_damage", 0.0)) / 100.0
+	regen = base_regen + 0.09 * level_steps + relic_total("regen") + float(syn.regen) \
+		+ float(passive_bonus.get("regen", 0.0)) + 0.9 * float(boon_count("regen"))
 	life_cost_mult = (1.0 + relic_total("life_cost") / 100.0) * (1.0 - float(syn.cost_cut))
-	power = (1.0 + relic_total("power") / 100.0) * (1.0 + float(syn.power)) * (1.0 + 0.045 * level_steps)
+	life_cost_mult *= 1.0 + float(passive_bonus.get("cost_pct", 0.0)) / 100.0
+	cooldown_mult = clampf(pow(0.85, float(boon_count("haste"))) * (1.0 + float(passive_bonus.get("cooldown_pct", 0.0)) / 100.0), 0.35, 1.0)
+	power = base_power * (1.0 + relic_total("power") / 100.0) * (1.0 + float(syn.power)) \
+		* (1.0 + 0.045 * level_steps) * (1.0 + float(passive_bonus.get("power_pct", 0.0)) / 100.0) * pow(1.15, fury)
 	dash_cooldown_base = 2.2 - float(syn.dash)
+	focus_max = float(class_data.get("focus_max", 0.0)) + 2.0 * level_steps + float(passive_bonus.get("focus_flat", 0.0))
+	focus = clampf(focus, 0.0, focus_max)
 	health = clampf(max_health * ratio, 1.0, max_health)
 	health_changed.emit(health, max_health)
+	focus_changed.emit(focus, focus_max)
 
 
 func roll_damage(base: float) -> Array:
-	var crit := randf() < crit_chance
+	var chance := crit_chance + (crit_bonus_amount if crit_bonus > 0.0 else 0.0)
+	var crit := randf() < chance
 	var amount := base * power * (1.0 + 0.035 * float(bloodrush)) * (crit_damage if crit else 1.0)
 	return [amount, crit]
 
@@ -610,3 +794,4 @@ func gain_xp(amount: float) -> void:
 	health_changed.emit(health, max_health)
 	for i in gained:
 		leveled_up.emit(level)
+

@@ -23,8 +23,15 @@ const KINDS := {
 	"brute": {"key": "brute", "name": "Hushed Brute", "file": "hushed-brute.glb", "health": 190.0, "damage": 22.0, "speed": 3.4, "range": 2.7, "interval": 2.4, "windup": 0.85, "scale": 1.0, "elite": true},
 	"prophet": {"key": "prophet", "name": "The Hushed Prophet", "file": "hushed-prophet.glb", "health": 460.0, "damage": 24.0, "speed": 3.1, "range": 3.2, "interval": 2.6, "windup": 0.9, "scale": 1.05, "boss": true},
 	"brood": {"key": "brood", "name": "The Brood Mother", "file": "brood-mother-boss.glb", "health": 520.0, "damage": 26.0, "speed": 3.3, "range": 3.6, "interval": 2.1, "windup": 0.75, "scale": 1.0, "boss": true},
+	"nail": {"key": "nail", "name": "The Iron Choir", "file": "res://art/generated/boss_iron_choir/3d_1794099354340.glb", "texture": "res://art/generated/boss_iron_choir/3d_1794099354340_texture_20250901.png", "health": 780.0, "damage": 34.0, "speed": 3.6, "range": 3.0, "interval": 2.2, "windup": 0.8, "height": 2.9, "boss": true, "tint": Color(0.86, 0.9, 1.0), "special": "slam"},
+	"tide": {"key": "tide", "name": "The Bone Tide", "file": "res://art/generated/boss_bone_tide/3d_1794099110423.glb", "texture": "res://art/generated/boss_bone_tide/3d_1794099110423_texture_20250901.png", "health": 980.0, "damage": 36.0, "speed": 4.5, "range": 2.6, "interval": 1.7, "windup": 0.6, "height": 2.2, "boss": true, "tint": Color(0.92, 1.0, 0.72), "special": "charge"},
+	"drowning": {"key": "drowning", "name": "The Drowning", "file": "res://art/generated/boss_drowning/3d_0f6dfebbc8f24bbeb98f1108_1794099728369.glb", "texture": "res://art/generated/boss_drowning/3d_0f6dfebbc8f24bbeb98f1108_1794099728369_texture_20250901.png", "health": 1480.0, "damage": 44.0, "speed": 3.4, "range": 4.0, "interval": 2.0, "windup": 0.8, "height": 3.2, "boss": true, "tint": Color(1.0, 0.3, 0.24), "special": "storm"},
 	"mirror": {"key": "mirror", "name": "THE MIRROR", "file": "", "health": 380.0, "damage": 11.0, "speed": 4.3, "range": 7.2, "interval": 1.9, "windup": 0.55, "scale": 1.0, "boss": true, "ranged": true, "aggro": 40.0},
 }
+
+## One warden every sixth layer, in order. Layer 6 is the Prophet, 12 the Brood
+## Mother, 18 the Iron Choir, 24 the Bone Tide, 30 the Drowning.
+const BOSS_ORDER := ["prophet", "brood", "nail", "tide", "drowning"]
 
 const THEMES := [
 	{"name": "ASHEN CAUSEWAY", "density": 0.76, "rivers": 1, "pools": 1, "decor": 1.0, "layout": "causeway",
@@ -77,6 +84,106 @@ const THEMES := [
 		"rock": Color(0.20, 0.16, 0.12), "seam": Color(1.0, 0.70, 0.20), "glow": 1.65, "plate": 0.14,
 		"lava_crust": Color(0.12, 0.05, 0.01), "lava_hot": Color(1.0, 0.55, 0.08), "lava_core": Color(1.0, 0.95, 0.60),
 		"plants": 0.70, "sun": Color(1.0, 0.90, 0.66)},
+	{"name": "THE SALT SCAR", "density": 0.80, "rivers": 1, "pools": 1, "decor": 0.6, "layout": "causeway",
+		"fog": Color(0.12, 0.12, 0.14), "ambient": Color(0.36, 0.35, 0.32),
+		"rock": Color(0.30, 0.29, 0.27), "seam": Color(0.98, 0.88, 0.55), "glow": 1.10, "plate": 0.18,
+		"lava_crust": Color(0.16, 0.13, 0.09), "lava_hot": Color(1.0, 0.72, 0.28), "lava_core": Color(1.0, 0.97, 0.78),
+		"plants": 0.08, "sun": Color(1.0, 0.97, 0.90)},
+	{"name": "THE NAIL CHOIR", "density": 0.74, "rivers": 1, "pools": 1, "decor": 1.7, "layout": "cathedral",
+		"fog": Color(0.08, 0.07, 0.13), "ambient": Color(0.30, 0.27, 0.44),
+		"rock": Color(0.24, 0.23, 0.26), "seam": Color(0.88, 0.78, 1.0), "glow": 1.20, "plate": 0.11,
+		"lava_crust": Color(0.06, 0.04, 0.09), "lava_hot": Color(0.78, 0.55, 1.0), "lava_core": Color(0.96, 0.9, 1.0),
+		"plants": 0.18, "sun": Color(0.90, 0.88, 1.0)},
+	{"name": "THE DRIPPING VAULT", "density": 0.70, "rivers": 2, "pools": 2, "decor": 1.1, "layout": "warrens",
+		"fog": Color(0.04, 0.10, 0.10), "ambient": Color(0.18, 0.34, 0.32),
+		"rock": Color(0.13, 0.17, 0.17), "seam": Color(0.45, 1.0, 0.86), "glow": 1.35, "plate": 0.13,
+		"lava_crust": Color(0.02, 0.06, 0.06), "lava_hot": Color(0.25, 0.92, 0.78), "lava_core": Color(0.80, 1.0, 0.95),
+		"plants": 0.62, "sun": Color(0.78, 1.0, 0.94)},
+	{"name": "THE CINDER GALLERY", "density": 0.72, "rivers": 1, "pools": 1, "decor": 1.35, "layout": "terrace",
+		"fog": Color(0.14, 0.05, 0.05), "ambient": Color(0.34, 0.20, 0.18),
+		"rock": Color(0.18, 0.12, 0.12), "seam": Color(1.0, 0.36, 0.18), "glow": 1.30, "plate": 0.15,
+		"lava_crust": Color(0.09, 0.03, 0.02), "lava_hot": Color(1.0, 0.33, 0.10), "lava_core": Color(1.0, 0.78, 0.45),
+		"plants": 0.30, "sun": Color(1.0, 0.80, 0.72)},
+	{"name": "THE QUIET LEDGER", "density": 0.76, "rivers": 1, "pools": 1, "decor": 1.9, "layout": "plaza",
+		"fog": Color(0.12, 0.09, 0.03), "ambient": Color(0.42, 0.34, 0.16),
+		"rock": Color(0.20, 0.17, 0.10), "seam": Color(1.0, 0.82, 0.30), "glow": 1.30, "plate": 0.14,
+		"lava_crust": Color(0.11, 0.06, 0.01), "lava_hot": Color(1.0, 0.62, 0.10), "lava_core": Color(1.0, 0.94, 0.55),
+		"plants": 0.50, "sun": Color(1.0, 0.93, 0.76)},
+	{"name": "THE HOLLOW CROWN", "density": 0.70, "rivers": 1, "pools": 1, "decor": 1.4, "layout": "ring",
+		"fog": Color(0.09, 0.04, 0.13), "ambient": Color(0.28, 0.18, 0.42),
+		"rock": Color(0.15, 0.11, 0.19), "seam": Color(0.85, 0.55, 1.0), "glow": 1.45, "plate": 0.12,
+		"lava_crust": Color(0.06, 0.02, 0.09), "lava_hot": Color(0.95, 0.42, 1.0), "lava_core": Color(1.0, 0.86, 1.0),
+		"plants": 0.35, "sun": Color(0.92, 0.80, 1.0)},
+	{"name": "THE RUST GARDEN", "density": 0.70, "rivers": 1, "pools": 2, "decor": 1.25, "layout": "cross",
+		"fog": Color(0.12, 0.07, 0.04), "ambient": Color(0.38, 0.26, 0.16),
+		"rock": Color(0.21, 0.14, 0.09), "seam": Color(1.0, 0.55, 0.22), "glow": 1.25, "plate": 0.14,
+		"lava_crust": Color(0.11, 0.05, 0.02), "lava_hot": Color(1.0, 0.44, 0.12), "lava_core": Color(1.0, 0.86, 0.52),
+		"plants": 1.15, "sun": Color(1.0, 0.86, 0.70)},
+	{"name": "THE SECOND SEAL", "density": 0.66, "rivers": 1, "pools": 1, "decor": 0.9, "layout": "chasm",
+		"fog": Color(0.04, 0.08, 0.14), "ambient": Color(0.18, 0.28, 0.44),
+		"rock": Color(0.12, 0.15, 0.20), "seam": Color(0.55, 0.80, 1.0), "glow": 1.60, "plate": 0.10,
+		"lava_crust": Color(0.02, 0.05, 0.09), "lava_hot": Color(0.35, 0.66, 1.0), "lava_core": Color(0.86, 0.95, 1.0),
+		"plants": 0.16, "sun": Color(0.82, 0.90, 1.0)},
+	{"name": "THE SIGHING BRIDGE", "density": 0.74, "rivers": 2, "pools": 1, "decor": 0.8, "layout": "causeway",
+		"fog": Color(0.05, 0.09, 0.10), "ambient": Color(0.22, 0.32, 0.34),
+		"rock": Color(0.14, 0.17, 0.18), "seam": Color(0.45, 0.95, 0.90), "glow": 1.35, "plate": 0.13,
+		"lava_crust": Color(0.03, 0.06, 0.07), "lava_hot": Color(0.30, 0.85, 0.80), "lava_core": Color(0.82, 1.0, 0.98),
+		"plants": 0.40, "sun": Color(0.80, 0.98, 0.96)},
+	{"name": "THE FURNACE STAIRS", "density": 0.68, "rivers": 1, "pools": 2, "decor": 1.0, "layout": "terrace",
+		"fog": Color(0.18, 0.08, 0.02), "ambient": Color(0.44, 0.28, 0.12),
+		"rock": Color(0.20, 0.15, 0.09), "seam": Color(1.0, 0.62, 0.16), "glow": 1.55, "plate": 0.16,
+		"lava_crust": Color(0.12, 0.05, 0.01), "lava_hot": Color(1.0, 0.50, 0.06), "lava_core": Color(1.0, 0.90, 0.55),
+		"plants": 0.34, "sun": Color(1.0, 0.86, 0.62)},
+	{"name": "THE COINLESS MARCH", "density": 0.72, "rivers": 1, "pools": 1, "decor": 1.6, "layout": "plaza",
+		"fog": Color(0.10, 0.08, 0.05), "ambient": Color(0.38, 0.32, 0.22),
+		"rock": Color(0.19, 0.17, 0.14), "seam": Color(1.0, 0.74, 0.34), "glow": 1.20, "plate": 0.15,
+		"lava_crust": Color(0.10, 0.07, 0.03), "lava_hot": Color(1.0, 0.55, 0.16), "lava_core": Color(1.0, 0.90, 0.62),
+		"plants": 0.45, "sun": Color(1.0, 0.90, 0.78)},
+	{"name": "THE GLASS THROAT", "density": 0.66, "rivers": 2, "pools": 2, "decor": 1.15, "layout": "warrens",
+		"fog": Color(0.03, 0.09, 0.11), "ambient": Color(0.16, 0.34, 0.40),
+		"rock": Color(0.10, 0.17, 0.19), "seam": Color(0.45, 0.92, 1.0), "glow": 1.65, "plate": 0.10,
+		"lava_crust": Color(0.02, 0.06, 0.08), "lava_hot": Color(0.28, 0.80, 1.0), "lava_core": Color(0.86, 0.99, 1.0),
+		"plants": 0.20, "sun": Color(0.78, 0.94, 1.0)},
+	{"name": "THE WEEPING FOUNDRY", "density": 0.68, "rivers": 1, "pools": 2, "decor": 1.2, "layout": "furnace",
+		"fog": Color(0.07, 0.08, 0.10), "ambient": Color(0.26, 0.30, 0.34),
+		"rock": Color(0.16, 0.17, 0.19), "seam": Color(0.60, 0.85, 1.0), "glow": 1.40, "plate": 0.12,
+		"lava_crust": Color(0.04, 0.05, 0.07), "lava_hot": Color(0.40, 0.62, 0.95), "lava_core": Color(0.88, 0.94, 1.0),
+		"plants": 0.26, "sun": Color(0.84, 0.90, 1.0)},
+	{"name": "THE BONE TIDE", "density": 0.70, "rivers": 1, "pools": 1, "decor": 1.35, "layout": "cross",
+		"fog": Color(0.10, 0.12, 0.09), "ambient": Color(0.34, 0.38, 0.26),
+		"rock": Color(0.22, 0.22, 0.18), "seam": Color(0.88, 1.0, 0.62), "glow": 1.25, "plate": 0.13,
+		"lava_crust": Color(0.07, 0.08, 0.04), "lava_hot": Color(0.80, 0.95, 0.45), "lava_core": Color(0.97, 1.0, 0.82),
+		"plants": 0.55, "sun": Color(0.94, 1.0, 0.86)},
+	{"name": "THE BROKER'S LAST STALL", "density": 0.74, "rivers": 1, "pools": 1, "decor": 2.0, "layout": "plaza",
+		"fog": Color(0.14, 0.06, 0.04), "ambient": Color(0.46, 0.30, 0.18),
+		"rock": Color(0.22, 0.15, 0.11), "seam": Color(1.0, 0.60, 0.22), "glow": 1.50, "plate": 0.14,
+		"lava_crust": Color(0.12, 0.05, 0.02), "lava_hot": Color(1.0, 0.48, 0.10), "lava_core": Color(1.0, 0.88, 0.55),
+		"plants": 0.52, "sun": Color(1.0, 0.86, 0.68)},
+	{"name": "THE OBSIDIAN CHOIR", "density": 0.64, "rivers": 2, "pools": 1, "decor": 1.6, "layout": "cathedral",
+		"fog": Color(0.04, 0.02, 0.09), "ambient": Color(0.20, 0.14, 0.36),
+		"rock": Color(0.10, 0.09, 0.14), "seam": Color(0.90, 0.45, 1.0), "glow": 1.70, "plate": 0.11,
+		"lava_crust": Color(0.04, 0.01, 0.07), "lava_hot": Color(0.90, 0.30, 1.0), "lava_core": Color(1.0, 0.80, 1.0),
+		"plants": 0.22, "sun": Color(0.86, 0.76, 1.0)},
+	{"name": "THE SALT WIDOW", "density": 0.62, "rivers": 1, "pools": 1, "decor": 0.9, "layout": "spires",
+		"fog": Color(0.14, 0.14, 0.16), "ambient": Color(0.38, 0.38, 0.40),
+		"rock": Color(0.32, 0.31, 0.30), "seam": Color(0.85, 0.95, 1.0), "glow": 1.15, "plate": 0.19,
+		"lava_crust": Color(0.18, 0.16, 0.14), "lava_hot": Color(0.78, 0.88, 1.0), "lava_core": Color(0.96, 1.0, 1.0),
+		"plants": 0.12, "sun": Color(0.94, 0.98, 1.0)},
+	{"name": "THE MAW BELOW", "density": 0.64, "rivers": 2, "pools": 2, "decor": 0.8, "layout": "ring",
+		"fog": Color(0.03, 0.01, 0.07), "ambient": Color(0.16, 0.10, 0.30),
+		"rock": Color(0.08, 0.07, 0.12), "seam": Color(1.0, 0.28, 0.85), "glow": 1.75, "plate": 0.10,
+		"lava_crust": Color(0.03, 0.00, 0.05), "lava_hot": Color(1.0, 0.16, 0.62), "lava_core": Color(1.0, 0.72, 0.94),
+		"plants": 0.20, "sun": Color(0.78, 0.66, 1.0)},
+	{"name": "THE THIRD SEAL", "density": 0.72, "rivers": 1, "pools": 1, "decor": 1.4, "layout": "plaza",
+		"fog": Color(0.15, 0.10, 0.02), "ambient": Color(0.48, 0.38, 0.16),
+		"rock": Color(0.24, 0.19, 0.10), "seam": Color(1.0, 0.90, 0.40), "glow": 1.55, "plate": 0.15,
+		"lava_crust": Color(0.13, 0.08, 0.02), "lava_hot": Color(1.0, 0.68, 0.14), "lava_core": Color(1.0, 0.98, 0.70),
+		"plants": 0.48, "sun": Color(1.0, 0.94, 0.72)},
+	{"name": "THE DROWNING FLOOR", "density": 0.66, "rivers": 2, "pools": 2, "decor": 0.9, "layout": "furnace",
+		"fog": Color(0.055, 0.012, 0.022), "ambient": Color(0.22, 0.09, 0.11),
+		"rock": Color(0.13, 0.07, 0.08), "seam": Color(0.92, 0.30, 0.20), "glow": 1.25, "plate": 0.12,
+		"lava_crust": Color(0.08, 0.01, 0.02), "lava_hot": Color(1.0, 0.20, 0.08), "lava_core": Color(1.0, 0.72, 0.52),
+		"plants": 0.30, "sun": Color(1.0, 0.70, 0.62)},
 ]
 
 const MODIFIERS := [
@@ -237,8 +344,11 @@ var net: Node
 var camera_pan := Vector3.ZERO
 var zoom_target := 1.0
 var pan_drag := false
+var decor_props: Array = []
+var prop_fade_timer := 0.0
 var character_name := "VESNA"
 var character_class := "BLOOD SORCERESS"
+var character_class_id := "blood_sorceress"
 
 
 func _ready() -> void:
@@ -279,6 +389,12 @@ func _ready() -> void:
 	hud.rift_enter_requested.connect(_on_rift_enter)
 	hud.leave_run_pressed.connect(_return_home)
 	hud.character_created.connect(_on_character_created)
+	hud.passives_requested.connect(_open_passives)
+	hud.passive_buy.connect(_on_passive_buy)
+	hud.roster_requested.connect(_open_roster)
+	hud.roster_load.connect(_on_roster_load)
+	hud.roster_delete.connect(_on_roster_delete)
+	hud.roster_create.connect(_on_roster_create)
 	_setup_audio()
 	_apply_settings()
 	hud.show_loading()
@@ -335,17 +451,44 @@ func _after_spawn(networked: bool) -> void:
 
 func _create_player() -> void:
 	player = Player.new()
-	player.name = "BloodSorceress"
+	player.name = "Hero"
 	world_root.add_child(player)
 	player.add_to_group("local_player")
-	player.setup(_find_hero_scene())
+	var model := _class_model(character_class_id)
+	player.setup(model[0], float(model[1]), model[2])
+	player.set_class(character_class_id)
 	player.died.connect(_on_player_died)
 	player.damaged.connect(_on_player_damaged)
 	player.healed.connect(_on_player_healed)
 	player.health_changed.connect(_on_health_changed)
+	player.focus_changed.connect(_on_focus_changed)
 	player.ability_used.connect(_on_ability_used)
 	player.life_spent.connect(_on_life_spent)
 	player.leveled_up.connect(_on_player_leveled)
+
+
+## [scene, scale, tint]. A class with its own generated character uses it; until
+## that model exists the shared rig is tinted in the class colour so the
+## silhouette still reads, and swapping in the model later needs no other change.
+func _class_model(id: String) -> Array:
+	var data := HeroClasses.definition(id)
+	var path := String(data.get("model", ""))
+	var scale := float(data.get("model_scale", 1.35))
+	var scene: PackedScene = _get_model(path) if not path.is_empty() else null
+	if scene != null:
+		return [scene, scale, Color(0, 0, 0, 0)]
+	return [_find_hero_scene(), 1.35, data.get("color", Color(0.6, 0.6, 0.6))]
+
+
+func _apply_class_visuals() -> void:
+	if player == null:
+		return
+	var model := _class_model(character_class_id)
+	player.set_model(model[0], float(model[1]), model[2])
+	player.set_class(character_class_id)
+	if hud != null:
+		hud.apply_class(HeroClasses.definition(character_class_id))
+		hud.set_focus(player.focus, player.focus_max, player.focus_name, player.focus_color)
 
 
 func _load_record() -> void:
@@ -378,6 +521,7 @@ func _save_run() -> void:
 		"layer": layer,
 		"name": character_name,
 		"class": character_class,
+		"class_id": character_class_id,
 		"coins": coins,
 		"boons": run_boons.duplicate(),
 		"relics": relics,
@@ -385,7 +529,17 @@ func _save_run() -> void:
 		"xp": player.xp,
 		"health": clampf(player.health / maxf(1.0, player.max_health), 0.0, 1.0),
 		"best": best_layer,
+		"passives": player.passive_nodes.duplicate(),
+		"passive_points": player.passive_points,
 		"settings": GameSettings.snapshot(),
+	})
+	Roster.update(RunSave.slot, {
+		"name": character_name,
+		"class_id": character_class_id,
+		"level": player.level,
+		"layer": layer,
+		"best": best_layer,
+		"coins": coins,
 	})
 	if hud != null:
 		hud.show_saved()
@@ -398,6 +552,11 @@ func continue_run() -> bool:
 	duel_mode = false
 	character_name = String(data.get("name", character_name))
 	character_class = String(data.get("class", character_class))
+	character_class_id = String(data.get("class_id", character_class_id))
+	if not HeroClasses.CLASSES.has(character_class_id):
+		character_class_id = "blood_sorceress"
+	character_class = HeroClasses.display_name(character_class_id)
+	_apply_class_visuals()
 	hud.set_hero(character_name, character_class)
 	var saved_settings = data.get("settings", {})
 	if typeof(saved_settings) == TYPE_DICTIONARY and not saved_settings.is_empty():
@@ -417,6 +576,8 @@ func continue_run() -> bool:
 	hud.show_body()
 	player.revive()
 	player.set_progress(int(data.get("level", 1)), float(data.get("xp", 0.0)))
+	var saved_passives: Array = data.get("passives", [])
+	player.set_passives(saved_passives, int(data.get("passive_points", 0)))
 	hud.close_relic_window()
 	var saved_relics = data.get("relics", [])
 	if typeof(saved_relics) == TYPE_ARRAY:
@@ -518,7 +679,7 @@ func play_music(boss: bool) -> void:
 func _combat_track_index(size: int) -> int:
 	var ord := 0
 	for l in range(1, layer):
-		if l % 5 == 0 or l % 6 == 0:
+		if _is_merchant_layer_at(l) or _is_boss_layer_at(l):
 			continue
 		ord += 1
 	return ord % maxi(1, size)
@@ -611,7 +772,12 @@ func _generate_floor() -> void:
 	if duel_mode:
 		_generate_duel_arena()
 		return
-	theme = THEMES[4] if _is_merchant_layer() else THEMES[(layer - 1) % THEMES.size()]
+	theme = THEMES[(layer - 1) % THEMES.size()]
+	if _is_merchant_layer():
+		# Every broker floor is a market, dressed in that depth's own palette.
+		theme = theme.duplicate()
+		theme["layout"] = "plaza"
+		theme["decor"] = maxf(1.65, float(theme.get("decor", 1.0)))
 	_roll_modifiers()
 	portal = null
 	portal_area = null
@@ -638,8 +804,6 @@ func _generate_floor() -> void:
 		_spawn_merchant()
 	else:
 		_spawn_packs()
-	if not merchant_floor and layer % 5 == 0:
-		_spawn_merchant()
 	_spawn_embers()
 	hud.set_map_cells(walkable, bridge_cells, GRID)
 	hud.set_modifiers(active_mods)
@@ -849,6 +1013,7 @@ func _clear_floor() -> void:
 		for child in root.get_children():
 			child.queue_free()
 	ember_emitter = null
+	decor_props.clear()
 	merchant_npc = null
 	merchant_area = null
 	merchant_near = false
@@ -1398,7 +1563,7 @@ func _stone_material() -> ShaderMaterial:
 	mat.set_shader_parameter("rock_dark", Color(rock.r * 0.16, rock.g * 0.14, rock.b * 0.16))
 	mat.set_shader_parameter("seam_color", theme.get("seam", Color(1.0, 0.42, 0.10)))
 	mat.set_shader_parameter("plate_scale", float(theme.get("plate", 0.13)))
-	mat.set_shader_parameter("glow_strength", float(theme.get("glow", 1.4)))
+	mat.set_shader_parameter("glow_strength", minf(float(theme.get("glow", 1.4)), 1.22))
 	return mat
 
 
@@ -1817,24 +1982,75 @@ func _scatter_stone_props(rock_scene: PackedScene, pillar_scene: PackedScene, po
 		if not walkable[cell]:
 			continue
 		var center := _cell_to_world(cell)
-		if center.distance_to(_cell_to_world(start_cell)) < 6.0:
+		if center.distance_to(_cell_to_world(start_cell)) < 9.0:
 			continue
 		var roll := rng.randf()
 		var angle := rng.randf() * TAU
 		var offset := Vector3(cos(angle), 0.0, sin(angle)) * rng.randf_range(1.1, 1.5)
 		if rock_scene != null and roll < 0.15:
-			var rock := _spawn_model(rock_scene, rng.randf_range(0.8, 2.2), floor_root, center + offset + Vector3(0.0, -0.12, 0.0), rng.randf_range(0, 360))
+			var rock := _spawn_model(rock_scene, rng.randf_range(0.7, 1.7), floor_root, center + offset + Vector3(0.0, -0.12, 0.0), rng.randf_range(0, 360))
 			if rock != null:
 				_apply_rock_material(rock, 1.9)
+				_track_prop(rock)
 		elif pillar_scene != null and roll < 0.18:
-			var ruined := _spawn_model(pillar_scene, rng.randf_range(1.2, 3.4), floor_root, center + offset, rng.randf_range(0, 360))
+			var ruined := _spawn_model(pillar_scene, rng.randf_range(1.1, 2.6), floor_root, center + offset, rng.randf_range(0, 360))
 			if ruined != null:
 				ruined.rotate_x(deg_to_rad(rng.randf_range(-10, 10)))
 				_apply_rock_material(ruined, 2.0)
+				_track_prop(ruined)
 		elif pot_scene != null and roll < 0.22:
 			var pot := _spawn_model(pot_scene, 0.85, floor_root, center + offset, rng.randf_range(0, 360))
 			if pot != null:
 				_apply_rock_material(pot, 2.2)
+				_track_prop(pot)
+
+
+func _track_prop(node: Node3D) -> void:
+	var meshes: Array = []
+	for child in node.find_children("*", "MeshInstance3D", true, false):
+		var mesh := child as MeshInstance3D
+		if mesh != null and mesh.material_override is StandardMaterial3D:
+			meshes.append(mesh)
+	if meshes.is_empty():
+		return
+	decor_props.append({"node": node, "meshes": meshes, "alpha": 1.0})
+
+
+## Props that sit between the camera and the hero fade out, so a pillar never
+## hides the fight. Each prop owns its own material copy, so this is per prop.
+func _update_prop_fade(delta: float) -> void:
+	if player == null or camera == null or decor_props.is_empty():
+		return
+	var cam_pos := camera.global_position
+	var eye := player.global_position + Vector3(0.0, 1.1, 0.0)
+	for entry in decor_props:
+		var node: Node3D = entry.get("node")
+		if node == null or not is_instance_valid(node):
+			continue
+		var center := node.global_position + Vector3(0.0, 1.2, 0.0)
+		var target_alpha := 1.0
+		if cam_pos.distance_to(center) < 24.0:
+			var seg := eye - cam_pos
+			var seg_len := seg.length()
+			if seg_len > 0.2:
+				var t := clampf((center - cam_pos).dot(seg) / (seg_len * seg_len), 0.0, 1.0)
+				var closest := cam_pos + seg * t
+				if center.distance_to(closest) < 1.7 and t < 0.95:
+					target_alpha = 0.2
+		var alpha := lerpf(float(entry.get("alpha", 1.0)), target_alpha, clampf(delta * 10.0, 0.0, 1.0))
+		entry["alpha"] = alpha
+		for mesh in entry.get("meshes", []):
+			var mat := (mesh as MeshInstance3D).material_override as StandardMaterial3D
+			if mat == null:
+				continue
+			if alpha < 0.99:
+				mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+				var col := mat.albedo_color
+				mat.albedo_color = Color(col.r, col.g, col.b, alpha)
+			elif mat.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:
+				var col2 := mat.albedo_color
+				mat.albedo_color = Color(col2.r, col2.g, col2.b, 1.0)
+				mat.transparency = BaseMaterial3D.TRANSPARENCY_DISABLED
 
 
 func _add_fire(at: Vector3) -> void:
@@ -2009,7 +2225,8 @@ func _spawn_packs() -> void:
 			_spawn_enemy(_pick_kind(p == pack_count - 1), cell)
 	if boss_floor:
 		var boss_cell := _nearby_walkable(candidates[rng.randi() % candidates.size()])
-		var boss_kind := "prophet" if (layer / 6) % 2 == 1 else "brood"
+		var boss_index := clampi(layer / 6 - 1, 0, BOSS_ORDER.size() - 1)
+		var boss_kind := String(BOSS_ORDER[boss_index])
 		boss_enemy = _spawn_enemy(boss_kind, boss_cell)
 		for i in 2:
 			_spawn_enemy("brute", _nearby_walkable(boss_cell + Vector2i(rng.randi_range(-2, 2), rng.randi_range(-2, 2))))
@@ -2046,19 +2263,22 @@ func _pick_kind(last_pack: bool) -> String:
 
 func _spawn_enemy(kind_key: String, cell: Vector2i) -> Enemy:
 	var base: Dictionary = KINDS.get(kind_key, KINDS["wolf"]).duplicate()
-	var health_scale := 1.0 + 0.24 * float(layer - 1)
-	var damage_scale := 1.0 + 0.11 * float(layer - 1)
+	var health_scale := 1.0 + 0.16 * float(layer - 1)
+	var damage_scale := 1.0 + 0.075 * float(layer - 1)
 	if has_mod("brutal"):
 		damage_scale *= 1.25
 	if bool(base.get("boss", false)):
-		health_scale = 1.0 + 0.28 * float(layer - 1)
+		health_scale = 1.0 + 0.2 * float(layer - 1)
 	base.health = float(base.health) * health_scale
 	base.damage = float(base.damage) * damage_scale
 	if has_mod("frenzied"):
 		base.speed = float(base.speed) * 1.2
 	var enemy := Enemy.new()
 	entity_root.add_child(enemy)
-	var model: PackedScene = _find_hero_scene() if kind_key == "mirror" else _get_model(DUNGEON_DIR + String(base.file))
+	var model_path := String(base.file)
+	if not model_path.begins_with("res://"):
+		model_path = DUNGEON_DIR + model_path
+	var model: PackedScene = _find_hero_scene() if kind_key == "mirror" else _get_model(model_path)
 	enemy.setup(base, model, player, find_path, _enemy_bolt, _boss_special, _request_attacker, _release_attacker)
 	enemy.global_position = _cell_to_world(cell) + Vector3(0.0, 0.2, 0.0)
 	enemy.frozen = not run_active
@@ -2075,7 +2295,7 @@ func _style_enemy(enemy: Enemy, kind: Dictionary) -> void:
 	var is_elite := bool(kind.get("elite", false))
 	if not is_boss and not is_elite:
 		return
-	var color := Color(1.0, 0.42, 0.12) if is_boss else Color(1.0, 0.62, 0.2)
+	var color: Color = kind.get("tint", Color(1.0, 0.42, 0.12) if is_boss else Color(1.0, 0.62, 0.2))
 	var ring := MeshInstance3D.new()
 	var torus := TorusMesh.new()
 	torus.inner_radius = 0.95 if is_boss else 0.7
@@ -2089,8 +2309,8 @@ func _style_enemy(enemy: Enemy, kind: Dictionary) -> void:
 	enemy.add_child(ring)
 	var light := OmniLight3D.new()
 	light.light_color = color
-	light.light_energy = 2.2 if is_boss else 1.2
-	light.omni_range = 6.0 if is_boss else 3.6
+	light.light_energy = 1.1 if is_boss else 1.2
+	light.omni_range = 5.0 if is_boss else 3.6
 	light.shadow_enabled = false
 	light.position.y = 1.4
 	enemy.add_child(light)
@@ -2100,7 +2320,7 @@ func _style_enemy(enemy: Enemy, kind: Dictionary) -> void:
 	tint.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	tint.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	tint.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	tint.albedo_color = Color(color.r, color.g, color.b, 0.10 if not is_boss else 0.16)
+	tint.albedo_color = Color(color.r, color.g, color.b, 0.10 if not is_boss else 0.07)
 	tint.disable_receive_shadows = true
 	for node in enemy.model_root.find_children("*", "MeshInstance3D", true, false):
 		var mesh := node as MeshInstance3D
@@ -2151,10 +2371,104 @@ func _boss_special(enemy: Enemy) -> void:
 			_prophet_volley(enemy)
 		"brood":
 			_brood_call(enemy)
+		"nail":
+			_boss_slam(enemy)
+		"tide":
+			_boss_charge(enemy)
+		"drowning":
+			_boss_storm(enemy)
 		"mirror":
 			_mirror_special(enemy)
 		_:
 			_prophet_volley(enemy)
+
+
+## The Iron Choir: a hammer dropped on the ground under the player.
+func _boss_slam(enemy: Enemy) -> void:
+	var target := player.global_position
+	var radius := 4.6
+	FX.ring(fx_root, target, Color(0.86, 0.92, 1.0, 0.9), radius, 0.6, 0.06)
+	FX.disc(fx_root, target, Color(0.72, 0.82, 1.0, 0.20), radius, 0.75, 0.03)
+	play_sfx("lava", -1.0, 0.06)
+	await get_tree().create_timer(0.78).timeout
+	if not is_instance_valid(enemy) or enemy.dead or not run_active:
+		return
+	FX.nova(fx_root, target, Color(0.90, 0.94, 1.0, 1.0), radius)
+	FX.ring(fx_root, target, Color(1.0, 1.0, 1.0, 0.8), radius * 1.25, 0.45, 0.06)
+	FX.burst(fx_root, target + Vector3(0.0, 0.3, 0.0), Color(0.9, 0.95, 1.0, 0.9), 30, 8.0, 0.5, 0.6)
+	FX.fault(fx_root, target, Color(0.92, 0.96, 1.0, 0.85), radius * 1.1, 10, 1.2)
+	FX.shards(fx_root, target, Color(0.95, 0.97, 1.0, 0.8), 12, radius * 0.55, 2.4, 0.6)
+	_shake(0.7)
+	if player.global_position.distance_to(target) <= radius:
+		player.take_damage(enemy.damage * 1.5)
+
+
+## The Bone Tide: a straight pounce that leaves a burning trail.
+func _boss_charge(enemy: Enemy) -> void:
+	var start := enemy.global_position
+	var dir := player.global_position - start
+	dir.y = 0.0
+	if dir.length() < 0.4:
+		return
+	dir = dir.normalized()
+	var finish := start + dir * 7.0
+	for i in 7:
+		var point := start.lerp(finish, float(i) / 6.0)
+		FX.ring(fx_root, point, Color(0.9, 1.0, 0.7, 0.45), 1.5, 0.4, 0.05)
+	play_sfx("cast", -2.0, 0.04)
+	var tween := create_tween()
+	tween.tween_property(enemy, "global_position", finish, 0.34)
+	await tween.finished
+	if not is_instance_valid(enemy) or enemy.dead or not run_active:
+		return
+	FX.burst(fx_root, finish + Vector3(0.0, 0.6, 0.0), Color(0.9, 1.0, 0.7, 0.9), 26, 7.0, 0.45, 0.55)
+	_shake(0.4)
+	var p := player.global_position
+	var to_p := p - start
+	var along := clampf(to_p.dot(dir), 0.0, dir.length() * 7.0)
+	var closest := start + dir * along
+	var flat := p - closest
+	flat.y = 0.0
+	if flat.length() <= 2.0:
+		player.take_damage(enemy.damage * 1.35)
+
+
+## The Drowning: a ring of bolts and three eruptions around the player.
+func _boss_storm(enemy: Enemy) -> void:
+	var origin := enemy.global_position + Vector3(0.0, 1.4, 0.0)
+	var count := 16
+	var gap := rng.randi_range(0, count - 1)
+	for i in count:
+		if absi(i - gap) <= 1:
+			continue
+		var angle := TAU * float(i) / float(count)
+		var dir := Vector3(sin(angle), 0.0, cos(angle))
+		var bolt := BloodBolt.new()
+		bolt.hostile = true
+		bolt.color = Color(1.0, 0.28, 0.18)
+		bolt.direction = dir
+		bolt.speed = 10.5
+		bolt.damage = enemy.damage * 0.5
+		fx_root.add_child(bolt)
+		bolt.global_position = origin + dir * 1.2
+	FX.burst(fx_root, origin, Color(1.0, 0.3, 0.22, 0.9), 34, 7.0, 0.5, 0.8)
+	for i in 3:
+		var spot := player.global_position + Vector3(rng.randf_range(-4.5, 4.5), 0.0, rng.randf_range(-4.5, 4.5))
+		_storm_spot(spot, enemy.damage * 0.9)
+	enemy.health = minf(enemy.max_health, enemy.health + enemy.max_health * 0.02)
+
+
+func _storm_spot(spot: Vector3, damage: float) -> void:
+	FX.ring(fx_root, spot, Color(1.0, 0.28, 0.18, 0.85), 2.5, 0.7, 0.06)
+	FX.disc(fx_root, spot, Color(1.0, 0.22, 0.12, 0.18), 2.5, 0.8, 0.03)
+	await get_tree().create_timer(0.72).timeout
+	if not run_active or player == null or not player.alive:
+		return
+	FX.nova(fx_root, spot, Color(1.0, 0.32, 0.14, 1.0), 2.6)
+	FX.embers(fx_root, spot, Color(1.0, 0.5, 0.2, 0.9), 14, 1.8)
+	if player.global_position.distance_to(spot) <= 2.6:
+		player.take_damage(damage)
+	_shake(0.22)
 
 
 func _mirror_special(enemy: Enemy) -> void:
@@ -2236,7 +2550,11 @@ func _on_enemy_died(enemy: Enemy) -> void:
 		boss_enemy = null
 		hud.set_boss("", 0.0, false)
 		hud.toast("RIFT WARDEN SLAIN", Color(1.0, 0.6, 0.2), 3.0)
-	player.add_bloodrush()
+	var heal_on_kill := float(player.passive_bonus.get("heal_on_kill", 0.0))
+	if heal_on_kill > 0.0:
+		player.heal(player.max_health * heal_on_kill / 100.0)
+	if character_class_id == "blood_sorceress":
+		player.add_bloodrush()
 	var xp_gain := 12.0 + 2.0 * float(layer)
 	if enemy.elite:
 		xp_gain *= 3.0
@@ -2512,7 +2830,12 @@ func _offer_boons() -> void:
 		var index := rng.randi() % pool.size()
 		picked.append(pool[index])
 		pool.remove_at(index)
-	hud.show_boons(picked, _story_line("warden", layer))
+	var picks := 1
+	if layer >= 12:
+		picks = 2
+	if layer >= 24:
+		picks = 3
+	hud.show_boons(picked, _story_line("warden", layer), picks)
 
 
 func _on_boon_chosen(key: String) -> void:
@@ -2531,23 +2854,23 @@ func _apply_boon(key: String, record := true) -> String:
 	var claimed := ""
 	match key:
 		"fury":
-			player.power *= 1.15
+			player.add_boon("fury")
 			claimed = "BLOOD FURY"
 		"vitality":
-			player.max_health += 40.0
+			player.add_boon("vitality")
 			player.heal(40.0)
 			claimed = "DEEP VITAE"
 		"haste":
-			player.cooldown_mult = maxf(0.4, player.cooldown_mult * 0.85)
+			player.add_boon("haste")
 			claimed = "QUICKENED BLOOD"
 		"regen":
-			player.regen += 0.9
+			player.add_boon("regen")
 			claimed = "SANGUINE FLOW"
 		"fortune":
 			boon_luck += 0.3
 			claimed = "GILDED HOUR"
 		"swift":
-			player.move_speed *= 1.08
+			player.add_boon("swift")
 			claimed = "CRIMSON STRIDE"
 		_:
 			return ""
@@ -2557,11 +2880,19 @@ func _apply_boon(key: String, record := true) -> String:
 
 
 func _is_merchant_layer() -> bool:
-	return layer % 5 == 0 and layer % 6 != 0
+	return layer % 6 == 5
 
 
 func _is_boss_layer() -> bool:
 	return layer % 6 == 0
+
+
+func _is_merchant_layer_at(value: int) -> bool:
+	return value % 6 == 5
+
+
+func _is_boss_layer_at(value: int) -> bool:
+	return value % 6 == 0
 
 
 func _first_glb(dir_path: String) -> String:
@@ -2588,6 +2919,8 @@ func _spawn_merchant() -> void:
 	var to_player := player.global_position - pos
 	var yaw := rad_to_deg(atan2(to_player.x, to_player.z))
 	var model := _spawn_model(_get_model(model_path), 2.25, merchant_npc, Vector3.ZERO, yaw)
+	if model != null:
+		HandGrip.dress(model, "", 1.0, Color(0.22, 0.17, 0.15), "staff")
 	var dais := MeshInstance3D.new()
 	var dais_mesh := CylinderMesh.new()
 	dais_mesh.top_radius = 1.9
@@ -2799,7 +3132,7 @@ func _next_layer() -> void:
 	player.heal(player.max_health * 0.3)
 	FX.nova(fx_root, player.global_position, Color(0.75, 0.3, 1.0, 1.0), 6.0)
 	_generate_floor()
-	hud.toast("RIFT LAYER %d  ·  +%d%% ENEMY LIFE" % [layer, int(24.0 * float(layer - 1))], Color(1.0, 0.72, 0.3), 2.8)
+	hud.toast("RIFT LAYER %d  ·  +%d%% ENEMY LIFE" % [layer, int(16.0 * float(layer - 1))], Color(1.0, 0.72, 0.3), 2.8)
 	if player.level > level_before:
 		hud.toast("BLOOD DEEPENS  ·  LEVEL %d" % player.level, Color(1.0, 0.58, 0.66), 2.4)
 
@@ -2812,6 +3145,7 @@ func begin_run() -> void:
 	if started or player == null:
 		return
 	hud.set_hero(character_name, character_class)
+	_apply_class_visuals()
 	get_tree().paused = false
 	duel_mode = false
 	RunSave.clear()
@@ -2823,6 +3157,7 @@ func begin_run() -> void:
 	run_boons.clear()
 	attack_target = null
 	player.set_progress(1, 0.0)
+	player.set_passives([], 1)
 	player.revive()
 	hud.hide_title()
 	hud.show_body()
@@ -2837,8 +3172,43 @@ func begin_run() -> void:
 func _continue_from_title() -> void:
 	if started:
 		return
+	var entry := Roster.last_played()
+	if not entry.is_empty():
+		RunSave.set_slot(String(entry.get("id", "")))
+		character_name = String(entry.get("name", character_name))
+		character_class_id = String(entry.get("class_id", character_class_id))
+		character_class = HeroClasses.display_name(character_class_id)
 	if not continue_run():
 		begin_run()
+
+
+func _open_roster() -> void:
+	hud.show_roster(Roster.all())
+
+
+func _on_roster_load(id: String) -> void:
+	var entry := Roster.entry(id)
+	if entry.is_empty():
+		return
+	RunSave.set_slot(id)
+	character_name = String(entry.get("name", character_name))
+	character_class_id = String(entry.get("class_id", character_class_id))
+	character_class = HeroClasses.display_name(character_class_id)
+	started = false
+	run_active = false
+	if not continue_run():
+		begin_run()
+
+
+func _on_roster_delete(id: String) -> void:
+	if RunSave.slot == id:
+		RunSave.set_slot("")
+	Roster.remove(id)
+	hud.show_roster(Roster.all())
+
+
+func _on_roster_create() -> void:
+	hud.show_creator()
 
 
 ## The one multiplayer surface: the home screen and the pause menu both call
@@ -2860,19 +3230,39 @@ func _on_net_action(action: String, mode: String) -> void:
 ## The creator hands back a name and a class key; only the Blood Sorceress is
 ## implemented, so any other key is refused rather than silently replaced.
 func _on_character_created(hero_name: String, klass: String) -> void:
-	if klass != "blood_sorceress":
+	if not HeroClasses.CLASSES.has(klass):
 		hud.toast("THAT CLASS IS NOT READY", Color(1.0, 0.5, 0.3), 2.2)
 		return
 	character_name = hero_name if not hero_name.is_empty() else "VESNA"
-	character_class = "BLOOD SORCERESS"
+	character_class_id = klass
+	character_class = HeroClasses.display_name(klass)
 	started = false
 	run_active = false
+	var entry := Roster.create(character_name, character_class_id)
+	RunSave.set_slot(String(entry.get("id", "")))
 	RunSave.clear()
 	begin_run()
 	hud.show_story(INTRO_TITLE, INTRO_BODY.replace("%HERO%", character_name))
 
 
+func _open_passives() -> void:
+	if player == null:
+		return
+	get_tree().paused = true
+	hud.show_passives(player.passive_nodes, player.passive_points)
+
+
+func _on_passive_buy(id: String) -> void:
+	if player == null or not run_active:
+		return
+	if player.buy_passive(id):
+		play_sfx("pickup", -4.0, 0.1)
+		hud.show_passives(player.passive_nodes, player.passive_points)
+		_save_run()
+
+
 func _refresh_net_panel() -> void:
+	hud.set_party_roster(character_name, character_class, player.level if player != null else 1, layer, online_peers)
 	if online_mode:
 		hud.set_net_status(
 			"CONNECTED  -  SEAT %d  -  %d IN RIFT" % [my_seat + 1, online_peers],
@@ -2927,13 +3317,13 @@ func _on_rift_enter(target_layer: int) -> void:
 
 func _open_rift_map() -> void:
 	var entries: Array = []
-	var count := maxi(10, layer + 1)
+	var count := THEMES.size()
 	for i in count:
 		var l := i + 1
 		entries.append({
 			"layer": l,
 			"name": String(THEMES[i % THEMES.size()].get("name", "RIFT")),
-			"merchant": l % 5 == 0 and l % 6 != 0,
+			"merchant": l % 6 == 5,
 			"boss": l % 6 == 0,
 		})
 	hud.show_rift_map(entries, layer, best_layer)
@@ -3052,7 +3442,7 @@ func _primary_attack(screen_pos: Vector2) -> void:
 	player.stop()
 	_clear_move_marker()
 	player.set_aim(point)
-	_cast_ability(1)
+	_cast_ability(player.primary_index())
 
 
 ## Right mouse is the secondary attack: the close-range blood nova.
@@ -3062,7 +3452,7 @@ func _secondary_attack(screen_pos: Vector2) -> void:
 	player.stop()
 	_clear_move_marker()
 	player.set_aim(point)
-	_cast_ability(0)
+	_cast_ability(player.secondary_index())
 
 
 func _set_move_marker(point: Vector3) -> void:
@@ -3183,8 +3573,15 @@ func _cast_ability(index: int) -> void:
 		return
 	if not player.try_ability(index):
 		if index < player.cooldowns.size() and player.cooldowns[index] <= 0.0:
-			hud.toast("NOT ENOUGH VITAE", Color(1.0, 0.34, 0.28), 1.1)
+			var resource := "VITAE" if player.is_health_cost() else String(player.focus_name)
+			hud.toast("NOT ENOUGH %s" % resource, Color(1.0, 0.34, 0.28), 1.1)
 			hud.flash_damage(0.2)
+
+
+func _on_focus_changed(current: float, maximum: float) -> void:
+	if hud == null or player == null:
+		return
+	hud.set_focus(current, maximum, player.focus_name, player.focus_color)
 
 
 func _cast_dash() -> void:
@@ -3215,16 +3612,31 @@ func _dash_burn() -> void:
 func _on_ability_used(index: int, aim: Vector3) -> void:
 	if duel_mode:
 		duel_casts += 1
-	match index:
-		0:
+	var ability: Dictionary = HeroClasses.ability(character_class_id, index)
+	var effect := String(ability.get("effect", ""))
+	var color: Color = ability.get("color", Color(1.0, 0.3, 0.2))
+	match effect:
+		"nova":
 			_blood_nova()
-			hud.flash_ability(Color(1.0, 0.22, 0.12))
-		1:
+		"lance":
 			_crimson_lance(aim)
-			hud.flash_ability(Color(1.0, 0.35, 0.3))
-		2:
+		"siphon":
 			_siphon()
-			hud.flash_ability(Color(0.8, 0.3, 1.0))
+		"slam":
+			_hammer_slam(ability, aim)
+		"aegis":
+			_aegis_rush(ability, aim)
+		"consecrate":
+			_consecrate(ability, aim)
+		"shot":
+			_piercing_shot(ability, aim)
+		"volley":
+			_fan_of_arrows(ability, aim)
+		"blink":
+			_shade_step(ability, aim)
+		_:
+			pass
+	hud.flash_ability(color)
 	play_sfx("cast", -1.0, 0.1)
 
 
@@ -3236,6 +3648,8 @@ func _blood_nova() -> void:
 	FX.nova(fx_root, center, Color(1.0, 0.13, 0.1, 1.0), radius)
 	FX.burst(fx_root, center + Vector3(0.0, 0.4, 0.0), Color(1.0, 0.32, 0.16, 0.95), 26, 6.5, 0.5, 0.6, 6.0, 55.0)
 	FX.ring(fx_root, center, Color(1.0, 0.44, 0.2, 0.55), radius * 1.28, 0.45, 0.04)
+	FX.shards(fx_root, center, Color(1.0, 0.30, 0.16, 0.95), 14, radius * 0.7, 2.6, 0.6)
+	FX.fault(fx_root, center, Color(1.0, 0.22, 0.12, 0.75), radius * 0.9, 8, 0.8)
 	_aftershock(center, radius)
 	_shake(0.45)
 	play_sfx("hit", -1.0, 0.14)
@@ -3315,6 +3729,176 @@ func _siphon() -> void:
 		await get_tree().create_timer(0.24).timeout
 
 
+## Iron Paladin: a heavy frontal blow that cracks the basalt.
+func _hammer_slam(ability: Dictionary, aim: Vector3) -> void:
+	var center := player.global_position
+	var radius := float(ability.get("radius", 3.8))
+	var dir := aim - center
+	dir.y = 0.0
+	if dir.length() < 0.3:
+		dir = Vector3(sin(player.facing), 0.0, cos(player.facing))
+	dir = dir.normalized()
+	var gold := Color(1.0, 0.82, 0.38, 1.0)
+	var landing := center + dir * radius * 0.5
+	FX.ring(fx_root, landing, Color(gold.r, gold.g, gold.b, 0.8), radius, 0.5, 0.06)
+	FX.disc(fx_root, landing, Color(gold.r, gold.g, gold.b, 0.24), radius * 0.8, 0.45, 0.03)
+	FX.nova(fx_root, landing, gold, radius * 0.75)
+	FX.burst(fx_root, landing + Vector3(0.0, 0.3, 0.0), gold, 22, 6.5, 0.45, 0.55)
+	FX.beam(fx_root, landing + Vector3(0.0, 2.6, 0.0), landing, Color(1.0, 0.9, 0.6, 0.7), 0.32, 0.2)
+	FX.fault(fx_root, landing, Color(1.0, 0.78, 0.34, 0.8), radius * 1.05, 9, 1.1)
+	FX.shards(fx_root, landing, Color(1.0, 0.86, 0.44, 0.95), 16, radius * 0.75, 3.2, 0.65)
+	_shake(0.55)
+	play_sfx("hit", -1.0, 0.08)
+	for enemy in enemies.duplicate():
+		if not is_instance_valid(enemy) or enemy.dead:
+			continue
+		var offset: Vector3 = enemy.global_position - center
+		offset.y = 0.0
+		if offset.length() > radius + 0.9:
+			continue
+		if offset.length() > 0.6 and offset.normalized().dot(dir) < -0.1:
+			continue
+		var roll := player.roll_damage(float(ability.get("power", 30.0)))
+		enemy.take_damage(roll[0], roll[1])
+
+
+## Iron Paladin: a short shield-first charge that leaves a sunlit guard.
+func _aegis_rush(ability: Dictionary, aim: Vector3) -> void:
+	var dir := aim - player.global_position
+	dir.y = 0.0
+	if dir.length() < 0.3:
+		dir = Vector3(sin(player.facing), 0.0, cos(player.facing))
+	dir = dir.normalized()
+	player.dash_direction = dir
+	player.dash_time = 0.13
+	player.invulnerable = maxf(player.invulnerable, 0.3)
+	player.apply_shield(player.max_health * 0.4, 5.5)
+	player.heal(player.max_health * 0.12)
+	var gold := Color(1.0, 0.86, 0.5, 1.0)
+	FX.burst(fx_root, player.global_position + Vector3(0.0, 1.0, 0.0), gold, 24, 5.0, 0.4, 0.5)
+	FX.ring(fx_root, player.global_position, Color(gold.r, gold.g, gold.b, 0.7), float(ability.get("radius", 2.4)), 0.45, 0.06)
+	FX.sparkle(fx_root, player.global_position + Vector3(0.0, 1.4, 0.0), gold)
+	FX.shards(fx_root, player.global_position, Color(1.0, 0.9, 0.58, 0.9), 10, 1.5, 1.8, 0.42)
+	_shake(0.3)
+	for enemy in enemies.duplicate():
+		if not is_instance_valid(enemy) or enemy.dead:
+			continue
+		var offset: Vector3 = enemy.global_position - player.global_position
+		offset.y = 0.0
+		if offset.length() > 3.0:
+			continue
+		if offset.length() > 0.4 and offset.normalized().dot(dir) < 0.0:
+			continue
+		var roll := player.roll_damage(float(ability.get("power", 18.0)))
+		enemy.take_damage(roll[0], roll[1])
+
+
+## Iron Paladin: hallow a patch of ground; it burns for four seconds.
+func _consecrate(ability: Dictionary, aim: Vector3) -> void:
+	var center := aim
+	center.y = player.global_position.y
+	var offset := center - player.global_position
+	offset.y = 0.0
+	if offset.length() > 6.5:
+		center = player.global_position + offset.normalized() * 6.5
+	var radius := float(ability.get("radius", 4.8))
+	var gold := Color(1.0, 0.72, 0.26, 1.0)
+	FX.disc(fx_root, center, Color(gold.r, gold.g, gold.b, 0.3), radius, 4.2, 0.04)
+	FX.ring(fx_root, center, Color(gold.r, gold.g, gold.b, 0.85), radius, 0.5, 0.07)
+	FX.embers(fx_root, center, gold, 18, radius * 0.7)
+	FX.fault(fx_root, center, Color(1.0, 0.7, 0.3, 0.7), radius, 10, 1.3)
+	for tick in 5:
+		if not is_instance_valid(player) or not player.alive or not run_active:
+			return
+		FX.ring(fx_root, center, Color(gold.r, gold.g, gold.b, 0.55), radius * 0.92, 0.4, 0.05)
+		FX.embers(fx_root, center, gold, 8, radius * 0.55)
+		for enemy in enemies.duplicate():
+			if not is_instance_valid(enemy) or enemy.dead:
+				continue
+			var dist: float = enemy.global_position.distance_to(center)
+			if dist <= radius:
+				var roll := player.roll_damage(float(ability.get("power", 15.0)))
+				enemy.take_damage(roll[0], roll[1])
+		await get_tree().create_timer(0.62).timeout
+
+
+## Shadow Huntress: one flat, fast arrow that punches through a body.
+func _piercing_shot(ability: Dictionary, aim: Vector3) -> void:
+	var dir := aim - player.global_position
+	dir.y = 0.0
+	if dir.length() < 0.2:
+		dir = Vector3(sin(player.facing), 0.0, cos(player.facing))
+	dir = dir.normalized()
+	var teal: Color = ability.get("color", Color(0.55, 0.95, 0.85))
+	var roll := player.roll_damage(float(ability.get("power", 24.0)))
+	var bolt := BloodBolt.new()
+	bolt.direction = dir
+	bolt.speed = 46.0
+	bolt.damage = roll[0]
+	bolt.crit = roll[1]
+	bolt.pierce = 1
+	bolt.color = teal
+	fx_root.add_child(bolt)
+	bolt.global_position = player.global_position + Vector3(0.0, 1.05, 0.0) + dir * 0.9
+	FX.burst(fx_root, bolt.global_position, Color(teal.r, teal.g, teal.b, 0.9), 10, 4.0, 0.25, 0.28)
+	FX.beam(fx_root, player.global_position + Vector3(0.0, 1.05, 0.0), bolt.global_position + dir * 3.0, Color(teal.r, teal.g, teal.b, 0.4), 0.08, 0.12)
+
+
+## Shadow Huntress: five arrows in a fan.
+func _fan_of_arrows(ability: Dictionary, aim: Vector3) -> void:
+	var dir := aim - player.global_position
+	dir.y = 0.0
+	if dir.length() < 0.2:
+		dir = Vector3(sin(player.facing), 0.0, cos(player.facing))
+	dir = dir.normalized()
+	var violet: Color = ability.get("color", Color(0.62, 0.5, 1.0))
+	for i in 5:
+		var angle := deg_to_rad(-26.0 + 13.0 * float(i))
+		var shot_dir := dir.rotated(Vector3.UP, angle)
+		var roll := player.roll_damage(float(ability.get("power", 15.0)))
+		var bolt := BloodBolt.new()
+		bolt.direction = shot_dir
+		bolt.speed = 38.0
+		bolt.damage = roll[0]
+		bolt.crit = roll[1]
+		bolt.pierce = 0
+		bolt.color = violet
+		fx_root.add_child(bolt)
+		bolt.global_position = player.global_position + Vector3(0.0, 1.05, 0.0) + shot_dir * 0.9
+		FX.burst(fx_root, bolt.global_position, Color(violet.r, violet.g, violet.b, 0.7), 6, 3.0, 0.2, 0.22)
+	FX.ring(fx_root, player.global_position, Color(violet.r, violet.g, violet.b, 0.5), 1.6, 0.25, 0.05)
+
+
+## Shadow Huntress: slip through the seam toward the cursor, then sharpen.
+func _shade_step(ability: Dictionary, aim: Vector3) -> void:
+	var dir := aim - player.global_position
+	dir.y = 0.0
+	if dir.length() < 0.3:
+		dir = Vector3(sin(player.facing), 0.0, cos(player.facing))
+	dir = dir.normalized()
+	var from := player.global_position
+	var max_dist := float(ability.get("radius", 6.5))
+	var landing := from
+	var steps := 14
+	for i in range(1, steps + 1):
+		var probe := from + dir * (max_dist * float(i) / float(steps))
+		if walkable.has(_world_to_cell(probe)):
+			landing = probe
+	player.teleport_to(landing)
+	player.invulnerable = maxf(player.invulnerable, 0.18)
+	player.apply_crit_window(0.25, 3.0)
+	var violet: Color = ability.get("color", Color(0.5, 0.42, 1.0))
+	FX.burst(fx_root, from + Vector3(0.0, 1.0, 0.0), Color(violet.r, violet.g, violet.b, 0.85), 18, 4.0, 0.4, 0.45)
+	FX.burst(fx_root, landing + Vector3(0.0, 1.0, 0.0), Color(violet.r, violet.g, violet.b, 0.9), 18, 4.0, 0.4, 0.45)
+	FX.ring(fx_root, landing, Color(violet.r, violet.g, violet.b, 0.7), 1.8, 0.35, 0.05)
+	FX.shards(fx_root, from, Color(violet.r, violet.g, violet.b, 0.8), 9, 1.1, 1.6, 0.4)
+	FX.shards(fx_root, landing, Color(violet.r, violet.g, violet.b, 0.95), 11, 1.4, 2.0, 0.45)
+	var trail := from
+	for i in 6:
+		trail = trail.lerp(landing, 0.18)
+		FX.disc(fx_root, trail, Color(violet.r, violet.g, violet.b, 0.22), 0.55, 0.32, 0.03)
+
+
 func _on_player_damaged(amount: float) -> void:
 	hud.flash_damage(clampf(amount / 30.0, 0.25, 1.4))
 	_shake(clampf(amount / 26.0, 0.1, 0.6))
@@ -3327,10 +3911,12 @@ func _on_player_healed(amount: float) -> void:
 
 
 func _on_player_leveled(level: int) -> void:
+	player.passive_points += 1
+	player.passives_changed.emit()
 	play_sfx("pickup", -2.0, 0.02)
 	FX.nova(fx_root, player.global_position, Color(1.0, 0.82, 0.32, 1.0), 5.0)
 	FX.ring(fx_root, player.global_position, Color(1.0, 0.7, 0.25, 0.8), 4.0, 0.8, 0.05)
-	hud.toast("BLOOD AWAKENS  -  LEVEL %d" % level, Color(1.0, 0.84, 0.34), 2.2)
+	hud.toast("LEVEL %d  -  PASSIVE POINT" % level, Color(1.0, 0.84, 0.34), 2.2)
 	hud.set_level(player.level, player.xp, player.xp_to_next())
 
 
@@ -3379,7 +3965,8 @@ func _process(delta: float) -> void:
 	player.set_aim(_aim_point(mouse))
 	_update_move_input()
 	var costs: Array = [player.ability_cost(0), player.ability_cost(1), player.ability_cost(2)]
-	hud.set_cooldowns(player.cooldowns, player.dash_cooldown, player.health, costs)
+	var available := player.health if player.is_health_cost() else player.focus
+	hud.set_cooldowns(player.cooldowns, player.dash_cooldown, available, costs)
 	hud.set_bloodrush(player.bloodrush, player.bloodrush_timer / Player.BLOODRUSH_TIME)
 	hud.set_health(player.health, player.max_health, player.regen_now(), player.in_combat())
 	hud.set_level(player.level, player.xp, player.xp_to_next())
@@ -3396,6 +3983,7 @@ func _process(delta: float) -> void:
 		if flat_cam.distance_to(portal_disc.global_position) > 0.2:
 			portal_disc.look_at(flat_cam, Vector3.UP)
 	_update_camera(delta)
+	_update_prop_fade(delta)
 	_update_move_marker()
 	if not run_active or not player.alive:
 		mouse_held = false
@@ -3548,3 +4136,4 @@ func _on_hazard_exploded(at: Vector3) -> void:
 	hazards_alive = maxi(0, hazards_alive - 1)
 	play_sfx("lava", -3.0, 0.12)
 	_shake(0.25)
+
