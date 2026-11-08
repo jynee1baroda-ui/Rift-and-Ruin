@@ -33,6 +33,13 @@ const KINDS := {
 ## Mother, 18 the Iron Choir, 24 the Bone Tide, 30 the Drowning.
 const BOSS_ORDER := ["prophet", "brood", "nail", "tide", "drowning"]
 
+## Progression cadence. A broker floor every fifth layer, a warden every sixth,
+## and every thirtieth layer is both. These hold at every depth; RELEASE_LAYER
+## only marks the end of the first release's authored content, never a cap.
+const MERCHANT_EVERY := 5
+const BOSS_EVERY := 6
+const RELEASE_LAYER := 30
+
 const THEMES := [
 	{"name": "ASHEN CAUSEWAY", "density": 0.76, "rivers": 1, "pools": 1, "decor": 1.0, "layout": "causeway",
 		"fog": Color(0.10, 0.035, 0.05), "ambient": Color(0.30, 0.18, 0.22),
@@ -316,9 +323,11 @@ var coins := 0
 var merchant_npc: Node3D
 var merchant_area: Area3D
 var merchant_near := false
+var broker_shut := false
 var shop_offers: Array = []
 var shop_open := false
 var boss_enemy: Enemy
+var warden_pending := false
 var music_tracks: Array = []
 var boss_tracks: Array = []
 var music_boss := false
@@ -801,9 +810,12 @@ func _generate_floor() -> void:
 	camera.global_position = _camera_desired()
 	camera.look_at(camera_focus + Vector3(0.0, 1.0, 0.0), Vector3.UP)
 	var merchant_floor := _is_merchant_layer()
+	var warden_market := _is_warden_market()
+	warden_pending = warden_market
+	broker_shut = false
 	if merchant_floor:
 		_spawn_merchant()
-	else:
+	if not merchant_floor or warden_market:
 		_spawn_packs()
 	_spawn_embers()
 	hud.set_map_cells(walkable, bridge_cells, GRID)
@@ -812,7 +824,13 @@ func _generate_floor() -> void:
 	hud.set_relics(player.relics)
 	hud.set_boss("", 0.0, false)
 	hud.set_coins(coins)
-	if merchant_floor:
+	if warden_market:
+		hud.set_layer_info(layer, enemies.size(), total_enemies, kills)
+		hud.set_theme_name(String(theme.get("name", "RIFT")))
+		hud.set_status("THE BROKER WAITS  -  THE WARDEN STIRS")
+		hud.whisper(_layer_whisper())
+		play_music(true)
+	elif merchant_floor:
 		hud.set_layer_info(layer, 0, 0, kills)
 		hud.set_theme_name("THE ASHEN BAZAAR")
 		hud.set_status("NO HOSTILES  -  THE BROKER WAITS")
@@ -2215,7 +2233,9 @@ func _apply_rock_material(root: Node3D, scale_value: float) -> void:
 
 func _spawn_packs() -> void:
 	total_enemies = 0
-	var boss_floor := _is_boss_layer()
+	## On a warden market the warden is held back until the packs are dead, so
+	## the player meets the broker and prepares before the fight.
+	var boss_floor := _is_boss_layer() and not _is_warden_market()
 	var candidates: Array = []
 	for cell in walkable.keys():
 		if not walkable[cell]:
@@ -2247,15 +2267,25 @@ func _spawn_packs() -> void:
 			var cell := _nearby_walkable(center)
 			_spawn_enemy(_pick_kind(p == pack_count - 1), cell)
 	if boss_floor:
-		var boss_cell := _nearby_walkable(candidates[rng.randi() % candidates.size()])
-		var boss_index := clampi(layer / 6 - 1, 0, BOSS_ORDER.size() - 1)
-		var boss_kind := String(BOSS_ORDER[boss_index])
-		boss_enemy = _spawn_enemy(boss_kind, boss_cell)
-		for i in 2:
-			_spawn_enemy("brute", _nearby_walkable(boss_cell + Vector2i(rng.randi_range(-2, 2), rng.randi_range(-2, 2))))
+		_spawn_warden(_nearby_walkable(candidates[rng.randi() % candidates.size()]))
 	elif layer >= 2 and rng.randf() < 0.45:
 		_spawn_enemy("alpha", _nearby_walkable(candidates[rng.randi() % candidates.size()]))
 	total_enemies = enemies.size()
+
+
+## The warden for this depth. Past the fifth warden the roster cycles again at
+## a higher descent, so layers beyond 30 keep a distinct named boss instead of
+## repeating a plain copy of the same fight.
+func _spawn_warden(at_cell: Vector2i) -> Enemy:
+	var boss_index := maxi(0, layer / BOSS_EVERY - 1)
+	var cycle := boss_index / BOSS_ORDER.size()
+	var boss_kind := String(BOSS_ORDER[boss_index % BOSS_ORDER.size()])
+	boss_enemy = _spawn_enemy(boss_kind, at_cell)
+	if boss_enemy != null and cycle > 0:
+		boss_enemy.display_name = "%s · DESCENT %d" % [boss_enemy.display_name, cycle + 1]
+	for i in 2:
+		_spawn_enemy("brute", _nearby_walkable(at_cell + Vector2i(rng.randi_range(-2, 2), rng.randi_range(-2, 2))))
+	return boss_enemy
 
 
 func _nearby_walkable(center: Vector2i) -> Vector2i:
@@ -2279,7 +2309,7 @@ func _pick_kind(last_pack: bool) -> String:
 	if last_pack and roll < 0.28:
 		return "brute"
 	var table := ["wolf", "acolyte", "bat", "slinger", "crawler", "wolf", "acolyte"]
-	if _is_boss_layer() or layer % 6 == 5:
+	if _is_boss_layer() or _is_merchant_layer():
 		table = ["brute", "acolyte", "slinger", "wolf", "brute", "crawler", "acolyte"]
 	return String(table[rng.randi() % table.size()])
 
@@ -2692,6 +2722,10 @@ func _on_discard_requested() -> void:
 
 
 func _on_floor_cleared() -> void:
+	if warden_pending:
+		warden_pending = false
+		_rouse_warden()
+		return
 	hud.set_status("THE RIFT IS OPEN")
 	hud.toast("PACKS CLEARED", Color(1.0, 0.8, 0.35), 3.0)
 	player.heal(player.max_health * 0.2)
@@ -2709,6 +2743,26 @@ func _on_floor_cleared() -> void:
 
 func _farthest_cell() -> Vector2i:
 	return _portal_cell()
+
+
+## Called when a warden market's packs are dead: the broker has had its chance,
+## so the warden wakes at the far end of the floor.
+func _rouse_warden() -> void:
+	var at_cell := _nearest_walkable(_portal_cell())
+	broker_shut = true
+	_close_shop()
+	hud.hide_prompt()
+	var warden := _spawn_warden(at_cell)
+	boss_enemy = warden
+	total_enemies = enemies.size()
+	hud.set_layer_info(layer, enemies.size(), total_enemies, kills)
+	hud.set_status("THE WARDEN STIRS")
+	hud.toast("THE WARDEN STIRS", Color(1.0, 0.5, 0.2), 3.0)
+	play_music(true)
+	if warden != null:
+		FX.nova(fx_root, warden.global_position, Color(1.0, 0.3, 0.15, 1.0), 5.0)
+		FX.ring(fx_root, warden.global_position, Color(1.0, 0.45, 0.15, 0.8), 6.0, 0.8, 0.12)
+	_shake(0.5)
 
 
 func _open_portal(offer_boons := true) -> void:
@@ -2903,19 +2957,29 @@ func _apply_boon(key: String, record := true) -> String:
 
 
 func _is_merchant_layer() -> bool:
-	return layer % 6 == 5
+	return _is_merchant_layer_at(layer)
 
 
 func _is_boss_layer() -> bool:
-	return layer % 6 == 0
+	return _is_boss_layer_at(layer)
 
 
 func _is_merchant_layer_at(value: int) -> bool:
-	return value % 6 == 5
+	return value % MERCHANT_EVERY == 0
 
 
 func _is_boss_layer_at(value: int) -> bool:
-	return value % 6 == 0
+	return value % BOSS_EVERY == 0
+
+
+## Layers where the broker floor and the warden land together. The broker is
+## met first; the warden is only roused once the floor's packs are dead.
+func _is_warden_market_at(value: int) -> bool:
+	return _is_merchant_layer_at(value) and _is_boss_layer_at(value)
+
+
+func _is_warden_market() -> bool:
+	return _is_warden_market_at(layer)
 
 
 func _first_glb(dir_path: String) -> String:
@@ -3017,13 +3081,21 @@ func _on_merchant_range(body: Node, near: bool) -> void:
 		return
 	merchant_near = near
 	if near and not shop_open:
-		hud.show_prompt("E  -  TRADE WITH THE ASHEN BROKER")
+		if broker_shut:
+			hud.show_prompt("THE BROKER HAS SHUT THE STALL")
+		else:
+			hud.show_prompt("E  -  TRADE WITH THE ASHEN BROKER")
 	else:
 		hud.hide_prompt()
 
 
 func _open_shop() -> void:
 	if shop_open or merchant_npc == null or not run_active:
+		return
+	if broker_shut:
+		## On a warden market the stall closes the moment the fight starts, so
+		## trading can never happen inside a live boss encounter.
+		hud.toast("THE BROKER HAS SHUT THE STALL", Color(1.0, 0.5, 0.3), 2.0)
 		return
 	shop_open = true
 	hud.hide_prompt()
@@ -3038,7 +3110,10 @@ func _close_shop() -> void:
 func _on_shop_closed() -> void:
 	shop_open = false
 	if merchant_near:
-		hud.show_prompt("E  -  TRADE WITH THE ASHEN BROKER")
+		if broker_shut:
+			hud.show_prompt("THE BROKER HAS SHUT THE STALL")
+		else:
+			hud.show_prompt("E  -  TRADE WITH THE ASHEN BROKER")
 
 
 func _roll_shop_offers() -> void:
@@ -3149,12 +3224,18 @@ func _next_layer() -> void:
 	_save_record()
 	hud.flash_transition()
 	portal_active = false
+	var closed := layer
 	layer += 1
 	play_sfx("portal", -2.0, 0.02)
 	var level_before := player.level
 	player.heal(player.max_health * 0.3)
 	FX.nova(fx_root, player.global_position, Color(0.75, 0.3, 1.0, 1.0), 6.0)
 	_generate_floor()
+	if closed == RELEASE_LAYER:
+		## End of this release's authored run, not the end of the game: the
+		## cadence keeps going and the ladder still accepts the next layer.
+		hud.toast("LAYER %d CLEARED  ·  FIRST RELEASE COMPLETE" % closed, Color(1.0, 0.82, 0.4), 4.0)
+		hud.toast("THE RIFT DESCENDS FURTHER  ·  MORE LAYERS TO COME", Color(1.0, 0.55, 0.7), 4.0)
 	hud.toast("RIFT LAYER %d  ·  +%d%% ENEMY LIFE" % [layer, int(16.0 * float(layer - 1))], Color(1.0, 0.72, 0.3), 2.8)
 	if player.level > level_before:
 		hud.toast("BLOOD DEEPENS  ·  LEVEL %d" % player.level, Color(1.0, 0.58, 0.66), 2.4)
@@ -3340,16 +3421,25 @@ func _on_rift_enter(target_layer: int) -> void:
 
 func _open_rift_map() -> void:
 	var entries: Array = []
-	var count := THEMES.size()
-	for i in count:
-		var l := i + 1
+	## The ladder always shows this release's thirty layers, then keeps
+	## extending as the player climbs past them.
+	var count := maxi(RELEASE_LAYER, best_layer + 6)
+	## Keep the list readable on deep runs by showing a window around the
+	## player's deepest layer instead of every layer from one.
+	var first := 1
+	if count > 26:
+		first = maxi(1, mini(maxi(1, best_layer) - 8, count - 25))
+	var range_note := "" if first == 1 else "LAYERS %d-%d" % [first, first + 25]
+	for i in 26 if first > 1 else count:
+		var l := first + i
 		entries.append({
 			"layer": l,
-			"name": String(THEMES[i % THEMES.size()].get("name", "RIFT")),
-			"merchant": l % 6 == 5,
-			"boss": l % 6 == 0,
+			"name": String(THEMES[(l - 1) % THEMES.size()].get("name", "RIFT")),
+			"merchant": _is_merchant_layer_at(l),
+			"boss": _is_boss_layer_at(l),
+			"milestone": l == RELEASE_LAYER,
 		})
-	hud.show_rift_map(entries, layer, best_layer)
+	hud.show_rift_map(entries, layer, best_layer, range_note)
 
 
 func _restart_run() -> void:

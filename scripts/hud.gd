@@ -651,7 +651,7 @@ func _build_rift_map() -> void:
 	foot.add_child(rift_enter_btn)
 
 
-func show_rift_map(entries: Array, current_layer: int, deepest: int) -> void:
+func show_rift_map(entries: Array, current_layer: int, deepest: int, range_note := "") -> void:
 	if rift_map_panel == null:
 		return
 	if net_panel != null and net_panel.visible:
@@ -679,6 +679,8 @@ func show_rift_map(entries: Array, current_layer: int, deepest: int) -> void:
 		else:
 			right.add_child(row)
 	var legend := _label("THIS LAYER in gold   ·   CLEARED in violet   ·   AHEAD dim", 10, MUTED)
+	if not String(range_note).is_empty():
+		legend.text = "%s   ·   %s" % [legend.text, String(range_note)]
 	rift_map_body.add_child(legend)
 	rift_unlock = maxi(1, deepest + 1)
 	selected_rift = 0

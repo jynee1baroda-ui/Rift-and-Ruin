@@ -165,6 +165,11 @@ Three classes are playable: the Blood Sorceress (VESNA, vitae), the Iron Paladin
 - `FX.fault` is a spider crack of three kinked, tapering segments per branch rather than ten long beams from the centre.
 - Mob art: acolytes and slingers share a generated robed-cultist model with per-kind tint, and elites use a generated iron-husk brute with its own texture. Wolves, alphas, crawlers, bats and the two library wardens keep the curated kit models.
 
+## Progression cadence (fixed rules)
+- A broker floor lands every fifth layer (5, 10, 15, 20, 25, 30, 35...), a warden every sixth (6, 12, 18, 24, 30, 36...). `MERCHANT_EVERY`, `BOSS_EVERY` and `_is_merchant_layer_at` / `_is_boss_layer_at` in game.gd are the single source of truth, so the floors, the pack tables, the hazard rule, the music choice and the rift ladder cannot drift apart.
+- Every thirtieth layer is both: a warden market. The broker and the packs spawn, the warden is held back in `warden_pending`, and `_on_floor_cleared` rouses it at the far end of the floor once the packs are dead. That gives the required order - enter, fight, trade, then the warden - and the broker closes the stall (`broker_shut`) the moment the fight starts, so trading can never happen inside a live boss encounter.
+- `RELEASE_LAYER = 30` marks where the first release's authored content ends. It is not a cap: the warden roster cycles (`_spawn_warden` walks `BOSS_ORDER` with a `DESCENT n` suffix past the fifth), the ladder extends to `max(30, deepest + 6)`, and clearing 30 shows "FIRST RELEASE COMPLETE - THE RIFT DESCENDS FURTHER" before layer 31 loads normally.
+
 ## Attribution
 - Dungeon kit props and monsters: Summer curated `dungeon-dark-fantasy` collection (CC0 kit by SigilsVault; monsters Summer licence).
 - Blood Sorceress, rift gate, basalt rocks: Summer generated assets. Class concept portraits for the Blood Sorceress, Iron Paladin and Shadow Huntress are imported into `res://art/portraits/` from the project board.
