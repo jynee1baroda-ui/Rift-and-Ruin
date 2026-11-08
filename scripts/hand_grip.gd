@@ -78,17 +78,19 @@ static func build_hand(skeleton: Skeleton3D, left: bool, scale_hint: float, skin
 	var palm := Node3D.new()
 	palm.name = "Grip"
 	attach.add_child(palm)
-	## Imported rigs often carry the whole skeleton at centimetre scale (0.01),
-	## which shrinks anything parented to a hand a hundredfold - fingers and
-	## weapon alike. Cancel the skeleton's own scale so props are built at true
-	## model scale.
-	var bone_scale := skeleton.scale
-	if bone_scale.length_squared() < 0.0000001:
-		bone_scale = Vector3.ONE
+	## Imported rigs frequently park the whole skeleton under a centimetre
+	## scaled root (0.01) and compensate the body meshes with a 100x child
+	## scale. Anything hung off a bone inherits the 0.01 and renders a hundred
+	## times too small - fingers and weapons alike. Cancel the skeleton's full
+	## global scale so props are built at true size instead of guessing which
+	## node in the chain carries the conversion.
+	var world_scale := skeleton.global_transform.basis.get_scale()
+	if world_scale.length_squared() < 0.0000001:
+		world_scale = Vector3.ONE
 	palm.scale = Vector3(
-		1.0 / maxf(0.0001, bone_scale.x),
-		1.0 / maxf(0.0001, bone_scale.y),
-		1.0 / maxf(0.0001, bone_scale.z))
+		1.0 / maxf(0.0001, world_scale.x),
+		1.0 / maxf(0.0001, world_scale.y),
+		1.0 / maxf(0.0001, world_scale.z))
 	var unit := maxf(0.6, scale_hint)
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = skin
