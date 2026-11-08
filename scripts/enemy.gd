@@ -93,13 +93,14 @@ func setup(kind: Dictionary, model_scene: PackedScene, player: Player, path_call
 		model_root.add_child(inst)
 		anim = _find_animation_player(inst)
 		var tex_path := String(kind.get("texture", ""))
-		HandGrip.dress(inst, "", model_scale, kind.get("glove", Color(0.20, 0.17, 0.16)))
 		if not tex_path.is_empty() and ResourceLoader.exists(tex_path):
 			var body_mat := StandardMaterial3D.new()
 			body_mat.albedo_texture = load(tex_path)
 			body_mat.roughness = 0.82
 			body_mat.metallic = 0.12
 			body_mat.albedo_color = kind.get("tint", Color.WHITE)
+			## Only the imported body takes the texture: hands and weapon are
+			## built after this, so they keep their own materials.
 			for node in inst.find_children("*", "MeshInstance3D", true, false):
 				var piece := node as MeshInstance3D
 				if piece != null:
@@ -113,6 +114,7 @@ func setup(kind: Dictionary, model_scene: PackedScene, player: Player, path_call
 				model_root.scale = Vector3.ONE * model_scale
 		else:
 			model_root.scale = Vector3.ONE * model_scale
+		HandGrip.dress(inst, "", model_scale, kind.get("glove", Color(0.20, 0.17, 0.16)), String(kind.get("weapon", "")))
 	else:
 		_build_fallback_model()
 	_build_hp_bar()

@@ -17,15 +17,15 @@ const KINDS := {
 	"wolf": {"key": "wolf", "name": "Gloam Wolf", "file": "gloam-wolf.glb", "health": 46.0, "damage": 8.0, "speed": 5.0, "range": 2.0, "interval": 1.5, "windup": 0.45, "scale": 1.0},
 	"crawler": {"key": "crawler", "name": "Cave Crawler", "file": "cave-crawler.glb", "health": 30.0, "damage": 6.0, "speed": 5.6, "range": 1.5, "interval": 1.1, "windup": 0.3, "scale": 1.7},
 	"bat": {"key": "bat", "name": "Hollow Bat", "file": "hollow-bat.glb", "health": 24.0, "damage": 5.0, "speed": 6.4, "range": 1.7, "interval": 1.1, "windup": 0.25, "scale": 1.3},
-	"acolyte": {"key": "acolyte", "name": "Hushed Acolyte", "file": "res://art/generated/mob_acolyte/3d_1794101415355.glb", "texture": "res://art/generated/mob_acolyte/3d_1794101415355_texture_20250901.png", "height": 1.78, "health": 62.0, "damage": 10.0, "speed": 4.0, "range": 2.1, "interval": 1.8, "windup": 0.55},
-	"slinger": {"key": "slinger", "name": "Hushed Slinger", "file": "res://art/generated/mob_acolyte/3d_1794101415355.glb", "texture": "res://art/generated/mob_acolyte/3d_1794101415355_texture_20250901.png", "height": 1.62, "tint": Color(0.8, 0.6, 1.0), "health": 50.0, "damage": 7.0, "speed": 3.8, "range": 9.0, "interval": 2.4, "windup": 0.65, "ranged": true},
+	"acolyte": {"key": "acolyte", "name": "Hushed Acolyte", "file": "res://art/generated/mob_acolyte/3d_1794101415355.glb", "texture": "res://art/generated/mob_acolyte/3d_1794101415355_texture_20250901.png", "height": 1.78, "weapon": "staff", "health": 62.0, "damage": 10.0, "speed": 4.0, "range": 2.1, "interval": 1.8, "windup": 0.55},
+	"slinger": {"key": "slinger", "name": "Hushed Slinger", "file": "res://art/generated/mob_acolyte/3d_1794101415355.glb", "texture": "res://art/generated/mob_acolyte/3d_1794101415355_texture_20250901.png", "height": 1.62, "tint": Color(0.8, 0.6, 1.0), "weapon": "bow", "health": 50.0, "damage": 7.0, "speed": 3.8, "range": 9.0, "interval": 2.4, "windup": 0.65, "ranged": true},
 	"alpha": {"key": "alpha", "name": "Gloam Alpha", "file": "gloam-alpha.glb", "health": 120.0, "damage": 15.0, "speed": 5.6, "range": 2.3, "interval": 1.7, "windup": 0.5, "scale": 1.15, "elite": true},
-	"brute": {"key": "brute", "name": "Hushed Brute", "file": "res://art/generated/mob_brute/3d_f87c220079fb4f2b841accb2_1794101648136.glb", "texture": "res://art/generated/mob_brute/3d_f87c220079fb4f2b841accb2_1794101648136_texture_20250901.png", "height": 2.35, "health": 190.0, "damage": 22.0, "speed": 3.4, "range": 2.7, "interval": 2.4, "windup": 0.85, "elite": true, "tint": Color(1.0, 0.9, 0.82)},
-	"prophet": {"key": "prophet", "name": "The Hushed Prophet", "file": "hushed-prophet.glb", "health": 460.0, "damage": 24.0, "speed": 3.1, "range": 3.2, "interval": 2.6, "windup": 0.9, "scale": 1.05, "boss": true},
+	"brute": {"key": "brute", "name": "Hushed Brute", "file": "res://art/generated/mob_brute/3d_f87c220079fb4f2b841accb2_1794101648136.glb", "texture": "res://art/generated/mob_brute/3d_f87c220079fb4f2b841accb2_1794101648136_texture_20250901.png", "height": 2.35, "weapon": "cleaver", "health": 190.0, "damage": 22.0, "speed": 3.4, "range": 2.7, "interval": 2.4, "windup": 0.85, "elite": true, "tint": Color(1.0, 0.9, 0.82)},
+	"prophet": {"key": "prophet", "name": "The Hushed Prophet", "file": "hushed-prophet.glb", "weapon": "staff", "health": 460.0, "damage": 24.0, "speed": 3.1, "range": 3.2, "interval": 2.6, "windup": 0.9, "scale": 1.05, "boss": true},
 	"brood": {"key": "brood", "name": "The Brood Mother", "file": "brood-mother-boss.glb", "health": 520.0, "damage": 26.0, "speed": 3.3, "range": 3.6, "interval": 2.1, "windup": 0.75, "scale": 1.0, "boss": true},
-	"nail": {"key": "nail", "name": "The Iron Choir", "file": "res://art/generated/boss_iron_choir/3d_1794099354340.glb", "texture": "res://art/generated/boss_iron_choir/3d_1794099354340_texture_20250901.png", "health": 780.0, "damage": 34.0, "speed": 3.6, "range": 3.0, "interval": 2.2, "windup": 0.8, "height": 2.9, "boss": true, "tint": Color(0.86, 0.9, 1.0), "special": "slam"},
-	"tide": {"key": "tide", "name": "The Bone Tide", "file": "res://art/generated/boss_bone_tide/3d_1794099110423.glb", "texture": "res://art/generated/boss_bone_tide/3d_1794099110423_texture_20250901.png", "health": 980.0, "damage": 36.0, "speed": 4.5, "range": 2.6, "interval": 1.7, "windup": 0.6, "height": 2.2, "boss": true, "tint": Color(0.92, 1.0, 0.72), "special": "charge"},
-	"drowning": {"key": "drowning", "name": "The Drowning", "file": "res://art/generated/boss_drowning/3d_0f6dfebbc8f24bbeb98f1108_1794099728369.glb", "texture": "res://art/generated/boss_drowning/3d_0f6dfebbc8f24bbeb98f1108_1794099728369_texture_20250901.png", "health": 1480.0, "damage": 44.0, "speed": 3.4, "range": 4.0, "interval": 2.0, "windup": 0.8, "height": 3.2, "boss": true, "tint": Color(1.0, 0.3, 0.24), "special": "storm"},
+	"nail": {"key": "nail", "name": "The Iron Choir", "file": "res://art/generated/boss_iron_choir/3d_1794099354340.glb", "texture": "res://art/generated/boss_iron_choir/3d_1794099354340_texture_20250901.png", "weapon": "hammer", "health": 780.0, "damage": 34.0, "speed": 3.6, "range": 3.0, "interval": 2.2, "windup": 0.8, "height": 2.9, "boss": true, "tint": Color(0.86, 0.9, 1.0), "special": "slam"},
+	"tide": {"key": "tide", "name": "The Bone Tide", "file": "res://art/generated/boss_bone_tide/3d_1794099110423.glb", "texture": "res://art/generated/boss_bone_tide/3d_1794099110423_texture_20250901.png", "weapon": "spear", "health": 980.0, "damage": 36.0, "speed": 4.5, "range": 2.6, "interval": 1.7, "windup": 0.6, "height": 2.2, "boss": true, "tint": Color(0.92, 1.0, 0.72), "special": "charge"},
+	"drowning": {"key": "drowning", "name": "The Drowning", "file": "res://art/generated/boss_drowning/3d_0f6dfebbc8f24bbeb98f1108_1794099728369.glb", "texture": "res://art/generated/boss_drowning/3d_0f6dfebbc8f24bbeb98f1108_1794099728369_texture_20250901.png", "weapon": "trident", "health": 1480.0, "damage": 44.0, "speed": 3.4, "range": 4.0, "interval": 2.0, "windup": 0.8, "height": 3.2, "boss": true, "tint": Color(1.0, 0.3, 0.24), "special": "storm"},
 	"mirror": {"key": "mirror", "name": "THE MIRROR", "file": "", "health": 380.0, "damage": 11.0, "speed": 4.3, "range": 7.2, "interval": 1.9, "windup": 0.55, "scale": 1.0, "boss": true, "ranged": true, "aggro": 40.0},
 }
 
@@ -467,6 +467,7 @@ func _create_player() -> void:
 	var model := _class_model(character_class_id)
 	player.setup(model[0], float(model[1]), model[2])
 	player.set_class(character_class_id)
+	player.walkable_fn = Callable(self, "_is_walkable_world")
 	player.died.connect(_on_player_died)
 	player.damaged.connect(_on_player_damaged)
 	player.healed.connect(_on_player_healed)
@@ -494,8 +495,8 @@ func _apply_class_visuals() -> void:
 	if player == null:
 		return
 	var model := _class_model(character_class_id)
-	player.set_model(model[0], float(model[1]), model[2])
 	player.set_class(character_class_id)
+	player.set_model(model[0], float(model[1]), model[2])
 	if hud != null:
 		hud.apply_class(HeroClasses.definition(character_class_id))
 		hud.set_focus(player.focus, player.focus_max, player.focus_name, player.focus_color)
@@ -1428,6 +1429,19 @@ func _world_to_cell(point: Vector3) -> Vector2i:
 
 func _is_inside(cell: Vector2i) -> bool:
 	return cell.x >= 0 and cell.y >= 0 and cell.x < GRID and cell.y < GRID
+
+
+## Ground test used by the hero so a dash or a walk stops at the rim of the
+## basalt instead of carrying the character out over open lava.
+func _is_walkable_world(point: Vector3) -> bool:
+	if duel_mode:
+		return true
+	if walkable.is_empty():
+		return true
+	var cell := _world_to_cell(point)
+	if not _is_inside(cell):
+		return false
+	return walkable.get(cell, false)
 
 
 func _nearest_walkable(cell: Vector2i) -> Vector2i:

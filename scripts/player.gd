@@ -50,6 +50,12 @@ var relics: Array = []
 var dash_cooldown_base := 2.2
 var move_direct := Vector3.ZERO
 
+## Ground authority. The rift floor is basalt islands over lava, so the player
+## may only stand where the generator marked a cell walkable. The game installs
+## this on spawn; without it (duel plate, tests) movement is unconstrained.
+var walkable_fn := Callable()
+var walkable_radius := 0.5
+
 var alive := true
 var aim_point := Vector3.ZERO
 var path := PackedVector3Array()
@@ -138,6 +144,7 @@ func set_model(model_scene: PackedScene, model_scale := 1.35, tint := Color(0, 0
 
 
 func set_class(id: String) -> void:
+	var previous := class_id
 	class_id = id if HeroClasses.CLASSES.has(id) else "blood_sorceress"
 	class_data = HeroClasses.definition(class_id)
 	abilities = class_data.get("abilities", [])
@@ -151,6 +158,19 @@ func set_class(id: String) -> void:
 	health = max_health
 	health_changed.emit(health, max_health)
 	focus_changed.emit(focus, focus_max)
+	if previous != class_id:
+		## The model may already be in the scene, dressed for the previous
+		## class. Rebuild its hands and weapon so a Paladin is never left
+		## holding the Sorceress staff.
+		_redress()
+
+
+func _redress() -> void:
+	if model_root == null or model_root.get_child_count() == 0:
+		return
+	var inst := model_root.get_child(0)
+	HandGrip.undress(inst)
+	HandGrip.dress(inst, class_id, model_root.scale.x, class_data.get("glove", Color(0.24, 0.2, 0.2)))
 
 
 func set_passives(nodes: Array, points: int) -> void:
@@ -315,8 +335,7 @@ func _physics_process(delta: float) -> void:
 	if dash_time > 0.0:
 		dash_time -= delta
 		velocity = dash_direction * 30.0
-		move_and_slide()
-		_fix_height()
+		_step_grounded(delta)
 		moving = true
 		_face_direction(dash_direction, delta)
 		_update_anim(true)
@@ -346,8 +365,7 @@ func _physics_process(delta: float) -> void:
 	if not walking:
 		velocity.x = move_toward(velocity.x, 0.0, 45.0 * delta)
 		velocity.z = move_toward(velocity.z, 0.0, 45.0 * delta)
-	move_and_slide()
-	_fix_height()
+	_step_grounded(delta)
 	moving = walking
 	if not walking and cast_timer <= 0.0:
 		var aim_dir := aim_point - global_position
@@ -363,6 +381,44 @@ func _fix_height() -> void:
 	if global_position.y < -4.0:
 		global_position.y = 0.4
 		velocity.y = 0.0
+
+
+## Move, but never off the walkable stone. A step that would land on lava is
+## split into its axes so the hero slides along the rim instead of stopping
+## dead or dropping into the pit on a dash.
+func _step_grounded(delta: float) -> void:
+	if not walkable_fn.is_valid():
+		move_and_slide()
+		_fix_height()
+		return
+	var flat := Vector3(velocity.x, 0.0, velocity.z)
+	if flat.length_squared() < 0.0004:
+		move_and_slide()
+		_fix_height()
+		return
+	var lead := flat * delta * 2.5 + flat.normalized() * walkable_radius
+	if _ground_at(global_position + lead):
+		move_and_slide()
+		_fix_height()
+		return
+	var along_x := Vector3(lead.x, 0.0, 0.0)
+	var along_z := Vector3(0.0, 0.0, lead.z)
+	if absf(along_x.x) > 0.001 and _ground_at(global_position + along_x):
+		velocity.z = 0.0
+	elif absf(along_z.z) > 0.001 and _ground_at(global_position + along_z):
+		velocity.x = 0.0
+	else:
+		velocity.x = 0.0
+		velocity.z = 0.0
+		dash_time = 0.0
+	move_and_slide()
+	_fix_height()
+
+
+func _ground_at(point: Vector3) -> bool:
+	if not walkable_fn.is_valid():
+		return true
+	return bool(walkable_fn.call(point))
 
 
 func _face_direction(direction: Vector3, delta: float) -> void:
